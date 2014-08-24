@@ -14,7 +14,7 @@
 #endif
 
 static size_t addr_getoffset(void *p) {
-  return ((uintptr_t)p) % chunk_size;
+  return ((uintptr_t)p) % chunksize;
 }
 
 void* mmap_size(size_t size) {
@@ -39,17 +39,17 @@ static void unmap(void *p, size_t size) {
 }
 
 static void *chunk_create_slow(size_t n_chunks) {
-  size_t total_size = (1+n_chunks)*chunk_size - pagesize;
+  size_t total_size = (1+n_chunks)*chunksize - pagesize;
   void *m = mmap_size(total_size);
   //printf("%s:%d m=%p\n", __FILE__, __LINE__, m);
   size_t m_offset = addr_getoffset(m);
   //printf("%s:%d offset=%lu\n", __FILE__, __LINE__, m_offset);
-  size_t leading_useless = chunk_size-m_offset;
+  size_t leading_useless = chunksize-m_offset;
   //printf("%s:%d leading_useless=%lu\n", __FILE__, __LINE__, leading_useless);
   unmap(m, leading_useless);
   void *final_m = ((char*)m) + leading_useless;
   //printf("%s:%d unmapping %p + %lu\n", __FILE__, __LINE__, (char*)final_m + chunksize, m_offset-pagesize);
-  unmap((char*)final_m + n_chunks*chunk_size, m_offset - pagesize);
+  unmap((char*)final_m + n_chunks*chunksize, m_offset - pagesize);
   //printf("%s:%d returning %p\n", __FILE__, __LINE__, final_m);
   //((char*)final_m)[0] = '0';
   //((char*)final_m)[chunksize-1] = '0';
@@ -79,10 +79,10 @@ void *mmap_chunk_aligned_block(size_t n_chunks)
      * approach works most of the time.
      */
 
-  void * r = mmap_size(n_chunks*chunk_size);
+  void * r = mmap_size(n_chunks*chunksize);
   if (addr_getoffset(r)!=0) {
     // Do it the slow way.
-    unmap(r, n_chunks*chunk_size);
+    unmap(r, n_chunks*chunksize);
     return chunk_create_slow(n_chunks);
   } else {
     //printf("%s:%d returning %p\n", __FILE__, __LINE__, r);
@@ -92,7 +92,7 @@ void *mmap_chunk_aligned_block(size_t n_chunks)
 
 union chunk_union {
   union chunk_union *next;
-  char chunk_data[chunk_size];
+  char chunk_data[chunksize];
 };
 
 struct the_chunk_list { // Put these in a struct together so they'll be on the same cache line.
@@ -170,7 +170,7 @@ void test_chunk_create(void) {
     void *p = chunk_get_from_pool();
     assert(p);
     long pl = (long)p;
-    assert(pl%chunk_size == 0);
+    assert(pl%chunksize == 0);
   }
 }
 #endif

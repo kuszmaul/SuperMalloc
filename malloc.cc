@@ -1,6 +1,3 @@
-// Need malloc and free for the server benchmark.
-// We'll allocate 2MB aligned chunks.
-
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -53,7 +50,7 @@ struct chunk_info {
 void initialize_malloc(void) {
   const size_t n_elts = 1u<<27;
   const size_t alloc_size = n_elts * sizeof(chunk_info);
-  const size_t n_chunks   = ceil(alloc_size, chunk_size);
+  const size_t n_chunks   = ceil(alloc_size, chunksize);
   chunk_infos = (chunk_info*)mmap_chunk_aligned_block(n_chunks);
   assert(chunk_infos);
 }
@@ -63,10 +60,10 @@ static uint64_t chunk_number_of_address(void *a) {
   const bool print = false;
   if (print) printf(" a =%p\n", a);
   uint64_t au = (uint64_t)a;
-  uint64_t am = au&~(chunk_size-1);
+  uint64_t am = au&~(chunksize-1);
   if (print) printf(" am=0x%lx (%ld)\n", am, am);
   int64_t  ai = am;
-  int64_t  ac = ai/(int64_t)chunk_size; // want to shift witht he sign bit.
+  int64_t  ac = ai/(int64_t)chunksize; // want to shift witht he sign bit.
   if (print) printf(" ac=0x%lx\n", ac);
   int64_t off = (1ul<<26);
   if (print) printf(" of=0x%lx\n", off);
@@ -78,7 +75,7 @@ static uint64_t chunk_number_of_address(void *a) {
 
 
 union bitmap_chunk {
-    unsigned char data[chunk_size];
+    unsigned char data[chunksize];
     bitmap_chunk  *next;
 };
 struct bitmaps {
@@ -90,7 +87,7 @@ unsigned char *allocate_bitmap(uint64_t n_bits) {
   uint64_t n_bytes = ceil(n_bits, 8);
     // This should be done atomically, and can be broken up in an interesting way.
     if (bitmaps.bitmap_chunks == 0
-        || n_bytes + bitmaps.next_free_byte > chunk_size) {
+        || n_bytes + bitmaps.next_free_byte > chunksize) {
         // But this part can be factored out, since it's high-latency. If we end up with two of them, we should obtain our bitmap and free the new chunk.
         bitmap_chunk *c = (bitmap_chunk*)chunk_create();
         // then this must be done atomically, retesting that stuff
@@ -100,7 +97,7 @@ unsigned char *allocate_bitmap(uint64_t n_bits) {
         if (0) printf("created chunk %p\n", c);
     }
     // Then this can be done atomically, assuming that there are enough bytes.
-    if (n_bytes + bitmaps.next_free_byte > chunk_size) return 0; 
+    if (n_bytes + bitmaps.next_free_byte > chunksize) return 0; 
     uint64_t o = bitmaps.next_free_byte;
     bitmaps.next_free_byte += n_bytes;
     unsigned char *result = &bitmaps.bitmap_chunks->data[o];
@@ -141,14 +138,14 @@ static void test_bitmap(void) {
 // The way we link pages together is that we use the empty slot as the next pointer, so we point at the empty slot.
 
 void* huge_malloc(size_t size) {
-  size_t n_chunks = ceil(size, chunk_size);
+  size_t n_chunks = ceil(size, chunksize);
   void *c = mmap_chunk_aligned_block(n_chunks);
   size_t n_pages  = ceil(size, 4096);
   size_t usable_size = n_pages * 4096;
-  size_t n_to_unmap = n_chunks*chunk_size - usable_size;
+  size_t n_to_unmap = n_chunks*chunksize - usable_size;
   if (n_to_unmap > 0) {
     //printf("unmapping %p+%ld, %ld\n", c, n_pages*4096, n_to_unmap); 
-    int r = munmap((char*)c + n_pages*4096, n_chunks*chunk_size - usable_size);
+    int r = munmap((char*)c + n_pages*4096, n_chunks*chunksize - usable_size);
     assert(r==0);
   }
   uint64_t chunknum = chunk_number_of_address(c);
@@ -162,28 +159,28 @@ static void test_huge_malloc(void) {
   const bool print = false;
 
   void *a = huge_malloc(1);
-  assert((uint64_t)a % chunk_size==0);
+  assert((uint64_t)a % chunksize==0);
   uint64_t a_n = chunk_number_of_address(a);
   if (print) printf("a=%p c=0x%lx\n", a, a_n);
   assert(chunk_infos[a_n].bin_number == first_huge_bin_number);
   *(char*)a = 1;
 
   void *b = huge_malloc(2);
-  assert((uint64_t)b % chunk_size==0);
+  assert((uint64_t)b % chunksize==0);
   uint64_t b_n = chunk_number_of_address(b);
   if (print) printf("b=%p c=0x%lx diff=%ld\n", b, b_n, (char*)a-(char*)b);
   assert(a_n - b_n == 1);
   assert(chunk_infos[b_n].bin_number == first_huge_bin_number);
 
-  void *c = huge_malloc(2*chunk_size);
-  assert((uint64_t)c % chunk_size==0);
+  void *c = huge_malloc(2*chunksize);
+  assert((uint64_t)c % chunksize==0);
   uint64_t c_n = chunk_number_of_address(c);
   if (print) printf("c=%p diff=%ld\n", c, (char*)b-(char*)c);
   assert(b_n - c_n == 2);
   assert(chunk_infos[c_n].bin_number == first_huge_bin_number + 2 -1);
 
-  void *d = huge_malloc(2*chunk_size);
-  assert((uint64_t)d % chunk_size==0);
+  void *d = huge_malloc(2*chunksize);
+  assert((uint64_t)d % chunksize==0);
   uint64_t d_n = chunk_number_of_address(d);
   if (print) printf("d=%p\n", d);
   assert(c_n - d_n == 2);
@@ -234,7 +231,7 @@ static void add_chunk_to_bin(binnumber_t bin)
   uint64_t chunknum = chunk_number_of_address(c);
   chunk_infos[chunknum].bin_number = bin;
   page *p = (page*)c;
-  assert(chunk_size / pagesize == pointers_per_page); // this happens to be true.
+  assert(chunksize / pagesize == pointers_per_page); // this happens to be true.
   p->pop.page_count = pointers_per_page-2;
   p->pop.next_page_of_pages = NULL;
   for (uint64_t i = 0; i < pointers_per_page - 2; i++) {
