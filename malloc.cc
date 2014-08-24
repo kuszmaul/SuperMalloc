@@ -22,33 +22,18 @@ static uint64_t ceil(uint64_t a, uint64_t b) {
     
 static binnumber_t size_2_bin(size_t size)
 // Effect: Compute the bin number.
+//  Do this the simplest possible way for now.  There are some bit tricks to
+// calculate the sizes, but they probably don't make sense.
 {
-  if (size <= 8) {
-    return 0; // size 8 is bin 0.
-  } else if (size <= largest_small) {
-    // Do the fast calculation on small objects.
-    int n_zeros = __builtin_clzl(size-1);
-    int logbase = 61-n_zeros;
-    unsigned long base = 1ul<<logbase;
-    if (5*base >= size) {
-      return logbase*4 - 3; 
-    } else if (6*base >= size) {
-      return logbase*4 - 2;
-    } else if (7*base >= size) {
-        return logbase*4 - 1;
-    } else {
-      return logbase*4 - 0;
+  if (size < chunk_size) {
+    for (binnumber_t b = 0; b < first_huge_bin_number; b++) {
+      if (size <= static_bin_info[b].object_size) return b;
     }
-  } else if (size <= largest_large) {
-    for (binnumber_t bin = first_medium_bin_number;  true; bin++) {
-      assert(bin < first_huge_bin_number);
-      if (size <= static_bin_info[bin].object_size) {
-        return bin;
-      }
-    }
+    assert(0);
   } else {
-    // it's huge.
-    return first_huge_bin_number + ceil(size, chunk_size) -1;
+    uint64_t bin = first_huge_bin_number + ceil(size, pagesize);
+    assert(bin <= UINT32_MAX);
+    return bin;
   }
 }
 
@@ -237,9 +222,9 @@ static void test_huge_malloc(void) {
 
 union page;
 
-const uint64_t pointers_per_page = page_size/sizeof(page*);
+const uint64_t pointers_per_page = pagesize/sizeof(page*);
 
-const uint64_t n_slots_per_page = (page_size-64)/sizeof(uint64_t);
+const uint64_t n_slots_per_page = (pagesize-64)/sizeof(uint64_t);
 
 union page {
   struct page_in_use {
@@ -247,7 +232,7 @@ union page {
     uint64_t first_free_slot;
     page *next, *prev; // doubly linked list of pages with the same count
     union {
-      uint8_t data[page_size - 64];
+      uint8_t data[pagesize - 64];
       int64_t slots[n_slots_per_page];
     } __attribute__((aligned(64)));
   } piu;
@@ -256,7 +241,7 @@ union page {
     page   *next_page_of_pages;
     page   *pages[pointers_per_page-2];
   } pop;
-  uint8_t raw_data[page_size];
+  uint8_t raw_data[pagesize];
 };
   
 
@@ -273,7 +258,7 @@ static void add_chunk_to_bin(binnumber_t bin)
   uint64_t chunknum = chunk_number_of_address(c);
   chunk_infos[chunknum].bin_number = bin;
   page *p = (page*)c;
-  assert(chunk_size / page_size == pointers_per_page); // this happens to be true.
+  assert(chunk_size / pagesize == pointers_per_page); // this happens to be true.
   p->pop.page_count = pointers_per_page-2;
   p->pop.next_page_of_pages = NULL;
   for (uint64_t i = 0; i < pointers_per_page - 2; i++) {
@@ -306,10 +291,8 @@ static void init_page_of_bin(binnumber_t bin, page *p)
 {
   uint32_t objsize = static_bin_info[bin].object_size;
   p->piu.n_free_slots = static_bin_info[bin].objects_per_page;
-  assert(objsize%slot_size == 0);
-  uint64_t n_slots_per_object = objsize/slot_size; // this is a clean divide, since objsize%slot_size==0
-  p->piu.first_free_slot = 1*n_slots_per_object;
-  for (uint64_t i = n_slots_per_object; i < n_slots_per_page; i += n_slots_per_object) {
+  p->piu.first_free_slot = objsize;
+  for (uint64_t i = 0; i < n_slots_per_page; i += objsize) {
     p->piu.slots[i] = (i+1 < n_slots_per_page) ? i+1 : -1;
   }
 }

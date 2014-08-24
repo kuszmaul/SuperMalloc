@@ -39,7 +39,7 @@ static void unmap(void *p, size_t size) {
 }
 
 static void *chunk_create_slow(size_t n_chunks) {
-  size_t total_size = (1+n_chunks)*chunk_size - page_size;
+  size_t total_size = (1+n_chunks)*chunk_size - pagesize;
   void *m = mmap_size(total_size);
   //printf("%s:%d m=%p\n", __FILE__, __LINE__, m);
   size_t m_offset = addr_getoffset(m);
@@ -49,7 +49,7 @@ static void *chunk_create_slow(size_t n_chunks) {
   unmap(m, leading_useless);
   void *final_m = ((char*)m) + leading_useless;
   //printf("%s:%d unmapping %p + %lu\n", __FILE__, __LINE__, (char*)final_m + chunksize, m_offset-pagesize);
-  unmap((char*)final_m + n_chunks*chunk_size, m_offset - page_size);
+  unmap((char*)final_m + n_chunks*chunk_size, m_offset - pagesize);
   //printf("%s:%d returning %p\n", __FILE__, __LINE__, final_m);
   //((char*)final_m)[0] = '0';
   //((char*)final_m)[chunksize-1] = '0';
