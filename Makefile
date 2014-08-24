@@ -1,11 +1,11 @@
-C_CXX_FLAGS = -W -Wall -Werror -O0 -g -pthread -fPIC
+C_CXX_FLAGS = -W -Wall -Werror -O0 -g -pthread -fPIC -mrtm
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 
 malloc: CPPFLAGS+=-DTESTING
 malloc: malloc.o makehugepage.o rng.o print.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
-ATOMICALLY_H = atomically.h rng.h rtm.h
+ATOMICALLY_H = atomically.h rng.h
 generated_constants.h: objsizes
 	./$< > $@
 makehugepage.o: makehugepage.h $(ATOMICALLY_H) print.h generated_constants.h

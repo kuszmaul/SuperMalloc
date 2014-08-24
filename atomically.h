@@ -3,9 +3,9 @@
 
 #include <sched.h>
 #include <stdbool.h>
+#include <immintrin.h>
 
 #include "rng.h"
-#include "rtm.h"
 
 
 #ifdef __cplusplus
