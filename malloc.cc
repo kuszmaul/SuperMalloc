@@ -49,17 +49,11 @@ static uint64_t chunk_number_of_address(void *a) {
   const bool print = false;
   if (print) printf(" a =%p\n", a);
   uint64_t au = (uint64_t)a;
-  uint64_t am = au&~(chunksize-1);
-  if (print) printf(" am=0x%lx (%ld)\n", am, am);
-  int64_t  ai = am;
-  int64_t  ac = ai/(int64_t)chunksize; // want to shift witht he sign bit.
-  if (print) printf(" ac=0x%lx\n", ac);
-  int64_t off = (1ul<<26);
-  if (print) printf(" of=0x%lx\n", off);
-  int64_t result = ac+off;
-  if (print) printf(" rs=0x%lx\n", result);
-  assert(result >= 0 && result < 1u<<27);
-  return (uint64_t)result;
+  uint64_t am = au/chunksize;
+  if (print) printf(" am=0%lo (0x%lx)\n", am, am);
+  uint64_t result = am%(1ul<<27);
+  if (print) printf(" result=0%lo 0x%lx\n", result, result);
+  return result;
 }
 
 
@@ -175,10 +169,20 @@ static void test_huge_malloc(void) {
   assert(c_n - d_n == 2);
   assert(chunk_infos[d_n].bin_number == first_huge_bin_number + 2 -1);
 
-  uint64_t m1_n = chunk_number_of_address((void*)-1ul);
-  if (print) printf("-1 ==> 0x%lx (1<<27)-1=%lx\n", m1_n, (1ul<<26)-1);
-  assert(m1_n == (1ul<<26)-1);
-  if (print) printf("-1 ==> 0x%lx\n", m1_n);
+  {
+    uint64_t m1_n = chunk_number_of_address((void*)-1ul);
+    if (print) printf("-1 ==> 0x%lx (1<<27)-1=%lx\n", m1_n, (1ul<<26)-1);
+    assert(m1_n == (1ul<<27)-1);
+    if (print) printf("-1 ==> 0x%lx\n", m1_n);
+  }
+
+  {
+    uint64_t zero_n = chunk_number_of_address((void*)0);
+    if (print) printf("0 ==> 0x%lx (1<<27)-1=%lx\n", zero_n, (1ul<<26)-1);
+    assert(zero_n == 0);
+    if (print) printf("-1 ==> 0x%lx\n", zero_n);
+  }
+
 }
 #endif
 
