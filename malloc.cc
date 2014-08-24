@@ -16,27 +16,6 @@
 #include "makehugepage.h"
 #include "generated_constants.h"
 
-static uint64_t ceil(uint64_t a, uint64_t b) {
-  return (a+b-1)/b;
-}
-    
-static binnumber_t size_2_bin(size_t size)
-// Effect: Compute the bin number.
-//  Do this the simplest possible way for now.  There are some bit tricks to
-// calculate the sizes, but they probably don't make sense.
-{
-  if (size < chunk_size) {
-    for (binnumber_t b = 0; b < first_huge_bin_number; b++) {
-      if (size <= static_bin_info[b].object_size) return b;
-    }
-    assert(0);
-  } else {
-    uint64_t bin = first_huge_bin_number + ceil(size, pagesize);
-    assert(bin <= UINT32_MAX);
-    return bin;
-  }
-}
-
 #ifdef TESTING
 static void test_size_2_bin(void) {
     for (size_t i=8; i<=largest_large; i++) {

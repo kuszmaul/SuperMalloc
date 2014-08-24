@@ -57,23 +57,27 @@ static const struct { uint32_t object_size; uint32_t objects_per_page; } static_
  {1344,   3},  //    28         0
  {1984,   2},  //    29        64
 // large objects (page allocated):
+//  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].
+//  This introduces fragmentation.  This fragmentation doesn't matter much since it will be demapped. For sizes up to 1<<16 we waste the last potential object.
+//   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation
  {1ul<<12, 1}, //    30
  {1ul<<13, 1}, //    31
  {1ul<<14, 1}, //    32
  {1ul<<15, 1}, //    33
  {1ul<<16, 1}, //    34
- {1ul<<17, 1}, //    35
- {1ul<<18, 1}, //    36
- {1ul<<19, 1}, //    37
- {1ul<<20, 1}, //    38
+ {(1ul<<17)-4096, 1}, //  35  (reserve a page for the list of sizes)
+ {(1ul<<18)-4096, 1}, //  36  (reserve a page for the list of sizes)
+ {(1ul<<19)-4096, 1}, //  37  (reserve a page for the list of sizes)
+ {(1ul<<20)-4096, 1}, //  38  (reserve a page for the list of sizes)
+ {(1ul<<21)-4096, 1}, //  39  (reserve a page for the list of sizes)
 // huge objects (chunk allocated) start  at this size.
- {2097152, 1}};//  39
+ {2097152, 1}};//  40
 static const size_t largest_small         = 1984;
-static const size_t largest_large         = 1048576;
+static const size_t largest_large         = 1044480;
 static const size_t chunk_size            = 2097152;
 static const binnumber_t first_large_bin_number = 30;
-static const binnumber_t first_huge_bin_number   = 38;
-struct dynamic_bin_info {
+static const binnumber_t first_huge_bin_number   = 40;
+struct dynamic_small_bin_info {
   union {
     struct {
       void *b0[505];
@@ -110,8 +114,8 @@ struct dynamic_bin_info {
     void *b[3067];
   };
 };
-static int dynamic_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));
-static int dynamic_bin_offset(binnumber_t bin) {
+static int dynamic_small_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));
+static int dynamic_small_bin_offset(binnumber_t bin) {
   if (0) {
     switch(bin) {
       case 0: return 0;
@@ -150,5 +154,52 @@ static int dynamic_bin_offset(binnumber_t bin) {
     const static int offs[]={0, 505, 909, 1246, 1535, 1788, 1990, 2159, 2304, 2431, 2532, 2617, 2690, 2754, 2805, 2848, 2885, 2917, 2943, 2965, 2984, 3000, 3013, 3024, 3034, 3042, 3049, 3055, 3060, 3064};
     return offs[bin];
   }
+}
+
+static inline uint64_t ceil(uint64_t a, uint64_t b) { return (a+b-1)/b; }
+
+static binnumber_t size_2_bin(size_t size) __attribute((unused)) __attribute((const));
+static binnumber_t size_2_bin(size_t size) {
+  if (size <= 8) return 0;
+  if (size <= 10) return 1;
+  if (size <= 12) return 2;
+  if (size <= 14) return 3;
+  if (size <= 16) return 4;
+  if (size <= 20) return 5;
+  if (size <= 24) return 6;
+  if (size <= 28) return 7;
+  if (size <= 32) return 8;
+  if (size <= 40) return 9;
+  if (size <= 48) return 10;
+  if (size <= 56) return 11;
+  if (size <= 64) return 12;
+  if (size <= 80) return 13;
+  if (size <= 96) return 14;
+  if (size <= 112) return 15;
+  if (size <= 128) return 16;
+  if (size <= 160) return 17;
+  if (size <= 192) return 18;
+  if (size <= 224) return 19;
+  if (size <= 256) return 20;
+  if (size <= 320) return 21;
+  if (size <= 384) return 22;
+  if (size <= 448) return 23;
+  if (size <= 576) return 24;
+  if (size <= 640) return 25;
+  if (size <= 768) return 26;
+  if (size <= 960) return 27;
+  if (size <= 1344) return 28;
+  if (size <= 1984) return 29;
+  if (size <= (1u<<12)) return 30;
+  if (size <= (1u<<13)) return 31;
+  if (size <= (1u<<14)) return 32;
+  if (size <= (1u<<15)) return 33;
+  if (size <= (1u<<16)) return 34;
+  if (size <= (1u<<17)-4096) return 35;
+  if (size <= (1u<<18)-4096) return 36;
+  if (size <= (1u<<19)-4096) return 37;
+  if (size <= (1u<<20)-4096) return 38;
+  if (size <= (1u<<21)-4096) return 39;
+  return 39 + ceil(size-2097152, 4096);
 }
 #endif

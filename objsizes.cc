@@ -69,22 +69,30 @@ class2:
     static_bins.push_back(b);
   }
   printf("// large objects (page allocated):\n");
+  printf("//  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].\n");
+  uint32_t largest_waste_at_end = log_chunksize - 5;
+  printf("//  This introduces fragmentation.  This fragmentation doesn't matter much since it will be demapped. For sizes up to 1<<%d we waste the last potential object.\n", largest_waste_at_end);
+  printf("//   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation\n");
   int first_large_bin = bin;
-  for (uint64_t log_allocsize = 12; log_allocsize < log_chunksize; log_allocsize++) {
-    printf(" {1ul<<%2ld, 1}, //   %3d\n", log_allocsize, bin++);
+  for (uint64_t log_allocsize = 12; log_allocsize <= log_chunksize; log_allocsize++) {
+    if (log_allocsize <= largest_waste_at_end) {
+      printf(" {1ul<<%2ld, 1}, //   %3d\n", log_allocsize, bin++);
+    } else {
+      printf(" {(1ul<<%ld)-%ld, 1}, // %3d  (reserve a page for the list of sizes)\n", log_allocsize, pagesize, bin++);
+    }
   }
-  int first_huge_bin = bin-1;
+  int first_huge_bin = bin;
   printf("// huge objects (chunk allocated) start  at this size.\n");
   printf(" {%ld, 1}};// %3d\n", chunksize, bin++);
   printf("static const size_t largest_small         = %lu;\n", largest_small);
-  printf("static const size_t largest_large         = %lu;\n", 1ul<<(log_chunksize-1));
+  printf("static const size_t largest_large         = %lu;\n", (1ul<<(log_chunksize-1))-pagesize);
   printf("static const size_t chunk_size            = %lu;\n", 1ul<<log_chunksize);
   printf("static const binnumber_t first_large_bin_number = %u;\n", first_large_bin);
   printf("static const binnumber_t first_huge_bin_number   = %u;\n", first_huge_bin);
   //  printf("static const uint64_t    slot_size               = %u;\n", slot_size);
   
 
-  printf("struct dynamic_bin_info {\n");
+  printf("struct dynamic_small_bin_info {\n");
   printf("  union {\n");
   printf("    struct {\n");
   {
@@ -98,8 +106,8 @@ class2:
   }
   printf("  };\n");
   printf("};\n");
-  printf("static int dynamic_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));\n");
-  printf("static int dynamic_bin_offset(binnumber_t bin) {\n");
+  printf("static int dynamic_small_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));\n");
+  printf("static int dynamic_small_bin_offset(binnumber_t bin) {\n");
   printf("  if (0) {\n");
   printf("    switch(bin) {\n");
   {
@@ -125,6 +133,25 @@ class2:
   printf("    return offs[bin];\n");
   printf("  }\n");
   printf("}\n");
+
+  printf("\nstatic inline uint64_t ceil(uint64_t a, uint64_t b) { return (a+b-1)/b; }\n\n");
+
+  printf("static binnumber_t size_2_bin(size_t size) __attribute((unused)) __attribute((const));\n");
+  printf("static binnumber_t size_2_bin(size_t size) {\n");
+  for (int b = 0; b < first_large_bin; b++) {
+    printf("  if (size <= %d) return %d;\n", static_bins[b].object_size, b);
+  }
+  for (int b = first_large_bin; b < first_huge_bin; b++) {
+    uint32_t log_allocsize = b-first_large_bin+12;
+    if (log_allocsize <= largest_waste_at_end) {
+      printf("  if (size <= (1u<<%d)) return %d;\n", log_allocsize, b);
+    } else {
+      printf("  if (size <= (1u<<%d)-%ld) return %d;\n", log_allocsize, pagesize, b);
+    }
+  }
+  printf("  return %u + ceil(size-%lu, %lu);\n", first_huge_bin-1, chunksize, pagesize);
+  printf("}\n");
+
   printf("#endif\n");
   return 0;
 }
