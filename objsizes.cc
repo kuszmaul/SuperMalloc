@@ -30,6 +30,10 @@ int main () {
   printf("//  Larger bin numbers B indicate the object size, coded as\n");
   printf("//     malloc_usable_size(object) = page_size*(bin_of(object)-first_huge_bin_number;\n");
   printf("typedef uint32_t binnumber_t;\n");
+
+  struct static_bin_t { uint32_t object_size; uint32_t objects_per_page; };
+  std::vector<static_bin_t> static_bins;
+
   printf("static const struct { uint32_t object_size; uint32_t objects_per_page; } static_bin_info[] __attribute__((unused)) = {\n");
   printf("// The first class of small objects have sizes of the form c<<k where c is 4, 5, 6 or 7.\n");
   printf("//   objsize objects_per_page   bin   wastage\n");
@@ -38,39 +42,73 @@ int main () {
   uint64_t prev_size = 0;
   for (uint64_t k = 8; 1; k*=2) {
     for (uint64_t c = 4; c <= 7; c++) {
-      uint64_t objsize = (c*k)/4;
-      uint64_t n_objects_per_page = (pagesize-overhead)/objsize;
+      uint32_t objsize = (c*k)/4;
+      uint32_t n_objects_per_page = (pagesize-overhead)/objsize;
       if (n_objects_per_page <= 12) goto class2;
       prev_size = objsize;
       uint64_t wasted = pagesize - overhead - n_objects_per_page * objsize;
-      printf(" {%4lu, %3lu},  //   %3d     %3ld\n", objsize, n_objects_per_page,  bin++, wasted);
+      printf(" {%4u, %3u},  //   %3d     %3ld\n", objsize, n_objects_per_page,  bin++, wasted);
+      struct static_bin_t b = {objsize, n_objects_per_page};
+      static_bins.push_back(b);
     }
   }
 class2:
   uint64_t largest_small;
   printf("// Class 2 small objects are chosen to fit as many in a page as can fit.\n");
   printf("// Class 2 objects are always a multiple of a cache line.\n");
-  for(uint64_t n_objects_per_page = 12; n_objects_per_page > 1; n_objects_per_page--) {
-    uint64_t objsize = ((pagesize-overhead)/n_objects_per_page) & ~(linesize-1);
+  for(uint32_t n_objects_per_page = 12; n_objects_per_page > 1; n_objects_per_page--) {
+    uint32_t objsize = ((pagesize-overhead)/n_objects_per_page) & ~(linesize-1);
     if (objsize <= prev_size) continue;
     prev_size = objsize;
     uint64_t wasted  = pagesize - overhead - n_objects_per_page * objsize;
     largest_small = objsize;
-    printf(" {%4lu, %3lu},  //   %3d       %3ld\n", objsize, n_objects_per_page, bin++, wasted);
+    printf(" {%4u, %3u},  //   %3d       %3ld\n", objsize, n_objects_per_page, bin++, wasted);
+    struct static_bin_t b = {objsize, n_objects_per_page};
+    static_bins.push_back(b);
   }
   printf("// large objects (page allocated):\n");
   int first_large_bin = bin;
   for (uint64_t log_allocsize = 12; log_allocsize < log_chunksize; log_allocsize++) {
     printf(" {1ul<<%2ld, 1}, //   %3d\n", log_allocsize, bin++);
   }
+  int first_huge_bin = bin-1;
   printf("// huge objects (chunk allocated) start  at this size.\n");
   printf(" {%ld, 1}};// %3d\n", chunksize, bin++);
   printf("static const size_t largest_small         = %lu;\n", largest_small);
   printf("static const size_t largest_large         = %lu;\n", 1ul<<(log_chunksize-1));
   printf("static const size_t chunk_size            = %lu;\n", 1ul<<log_chunksize);
   printf("static const binnumber_t first_large_bin_number = %u;\n", first_large_bin);
-  printf("static const binnumber_t first_huge_bin_number   = %u;\n", bin-1);
+  printf("static const binnumber_t first_huge_bin_number   = %u;\n", first_huge_bin);
   //  printf("static const uint64_t    slot_size               = %u;\n", slot_size);
+  
+
+  printf("struct dynamic_bin_info {\n");
+  printf("  union {\n");
+  printf("    struct {\n");
+  {
+    int count = 0;
+    for (int b = 0; b < first_large_bin;  b++ ) {
+      printf("      void *b%d[%d];\n", b, static_bins[b].objects_per_page+1);
+      count += static_bins[b].objects_per_page+1;
+    }
+    printf("    };\n");
+    printf("    void *b[%d];\n", count);
+  }
+  printf("  };\n");
+  printf("};\n");
+  printf("static int dynamic_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));\n");
+  printf("static int dynamic_bin_offset(binnumber_t bin) {\n");
+  printf("  switch(bin) {\n");
+  {
+    int count = 0;
+    for (int b = 0; b < first_large_bin;  b++ ) {
+      printf("    case %d: return %d;\n", b, count);
+      count += static_bins[b].objects_per_page+1;
+    }
+  }
+  printf("  }\n");
+  printf("  abort(); // cannot get here.\n");
+  printf("}\n");
   printf("#endif\n");
   return 0;
 }

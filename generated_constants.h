@@ -70,5 +70,78 @@ static const size_t largest_small         = 1984;
 static const size_t largest_large         = 1048576;
 static const size_t chunk_size            = 2097152;
 static const binnumber_t first_large_bin_number = 30;
-static const binnumber_t first_huge_bin_number   = 39;
+static const binnumber_t first_huge_bin_number   = 38;
+struct dynamic_bin_info {
+  union {
+    struct {
+      void *b0[505];
+      void *b1[404];
+      void *b2[337];
+      void *b3[289];
+      void *b4[253];
+      void *b5[202];
+      void *b6[169];
+      void *b7[145];
+      void *b8[127];
+      void *b9[101];
+      void *b10[85];
+      void *b11[73];
+      void *b12[64];
+      void *b13[51];
+      void *b14[43];
+      void *b15[37];
+      void *b16[32];
+      void *b17[26];
+      void *b18[22];
+      void *b19[19];
+      void *b20[16];
+      void *b21[13];
+      void *b22[11];
+      void *b23[10];
+      void *b24[8];
+      void *b25[7];
+      void *b26[6];
+      void *b27[5];
+      void *b28[4];
+      void *b29[3];
+    };
+    void *b[3067];
+  };
+};
+static int dynamic_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));
+static int dynamic_bin_offset(binnumber_t bin) {
+  switch(bin) {
+    case 0: return 0;
+    case 1: return 505;
+    case 2: return 909;
+    case 3: return 1246;
+    case 4: return 1535;
+    case 5: return 1788;
+    case 6: return 1990;
+    case 7: return 2159;
+    case 8: return 2304;
+    case 9: return 2431;
+    case 10: return 2532;
+    case 11: return 2617;
+    case 12: return 2690;
+    case 13: return 2754;
+    case 14: return 2805;
+    case 15: return 2848;
+    case 16: return 2885;
+    case 17: return 2917;
+    case 18: return 2943;
+    case 19: return 2965;
+    case 20: return 2984;
+    case 21: return 3000;
+    case 22: return 3013;
+    case 23: return 3024;
+    case 24: return 3034;
+    case 25: return 3042;
+    case 26: return 3049;
+    case 27: return 3055;
+    case 28: return 3060;
+    case 29: return 3064;
+  }
+  abort(); // cannot get here.
+}
 #endif
