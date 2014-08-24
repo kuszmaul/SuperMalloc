@@ -34,18 +34,7 @@ static void test_size_2_bin(void) {
 }
 #endif
 
-
-
-
-// We keep a table of all the chunks for record keeping.
-// Since the chunks are 2MB and the current address space of x86_64 processors is only 48 bits (256 TiB) \cite[p.120]{AMD12b}
-// that means there can be at most 2^{27} chunks (that's 128 million chunks.)   We simply allocate a direct-mapped table for them all.
-// We take the chunk's beginning address P, shift it as P>>21 in a sign-extended fashion.  Then add 2^26 and we have a table.
-// Most of this table won't end up mapped.
-
-struct chunk_info {
-  uint32_t bin_number; // encodes how big the objects are in the chunk.
-} *chunk_infos; // I want this to be an array of length [1u<<27], but that causes link-time errors.
+struct chunk_info *chunk_infos;
 
 void initialize_malloc(void) {
   const size_t n_elts = 1u<<27;
