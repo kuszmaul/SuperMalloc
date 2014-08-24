@@ -69,14 +69,13 @@ static const struct { uint32_t object_size; uint32_t objects_per_page; } static_
  {(1ul<<18)-4096, 1}, //  36  (reserve a page for the list of sizes)
  {(1ul<<19)-4096, 1}, //  37  (reserve a page for the list of sizes)
  {(1ul<<20)-4096, 1}, //  38  (reserve a page for the list of sizes)
- {(1ul<<21)-4096, 1}, //  39  (reserve a page for the list of sizes)
 // huge objects (chunk allocated) start  at this size.
- {2097152, 1}};//  40
+ {2097152, 1}};//  39
 static const size_t largest_small         = 1984;
 static const size_t largest_large         = 1044480;
 static const size_t chunk_size            = 2097152;
 static const binnumber_t first_large_bin_number = 30;
-static const binnumber_t first_huge_bin_number   = 40;
+static const binnumber_t first_huge_bin_number   = 39;
 struct dynamic_small_bin_info {
   union {
     struct {
@@ -199,7 +198,6 @@ static binnumber_t size_2_bin(size_t size) {
   if (size <= (1u<<18)-4096) return 36;
   if (size <= (1u<<19)-4096) return 37;
   if (size <= (1u<<20)-4096) return 38;
-  if (size <= (1u<<21)-4096) return 39;
-  return 39 + ceil(size-2097152, 4096);
+  return 38 + ceil(size-1044480, 4096);
 }
 #endif

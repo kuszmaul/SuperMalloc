@@ -26,17 +26,14 @@ static void test_size_2_bin(void) {
         else assert(g==0 && i==8);
     }
     assert(size_2_bin(largest_large+1) == first_huge_bin_number);
-    assert(size_2_bin(chunk_size) == first_huge_bin_number);
-    assert(size_2_bin(chunk_size+1) == 1+first_huge_bin_number);
-    assert(size_2_bin(chunk_size*2) == 1+first_huge_bin_number);
-    assert(size_2_bin(chunk_size*2+1) == 2+first_huge_bin_number);
-    assert(size_2_bin(chunk_size*3) == 2+first_huge_bin_number);
-    assert(size_2_bin(chunk_size*3+1) == 3+first_huge_bin_number);
+    assert(size_2_bin(largest_large+4096) == first_huge_bin_number);
+    assert(size_2_bin(largest_large+4096+1) == 1+first_huge_bin_number);
 
-    //    // Verify that all the medium bins are multiples of slots_size.
-    //    for (binnumber_t b = first_medium_bin_number; b < first_large_bin_number; b++) {
-    //      assert(static_bin_info[b].object_size % slot_size == 0);
-    //    }
+    // Verify that all the bins that are 256 or larger are multiples of a cache line.
+    for (binnumber_t i = 0; i <= first_huge_bin_number; i++) {
+      size_t os = static_bin_info[i].object_size;
+      assert(os < 256 || os%64 == 0);
+    }
 }
 #endif
 

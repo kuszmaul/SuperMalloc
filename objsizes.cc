@@ -74,7 +74,7 @@ class2:
   printf("//  This introduces fragmentation.  This fragmentation doesn't matter much since it will be demapped. For sizes up to 1<<%d we waste the last potential object.\n", largest_waste_at_end);
   printf("//   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation\n");
   int first_large_bin = bin;
-  for (uint64_t log_allocsize = 12; log_allocsize <= log_chunksize; log_allocsize++) {
+  for (uint64_t log_allocsize = 12; log_allocsize < log_chunksize; log_allocsize++) {
     if (log_allocsize <= largest_waste_at_end) {
       printf(" {1ul<<%2ld, 1}, //   %3d\n", log_allocsize, bin++);
     } else {
@@ -85,7 +85,8 @@ class2:
   printf("// huge objects (chunk allocated) start  at this size.\n");
   printf(" {%ld, 1}};// %3d\n", chunksize, bin++);
   printf("static const size_t largest_small         = %lu;\n", largest_small);
-  printf("static const size_t largest_large         = %lu;\n", (1ul<<(log_chunksize-1))-pagesize);
+  const size_t largest_large = (1ul<<(log_chunksize-1))-pagesize;
+  printf("static const size_t largest_large         = %lu;\n", largest_large);
   printf("static const size_t chunk_size            = %lu;\n", 1ul<<log_chunksize);
   printf("static const binnumber_t first_large_bin_number = %u;\n", first_large_bin);
   printf("static const binnumber_t first_huge_bin_number   = %u;\n", first_huge_bin);
@@ -149,7 +150,7 @@ class2:
       printf("  if (size <= (1u<<%d)-%ld) return %d;\n", log_allocsize, pagesize, b);
     }
   }
-  printf("  return %u + ceil(size-%lu, %lu);\n", first_huge_bin-1, chunksize, pagesize);
+  printf("  return %u + ceil(size-%lu, %lu);\n", first_huge_bin-1, largest_large, pagesize);
   printf("}\n");
 
   printf("#endif\n");
