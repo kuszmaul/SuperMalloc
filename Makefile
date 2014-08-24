@@ -3,7 +3,7 @@ CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 
 malloc: CPPFLAGS+=-DTESTING
-malloc: malloc.o makehugepage.o rng.o print.o malloc_huge.o
+malloc: malloc.o makehugepage.o rng.o print.o huge_malloc.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
 ATOMICALLY_H = atomically.h rng.h
 objsizes: malloc_internal.h

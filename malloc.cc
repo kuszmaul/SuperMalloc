@@ -44,19 +44,6 @@ void initialize_malloc(void) {
   assert(chunk_infos);
 }
 
-static uint64_t chunk_number_of_address(void *a) {
-  // Given an address anywhere in a chunk, convert it to a chunk number from 0 to 1<<27
-  const bool print = false;
-  if (print) printf(" a =%p\n", a);
-  uint64_t au = (uint64_t)a;
-  uint64_t am = au/chunksize;
-  if (print) printf(" am=0%lo (0x%lx)\n", am, am);
-  uint64_t result = am%(1ul<<27);
-  if (print) printf(" result=0%lo 0x%lx\n", result, result);
-  return result;
-}
-
-
 union bitmap_chunk {
     unsigned char data[chunksize];
     bitmap_chunk  *next;
@@ -111,78 +98,6 @@ static void test_bitmap(void) {
     uint8_t *d = allocate_bitmap(1+(8ul<<21));
     if (print) printf("c 1+(8<<21)=%p\n", d);
     assert(d==0);
-}
-#endif
-
-
-// For each binned size, we need to maintain arrays of lists of pages.  The length of the array is the number of objects that fit into a page.
-//  The first list is pages that have one empty slot.  The second list is pages with two empty slots.  The third list is pages with
-//  three empty slots.
-// The way we link pages together is that we use the empty slot as the next pointer, so we point at the empty slot.
-
-void* huge_malloc(size_t size) {
-  size_t n_chunks = ceil(size, chunksize);
-  void *c = mmap_chunk_aligned_block(n_chunks);
-  size_t n_pages  = ceil(size, 4096);
-  size_t usable_size = n_pages * 4096;
-  size_t n_to_unmap = n_chunks*chunksize - usable_size;
-  if (n_to_unmap > 0) {
-    //printf("unmapping %p+%ld, %ld\n", c, n_pages*4096, n_to_unmap); 
-    int r = munmap((char*)c + n_pages*4096, n_chunks*chunksize - usable_size);
-    assert(r==0);
-  }
-  uint64_t chunknum = chunk_number_of_address(c);
-  assert(chunk_infos[chunknum].bin_number == 0);
-  chunk_infos[chunknum].bin_number = n_chunks + first_huge_bin_number - 1;
-  return c;
-}
-
-#ifdef TESTING
-static void test_huge_malloc(void) {
-  const bool print = false;
-
-  void *a = huge_malloc(1);
-  assert((uint64_t)a % chunksize==0);
-  uint64_t a_n = chunk_number_of_address(a);
-  if (print) printf("a=%p c=0x%lx\n", a, a_n);
-  assert(chunk_infos[a_n].bin_number == first_huge_bin_number);
-  *(char*)a = 1;
-
-  void *b = huge_malloc(2);
-  assert((uint64_t)b % chunksize==0);
-  uint64_t b_n = chunk_number_of_address(b);
-  if (print) printf("b=%p c=0x%lx diff=%ld\n", b, b_n, (char*)a-(char*)b);
-  assert(a_n - b_n == 1);
-  assert(chunk_infos[b_n].bin_number == first_huge_bin_number);
-
-  void *c = huge_malloc(2*chunksize);
-  assert((uint64_t)c % chunksize==0);
-  uint64_t c_n = chunk_number_of_address(c);
-  if (print) printf("c=%p diff=%ld\n", c, (char*)b-(char*)c);
-  assert(b_n - c_n == 2);
-  assert(chunk_infos[c_n].bin_number == first_huge_bin_number + 2 -1);
-
-  void *d = huge_malloc(2*chunksize);
-  assert((uint64_t)d % chunksize==0);
-  uint64_t d_n = chunk_number_of_address(d);
-  if (print) printf("d=%p\n", d);
-  assert(c_n - d_n == 2);
-  assert(chunk_infos[d_n].bin_number == first_huge_bin_number + 2 -1);
-
-  {
-    uint64_t m1_n = chunk_number_of_address((void*)-1ul);
-    if (print) printf("-1 ==> 0x%lx (1<<27)-1=%lx\n", m1_n, (1ul<<26)-1);
-    assert(m1_n == (1ul<<27)-1);
-    if (print) printf("-1 ==> 0x%lx\n", m1_n);
-  }
-
-  {
-    uint64_t zero_n = chunk_number_of_address((void*)0);
-    if (print) printf("0 ==> 0x%lx (1<<27)-1=%lx\n", zero_n, (1ul<<26)-1);
-    assert(zero_n == 0);
-    if (print) printf("-1 ==> 0x%lx\n", zero_n);
-  }
-
 }
 #endif
 

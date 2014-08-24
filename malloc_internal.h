@@ -13,6 +13,14 @@ static inline uint64_t ceil(uint64_t a, uint64_t b) {
   return (a+b-1)/b;
 }
 
+static inline uint64_t chunk_number_of_address(void *a) {
+  // Given an address anywhere in a chunk, convert it to a chunk number from 0 to 1<<27
+  uint64_t au = (uint64_t)a;
+  uint64_t am = au/chunksize;
+  uint64_t result = am%(1ul<<27);
+  return result;
+}
+
 // We keep a table of all the chunks for record keeping.
 // Since the chunks are 2MB and the current address space of x86_64 processors is only 48 bits (256 TiB) \cite[p.120]{AMD12b}
 // that means there can be at most 2^{27} chunks (that's 128 million chunks.)   We simply allocate a direct-mapped table for them all.
@@ -22,6 +30,12 @@ static inline uint64_t ceil(uint64_t a, uint64_t b) {
 extern struct chunk_info {
   uint32_t bin_number; // encodes how big the objects are in the chunk.
 } *chunk_infos; // I want this to be an array of length [1u<<27], but that causes link-time errors.  Instead initialize_malloc() mmaps something big enough.
+
+// Functions that are separated into various files.
+void* huge_malloc(uint64_t size);
+#ifdef TESTING
+void test_huge_malloc(void);
+#endif
 
 #endif
 
