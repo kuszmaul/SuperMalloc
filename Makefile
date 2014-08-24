@@ -6,13 +6,15 @@ malloc: CPPFLAGS+=-DTESTING
 malloc: malloc.o makehugepage.o rng.o print.o malloc_huge.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
 ATOMICALLY_H = atomically.h rng.h
-objsizes: malloc_constants.h
+objsizes: malloc_internal.h
 generated_constants.h: objsizes
 	./$< > $@
-makehugepage.o: makehugepage.h $(ATOMICALLY_H) print.h generated_constants.h malloc_constants.h
-malloc.o: makehugepage.h generated_constants.h malloc_constants.h
+makehugepage.o: makehugepage.h $(ATOMICALLY_H) print.h generated_constants.h malloc_internal.h
+malloc.o: makehugepage.h generated_constants.h malloc_internal.h
 rng.o: rng.h
 print.o: print.h
 check: malloc
 	./malloc
 t: generated_constants.h
+clean:
+	rm t malloc *.o
