@@ -14,3 +14,4 @@ rng.o: rng.h
 print.o: print.h
 check: malloc
 	./malloc
+t: generated_constants.h
