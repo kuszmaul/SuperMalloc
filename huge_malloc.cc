@@ -18,10 +18,13 @@ void* huge_malloc(size_t size) {
   void *c = mmap_chunk_aligned_block(n_chunks);
   size_t n_pages  = ceil(size, pagesize);
   size_t usable_size = n_pages * pagesize;
-  size_t n_to_unmap = n_chunks*chunksize - usable_size;
-  if (n_to_unmap > 0) {
-    int r = munmap((char*)c + n_pages*4096, n_chunks*chunksize - usable_size);
+  size_t n_to_demap = n_chunks*chunksize - usable_size;
+  if (n_to_demap > 0) {
+    int r = madvise((char*)c + n_pages*4096, n_chunks*chunksize - usable_size, MADV_DONTNEED);
     assert(r==0);
+  }
+  if (size/chunksize > 0) {
+    madvise(c, (size/chunksize)*chunksize, MADV_HUGEPAGE); // don't worry if we get an error code, this was just advice anyway.  It's not clear if the user really wants this.
   }
   uint64_t chunknum = chunk_number_of_address(c);
   assert(chunk_infos[chunknum].bin_number == 0);
