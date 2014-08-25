@@ -150,7 +150,7 @@ static void add_chunk_to_bin(binnumber_t bin)
 // Effect: Add a chunk to a bin (which is a non-huge bin).
 {
   void *c = chunk_create();
-  uint64_t chunknum = chunk_number_of_address(c);
+  chunknumber_t chunknum = address_2_chunknumber(c);
   chunk_infos[chunknum].bin_number = bin;
   page *p = (page*)c;
   assert(chunksize / pagesize == pointers_per_page); // this happens to be true.

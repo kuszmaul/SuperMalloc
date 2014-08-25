@@ -12,6 +12,8 @@ const uint64_t pagesize = 4096;
 const uint64_t log_chunksize = 21;
 const uint64_t chunksize = 1ul<<log_chunksize;
 
+// We exploit the fact that these are the same size in chunk_infos, which is a union of these two types.
+typedef uint32_t chunknumber_t;
 typedef uint32_t binnumber_t;
 
 static inline uint64_t ceil(uint64_t a, uint64_t b) {
@@ -36,7 +38,7 @@ static inline int lg_of_power_of_two(uint64_t a)
   return __builtin_ctz(a);
 }
 
-static inline uint64_t chunk_number_of_address(void *a) {
+static inline chunknumber_t address_2_chunknumber(void *a) {
   // Given an address anywhere in a chunk, convert it to a chunk number from 0 to 1<<27
   uint64_t au = (uint64_t)a;
   uint64_t am = au/chunksize;
@@ -51,7 +53,10 @@ static inline uint64_t chunk_number_of_address(void *a) {
 // Most of this table won't end up mapped.
 
 extern struct chunk_info {
-  uint32_t bin_number; // encodes how big the objects are in the chunk.
+  union {
+    binnumber_t bin_number;   // Encodes how big the objects are in the chunk.
+    chunknumber_t next; // Forms a linked list.
+  };
 } *chunk_infos; // I want this to be an array of length [1u<<27], but that causes link-time errors.  Instead initialize_malloc() mmaps something big enough.
 
 // Functions that are separated into various files.
@@ -60,8 +65,6 @@ void* huge_malloc(uint64_t size);
 void test_huge_malloc(void);
 #endif
 
-
-typedef uint32_t chunknumber_t;
 
 const unsigned int log_max_chunknumber = 27;
 const chunknumber_t null_chunknumber = 0;

@@ -23,7 +23,7 @@ void* get_power_of_two_n_chunks(size_t n_chunks)
   } else {
     // Do this atomically.
     chunknumber_t r = free_chunks[f];
-    free_chunks[f] = chunk_infos[r].bin_number;
+    free_chunks[f] = chunk_infos[r].next;
     return (void*)((uint64_t)r*chunksize);
   }
 }
@@ -50,9 +50,23 @@ void* huge_malloc(size_t size) {
     madvise((char *)c + (n_chunks-1)*chunksize, (n_pages*pagesize)%chunksize, MADV_NOHUGEPAGE);
     bin = size_2_bin(n_pages*pagesize);
   }
-  uint64_t chunknum = chunk_number_of_address(c);
+  chunknumber_t chunknum = address_2_chunknumber(c);
   chunk_infos[chunknum].bin_number = bin;
   return c;
+}
+
+void huge_free(void *m) {
+  chunknumber_t cn = address_2_chunknumber(m);
+  assert(cn!=0);
+  binnumber_t bin = chunk_infos[cn].bin_number;
+  uint64_t    siz = bin_2_size(bin);
+  uint64_t    hceil = hyperceil(siz);
+  uint32_t    hlog  = lg_of_power_of_two(hceil);
+  assert(hlog < log_max_chunknumber);
+  madvise(m, siz, MADV_DONTNEED);
+  // Do this atomically.
+  chunk_infos[cn].next = free_chunks[hlog];
+  free_chunks[hlog] = cn;
 }
 
 #ifdef TESTING
@@ -61,44 +75,44 @@ void test_huge_malloc(void) {
 
   void *a = huge_malloc(largest_large + 1);
   assert((uint64_t)a % chunksize==0);
-  uint64_t a_n = chunk_number_of_address(a);
-  if (print) printf("a=%p c=0x%lx\n", a, a_n);
+  chunknumber_t a_n = address_2_chunknumber(a);
+  if (print) printf("a=%p c=0x%x\n", a, a_n);
   assert(chunk_infos[a_n].bin_number == first_huge_bin_number);
   *(char*)a = 1;
 
   void *b = huge_malloc(largest_large + 2);
   assert((uint64_t)b % chunksize==0);
-  uint64_t b_n = chunk_number_of_address(b);
-  if (print) printf("b=%p c=0x%lx diff=%ld\n", b, b_n, (char*)a-(char*)b);
+  chunknumber_t b_n = address_2_chunknumber(b);
+  if (print) printf("b=%p c=0x%x diff=%ld\n", b, b_n, (char*)a-(char*)b);
   assert(a_n - b_n == 1);
   assert(chunk_infos[b_n].bin_number == first_huge_bin_number);
 
   void *c = huge_malloc(2*chunksize);
   assert((uint64_t)c % chunksize==0);
-  uint64_t c_n = chunk_number_of_address(c);
+  chunknumber_t c_n = address_2_chunknumber(c);
   if (print) printf("c=%p diff=%ld bin = %u\n", c, (char*)b-(char*)c, chunk_infos[c_n].bin_number);
   assert(b_n - c_n == 2);
   assert(chunk_infos[c_n].bin_number == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
 
   void *d = huge_malloc(2*chunksize);
   assert((uint64_t)d % chunksize==0);
-  uint64_t d_n = chunk_number_of_address(d);
+  chunknumber_t d_n = address_2_chunknumber(d);
   if (print) printf("d=%p\n", d);
   assert(c_n - d_n == 2);
   assert(chunk_infos[c_n].bin_number == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
 
   {
-    uint64_t m1_n = chunk_number_of_address((void*)-1ul);
-    if (print) printf("-1 ==> 0x%lx (1<<27)-1=%lx\n", m1_n, (1ul<<26)-1);
+    chunknumber_t m1_n = address_2_chunknumber((void*)-1ul);
+    if (print) printf("-1 ==> 0x%x (1<<27)-1=%lx\n", m1_n, (1ul<<26)-1);
     assert(m1_n == (1ul<<27)-1);
-    if (print) printf("-1 ==> 0x%lx\n", m1_n);
+    if (print) printf("-1 ==> 0x%x\n", m1_n);
   }
 
   {
-    uint64_t zero_n = chunk_number_of_address((void*)0);
-    if (print) printf("0 ==> 0x%lx (1<<27)-1=%lx\n", zero_n, (1ul<<26)-1);
+    chunknumber_t zero_n = address_2_chunknumber((void*)0);
+    if (print) printf("0 ==> 0x%x (1<<27)-1=%lx\n", zero_n, (1ul<<26)-1);
     assert(zero_n == 0);
-    if (print) printf("-1 ==> 0x%lx\n", zero_n);
+    if (print) printf("-1 ==> 0x%x\n", zero_n);
   }
 
 }
