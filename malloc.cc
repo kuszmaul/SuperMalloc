@@ -21,10 +21,22 @@ static void test_size_2_bin(void) {
         assert(i <= static_bin_info[g].object_size);
         if (g>0) assert(i > static_bin_info[g-1].object_size);
         else assert(g==0 && i==8);
+	size_t s = bin_2_size(g);
+	assert(s>=i);
+	assert(size_2_bin(s) == g);
     }
     assert(size_2_bin(largest_large+1) == first_huge_bin_number);
     assert(size_2_bin(largest_large+4096) == first_huge_bin_number);
     assert(size_2_bin(largest_large+4096+1) == 1+first_huge_bin_number);
+    assert(bin_2_size(first_huge_bin_number) == largest_large+4096);
+    assert(bin_2_size(first_huge_bin_number+1) == largest_large+4096*2);
+    assert(bin_2_size(first_huge_bin_number+2) == largest_large+4096*3);
+    for (int k = 0; k < 1000; k++) {
+      size_t s = chunksize * 10 + pagesize * k;
+      binnumber_t b = size_2_bin(s);
+      assert(size_2_bin(bin_2_size(b))==b);
+      assert(bin_2_size(size_2_bin(s))==s);
+    }
 
     // Verify that all the bins that are 256 or larger are multiples of a cache line.
     for (binnumber_t i = 0; i <= first_huge_bin_number; i++) {

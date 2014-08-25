@@ -56,15 +56,15 @@ static const struct { uint32_t object_size; uint32_t objects_per_page; } static_
 //  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].
 //  This introduces fragmentation.  This fragmentation doesn't matter much since it will be demapped. For sizes up to 1<<16 we waste the last potential object.
 //   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation
- {1ul<<12, 1}, //    30
- {1ul<<13, 1}, //    31
- {1ul<<14, 1}, //    32
- {1ul<<15, 1}, //    33
- {1ul<<16, 1}, //    34
- {(1ul<<17)-4096, 1}, //  35  (reserve a page for the list of sizes)
- {(1ul<<18)-4096, 1}, //  36  (reserve a page for the list of sizes)
- {(1ul<<19)-4096, 1}, //  37  (reserve a page for the list of sizes)
- {(1ul<<20)-4096, 1}, //  38  (reserve a page for the list of sizes)
+ {4096, 1}, //    30 
+ {8192, 1}, //    31 
+ {16384, 1}, //    32 
+ {32768, 1}, //    33 
+ {65536, 1}, //    34 
+ {126976, 1}, //    35  (reserve a page for the list of sizes)
+ {258048, 1}, //    36  (reserve a page for the list of sizes)
+ {520192, 1}, //    37  (reserve a page for the list of sizes)
+ {1044480, 1}, //    38  (reserve a page for the list of sizes)
 // huge objects (chunk allocated) start  at this size.
  {2097152, 1}};//  39
 static const size_t largest_small         = 1984;
@@ -181,15 +181,58 @@ static binnumber_t size_2_bin(size_t size) {
   if (size <= 960) return 27;
   if (size <= 1344) return 28;
   if (size <= 1984) return 29;
-  if (size <= (1u<<12)) return 30;
-  if (size <= (1u<<13)) return 31;
-  if (size <= (1u<<14)) return 32;
-  if (size <= (1u<<15)) return 33;
-  if (size <= (1u<<16)) return 34;
-  if (size <= (1u<<17)-4096) return 35;
-  if (size <= (1u<<18)-4096) return 36;
-  if (size <= (1u<<19)-4096) return 37;
-  if (size <= (1u<<20)-4096) return 38;
+  if (size <= 4096) return 30;
+  if (size <= 8192) return 31;
+  if (size <= 16384) return 32;
+  if (size <= 32768) return 33;
+  if (size <= 65536) return 34;
+  if (size <= 126976) return 35;
+  if (size <= 258048) return 36;
+  if (size <= 520192) return 37;
+  if (size <= 1044480) return 38;
   return 38 + ceil(size-1044480, 4096);
+}
+static size_t bin_2_size(binnumber_t bin) __attribute((unused)) __attribute((const));
+static size_t bin_2_size(binnumber_t bin) {
+  if (bin == 0) return 8;
+  if (bin == 1) return 10;
+  if (bin == 2) return 12;
+  if (bin == 3) return 14;
+  if (bin == 4) return 16;
+  if (bin == 5) return 20;
+  if (bin == 6) return 24;
+  if (bin == 7) return 28;
+  if (bin == 8) return 32;
+  if (bin == 9) return 40;
+  if (bin == 10) return 48;
+  if (bin == 11) return 56;
+  if (bin == 12) return 64;
+  if (bin == 13) return 80;
+  if (bin == 14) return 96;
+  if (bin == 15) return 112;
+  if (bin == 16) return 128;
+  if (bin == 17) return 160;
+  if (bin == 18) return 192;
+  if (bin == 19) return 224;
+  if (bin == 20) return 256;
+  if (bin == 21) return 320;
+  if (bin == 22) return 384;
+  if (bin == 23) return 448;
+  if (bin == 24) return 576;
+  if (bin == 25) return 640;
+  if (bin == 26) return 768;
+  if (bin == 27) return 960;
+  if (bin == 28) return 1344;
+  if (bin == 29) return 1984;
+  if (bin == 30) return 4096;
+  if (bin == 31) return 8192;
+  if (bin == 32) return 16384;
+  if (bin == 33) return 32768;
+  if (bin == 34) return 65536;
+  if (bin == 35) return 126976;
+  if (bin == 36) return 258048;
+  if (bin == 37) return 520192;
+  if (bin == 38) return 1044480;
+  return (bin-38)*pagesize + 1044480;
 }
 #endif

@@ -72,13 +72,16 @@ class2:
   printf("//   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation\n");
   int first_large_bin = bin;
   for (uint64_t log_allocsize = 12; log_allocsize < log_chunksize; log_allocsize++) {
-    if (log_allocsize <= largest_waste_at_end) {
-      printf(" {1ul<<%2ld, 1}, //   %3d\n", log_allocsize, bin++);
-    } else {
-      printf(" {(1ul<<%ld)-%ld, 1}, // %3d  (reserve a page for the list of sizes)\n", log_allocsize, pagesize, bin++);
+    struct static_bin_t b = {1u<<log_allocsize, 1};
+    const char *comment = "";
+    if (log_allocsize > largest_waste_at_end) {
+      b.object_size -= pagesize; 
+      comment = " (reserve a page for the list of sizes)";
     }
+    printf(" {%u, 1}, //   %3d %s\n", b.object_size, bin++, comment);
+    static_bins.push_back(b);
   }
-  int first_huge_bin = bin;
+  binnumber_t first_huge_bin = bin;
   printf("// huge objects (chunk allocated) start  at this size.\n");
   printf(" {%ld, 1}};// %3d\n", chunksize, bin++);
   printf("static const size_t largest_small         = %lu;\n", largest_small);
@@ -133,18 +136,18 @@ class2:
 
   printf("static binnumber_t size_2_bin(size_t size) __attribute((unused)) __attribute((const));\n");
   printf("static binnumber_t size_2_bin(size_t size) {\n");
-  for (int b = 0; b < first_large_bin; b++) {
+  for (binnumber_t b = 0; b < first_huge_bin; b++) {
     printf("  if (size <= %d) return %d;\n", static_bins[b].object_size, b);
   }
-  for (int b = first_large_bin; b < first_huge_bin; b++) {
-    uint32_t log_allocsize = b-first_large_bin+12;
-    if (log_allocsize <= largest_waste_at_end) {
-      printf("  if (size <= (1u<<%d)) return %d;\n", log_allocsize, b);
-    } else {
-      printf("  if (size <= (1u<<%d)-%ld) return %d;\n", log_allocsize, pagesize, b);
-    }
-  }
   printf("  return %u + ceil(size-%lu, %lu);\n", first_huge_bin-1, largest_large, pagesize);
+  printf("}\n");
+
+  printf("static size_t bin_2_size(binnumber_t bin) __attribute((unused)) __attribute((const));\n");
+  printf("static size_t bin_2_size(binnumber_t bin) {\n");
+  for (binnumber_t b = 0; b < first_huge_bin; b++) {
+    printf("  if (bin == %d) return %u;\n", b, static_bins[b].object_size);
+  }
+  printf("  return (bin-%d)*pagesize + %lu;\n", first_huge_bin-1, largest_large);
   printf("}\n");
 
   printf("#endif\n");
