@@ -2,6 +2,8 @@
 #include <stdio.h>
 #endif
 
+#include <sys/mman.h>
+
 #include "atomically.h"
 #include "malloc_internal.h"
 #include "bassert.h"
@@ -92,6 +94,19 @@ size_t large_footprint(void *p) {
   return footprint;
 }
 
+void large_free(void *p) {
+  binnumber_t bin = chunk_infos[address_2_chunknumber(p)].bin_number;
+  size_t usable_size = bin_2_size(bin);
+  madvise(p, usable_size, MADV_DONTNEED);
+  size_t offset = (uint64_t)p % chunksize;
+  size_t objnum = (offset-2*pagesize)/usable_size;
+  large_object_list_cell *entries = (large_object_list_cell*)(((uint64_t) p)  & ~(chunksize-1));
+  uint32_t footprint __attribute__((unused)) = entries[objnum].footprint;
+  // This part atomic. Can be done with comapre_and_swap
+  entries[objnum].next = free_large_objects[bin];
+  free_large_objects[bin] = &entries[0];
+}
+
 
 void test_large_malloc(void) {
   {
@@ -106,7 +121,12 @@ void test_large_malloc(void) {
     size_t fy = large_footprint(y);
     bassert(fy==pagesize);
 
-    // need to free those
+    large_free(x);
+    void *z = large_malloc(pagesize);
+    bassert(z==x);
+
+    large_free(z);
+    large_free(y);
   }
   {
     void *x = large_malloc(2*pagesize);
@@ -116,6 +136,13 @@ void test_large_malloc(void) {
     void *y = large_malloc(2*pagesize);
     bassert(y!=0);
     bassert((uint64_t)y % chunksize == (2+2)*pagesize);
+
+    large_free(x);
+    void *z = large_malloc(2*pagesize);
+    bassert(z==x);
+
+    large_free(z);
+    large_free(y);
   }
   {
     void *x = large_malloc(largest_large);
@@ -125,6 +152,14 @@ void test_large_malloc(void) {
     void *y = large_malloc(largest_large);
     bassert(y!=0);
     bassert((uint64_t)y % chunksize == 2*pagesize + largest_large);
+
+    large_free(x);
+    void *z = large_malloc(largest_large);
+    bassert(z==x);
+
+    large_free(z);
+    large_free(y);
+
   }
 
   {
