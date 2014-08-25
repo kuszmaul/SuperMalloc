@@ -19,16 +19,23 @@ void* huge_malloc(size_t size) {
   size_t n_pages  = ceil(size, pagesize);
   size_t usable_size = n_pages * pagesize;
   size_t n_to_demap = n_chunks*chunksize - usable_size;
-  if (n_to_demap > 0) {
-    int r = madvise((char*)c + n_pages*4096, n_chunks*chunksize - usable_size, MADV_DONTNEED);
-    assert(r==0);
-  }
-  if (size/chunksize > 0) {
-    madvise(c, (size/chunksize)*chunksize, MADV_HUGEPAGE); // don't worry if we get an error code, this was just advice anyway.  It's not clear if the user really wants this.
+  binnumber_t bin;
+  if (n_to_demap < chunksize/8) {
+    // The unused part at the end is insubstantial, so just treat it as a malloc of a full chunk.
+    // The whole region is be eligible for huge pages.
+    madvise(c, n_chunks*chunksize, MADV_HUGEPAGE); // ignore any error code.  In future skip this call if we always get an error?  Also if we are in madvise=always we shouldn't bother.
+    bin = size_2_bin(n_chunks*chunksize);
+  } else {
+    // The last chunk is not fully used.
+    // Make all but the last chunk use huge pages, and the last chunk not.
+    if (n_chunks>0) {
+      madvise(c, (n_chunks-1)*chunksize, MADV_HUGEPAGE);
+    }
+    madvise((char *)c + (n_chunks-1)*chunksize, (n_pages*pagesize)%chunksize, MADV_NOHUGEPAGE);
+    bin = size_2_bin(n_pages*pagesize);
   }
   uint64_t chunknum = chunk_number_of_address(c);
-  assert(chunk_infos[chunknum].bin_number == 0);
-  chunk_infos[chunknum].bin_number = size_2_bin(size);
+  chunk_infos[chunknum].bin_number = bin;
   return c;
 }
 
