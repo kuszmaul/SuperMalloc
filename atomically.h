@@ -46,7 +46,11 @@ static inline void mylock_release(volatile unsigned int *mylock) {
 
 #define XABORT_LOCK_HELD 9
 
+#ifdef COVERAGE
 #define have_rtm 0
+#else
+#define have_rtm 1
+#endif
 
 static inline void atomically(volatile unsigned int *mylock,
 			      void (*predo)(void *extra),
@@ -81,6 +85,7 @@ static inline void atomically(volatile unsigned int *mylock,
     }
   }
   // We finally give up and acquire the lock.
+  predo(extra);
   mylock_acquire(mylock);
   fun(extra);
   mylock_release(mylock);

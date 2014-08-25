@@ -1,4 +1,4 @@
-# COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
+COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
 C_CXX_FLAGS = -W -Wall -Werror -O0 -g -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
@@ -22,4 +22,4 @@ foo:
 check: malloc
 	./malloc
 clean:
-	rm -f t malloc *.o generated_constants.h objsizes
+	rm -f t malloc *.o generated_constants.h objsizes *.gcda

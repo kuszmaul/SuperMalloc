@@ -31,7 +31,8 @@ void* large_malloc(size_t size)
   if (0) printf("large_malloc(%ld):\n", size);
   binnumber_t b = size_2_bin(size);
   size_t usable_size = bin_2_size(b);
-  bassert(b >= first_large_bin_number && b < first_huge_bin_number);
+  bassert(b >= first_large_bin_number);
+  bassert(b < first_huge_bin_number);
 
 again:
   // This needs to be done atomically (along the successful branch)
@@ -84,7 +85,8 @@ again:
 size_t large_footprint(void *p) {
   if (0) printf("large_footprint(%p):\n", p);
   binnumber_t bin = chunk_infos[address_2_chunknumber(p)].bin_number;
-  bassert(first_large_bin_number <= bin && bin < first_huge_bin_number);
+  bassert(first_large_bin_number <= bin);
+  bassert(bin < first_huge_bin_number);
   size_t usable_size = bin_2_size(bin);
   size_t offset = (uint64_t)p % chunksize;
   size_t objnum = (offset-2*pagesize)/usable_size;
