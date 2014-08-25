@@ -2,6 +2,7 @@
 #define MALLOC_CONSTANTS_H
 
 #ifdef TESTING
+#include <assert.h>
 #include <stdio.h>
 #endif
 
@@ -25,6 +26,15 @@ static inline uint64_t hyperceil(uint64_t a)
   if (0) printf("hyperceil(%ld)==%ld\n", a, r);
   return r;
 }
+static inline int lg_of_power_of_two(uint64_t a)
+// Effect: Return the log_2(a).
+// Requires: a is a power of two.
+{
+#ifdef TESTING
+  assert((a & (a-1))==0);
+#endif
+  return __builtin_ctz(a);
+}
 
 static inline uint64_t chunk_number_of_address(void *a) {
   // Given an address anywhere in a chunk, convert it to a chunk number from 0 to 1<<27
@@ -41,7 +51,7 @@ static inline uint64_t chunk_number_of_address(void *a) {
 // Most of this table won't end up mapped.
 
 extern struct chunk_info {
-  binnumber_t bin_number; // encodes how big the objects are in the chunk.
+  uint32_t bin_number; // encodes how big the objects are in the chunk.
 } *chunk_infos; // I want this to be an array of length [1u<<27], but that causes link-time errors.  Instead initialize_malloc() mmaps something big enough.
 
 // Functions that are separated into various files.

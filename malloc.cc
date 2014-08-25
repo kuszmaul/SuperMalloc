@@ -56,6 +56,8 @@ void initialize_malloc(void) {
   assert(chunk_infos);
 }
 
+chunknumber_t free_chunks[log_max_chunknumber];
+
 union bitmap_chunk {
     unsigned char data[chunksize];
     bitmap_chunk  *next;

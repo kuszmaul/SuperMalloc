@@ -13,10 +13,25 @@
 //  three empty slots.
 // The way we link pages together is that we use the empty slot as the next pointer, so we point at the empty slot.
 
+void* get_power_of_two_n_chunks(size_t n_chunks)
+// Effect: Allocate n_chunks of chunks.
+// Requires: n_chunks is power of two.
+{
+  int f = lg_of_power_of_two(n_chunks);
+  if (free_chunks[f]==0) {
+    return mmap_chunk_aligned_block(n_chunks);
+  } else {
+    // Do this atomically.
+    chunknumber_t r = free_chunks[f];
+    free_chunks[f] = chunk_infos[r].bin_number;
+    return (void*)((uint64_t)r*chunksize);
+  }
+}
+
 void* huge_malloc(size_t size) {
   size_t n_chunks_base = ceil(size, chunksize);
   size_t n_chunks = hyperceil(n_chunks_base);
-  void *c = mmap_chunk_aligned_block(n_chunks);
+  void *c = get_power_of_two_n_chunks(n_chunks);
   size_t n_pages  = ceil(size, pagesize);
   size_t usable_size = n_pages * pagesize;
   size_t n_to_demap = n_chunks*chunksize - usable_size;
