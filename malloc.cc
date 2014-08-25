@@ -294,7 +294,9 @@ int main() {
   test_size_2_bin();
   test_makechunk();
   test_huge_malloc();
+  test_large_malloc();
   if (0) test_non_huge_malloc();
+
 }
 #endif
 
