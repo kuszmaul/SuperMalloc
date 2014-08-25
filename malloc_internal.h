@@ -95,5 +95,8 @@ void *large_malloc(size_t);
 void test_large_malloc(void);
 #endif
 
+void add_to_footprint(int64_t delta);
+int64_t get_footprint(void);
+
 #endif
 
