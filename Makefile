@@ -4,7 +4,7 @@ CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 CPPFLAGS = -DTESTING
 
-malloc: malloc.o makechunk.o rng.o huge_malloc.o bassert.o
+malloc: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o bassert.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
 objsizes: malloc_internal.h
 generated_constants.h: objsizes

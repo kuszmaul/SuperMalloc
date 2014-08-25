@@ -84,7 +84,11 @@ const chunknumber_t null_chunknumber = 0;
 
 extern chunknumber_t free_chunks[log_max_chunknumber];
 
-void *mmap_chunk_aligned_block(size_t n_chunks);
+struct large_object_list_cell {
+  large_object_list_cell *next;
+};
+
+void* mmap_chunk_aligned_block(size_t n_chunks); //
 
 #ifdef TESTING
 void test_makechunk(void);
