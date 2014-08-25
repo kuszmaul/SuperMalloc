@@ -92,10 +92,16 @@ void huge_free(void *m) {
   uint32_t      hlog = lg_of_power_of_two(hceil);
   bassert(hlog < log_max_chunknumber);
   madvise(m, siz, MADV_DONTNEED);
-  // Do this atomically.
-  chunk_infos[cn].next = free_chunks[hlog];
-  if (0) printf("free %p size=%ld free_chunks[%d] = %d\n", m, siz, hlog, cn);
-  free_chunks[hlog] = cn;
+  // Do this atomically.  This one is simple enough to be done with a compare and swap.
+  
+  //  chunk_infos[cn].next = free_chunks[hlog];
+  //  free_chunks[hlog] = cn;
+
+  while (1) {
+    chunknumber_t hd = atomic_load(&free_chunks[hlog]);
+    chunk_infos[cn].next = hd;
+    if (__sync_bool_compare_and_swap(&free_chunks[hlog], hd, cn)) break;
+  }
 }
 
 #ifdef TESTING
