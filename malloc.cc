@@ -306,13 +306,44 @@ void* small_malloc(size_t size) {
 #endif
 
 #ifdef TESTING
+static uint64_t slow_hyperceil(uint64_t a) {
+  uint64_t r = 1;
+  a--;
+  while (a > 0) {
+    a /= 2;
+    r *= 2;
+  }
+  return r;
+}
+
+static void test_hyperceil_v(uint64_t a, uint64_t expected) {
+  assert(hyperceil(a)==slow_hyperceil(a));
+  if (expected) {
+    assert(hyperceil(a)==expected);
+  }
+}
+
+static void test_hyperceil(void) {
+  test_hyperceil_v(1, 1);
+  test_hyperceil_v(2, 2);
+  test_hyperceil_v(3, 4);
+  test_hyperceil_v(4, 4);
+  test_hyperceil_v(5, 8);
+  for (int i = 3; i < 27; i++) {
+    test_hyperceil_v((1u<<i)+0,   (1u<<i));
+    test_hyperceil_v((1u<<i)-1,   (1u<<i));
+    test_hyperceil_v((1u<<i)+1, 2*(1u<<i));
+  }
+}
+
 int main() {
   initialize_malloc();
+  test_hyperceil();
   test_size_2_bin();
   test_chunk_create();
   test_bitmap();
   test_huge_malloc();
-  test_non_huge_malloc();
+  if (0) test_non_huge_malloc();
 }
 #endif
 
