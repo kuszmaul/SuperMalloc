@@ -66,6 +66,7 @@ extern struct chunk_info {
 
 // Functions that are separated into various files.
 void* huge_malloc(uint64_t size);
+void huge_free(void*);
 #ifdef TESTING
 void test_huge_malloc(void);
 #endif

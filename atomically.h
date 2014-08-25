@@ -86,6 +86,11 @@ static inline void atomically(volatile unsigned int *mylock,
   mylock_release(mylock);
 }
 
+#define atomic_load(addr) __atomic_load_n(addr, __ATOMIC_CONSUME)
+
+#define prefetch_read(addr) __builtin_prefetch(addr, 0, 3)
+#define prefetch_write(addr) __builtin_prefetch(addr, 1, 3)
+
 #ifdef __cplusplus
 }
 #endif

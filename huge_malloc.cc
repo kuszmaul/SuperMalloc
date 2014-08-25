@@ -2,8 +2,11 @@
 
 #ifdef TESTING
 #include <stdio.h>
+#include <algorithm>
 #endif
 
+#include "atomically.h"
+#include "malloc_internal.h"
 #include "bassert.h"
 #include "generated_constants.h"
 
@@ -12,19 +15,40 @@
 //  three empty slots.
 // The way we link pages together is that we use the empty slot as the next pointer, so we point at the empty slot.
 
-void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
+static unsigned int huge_lock = 0;
+struct atfc {
+  int f;
+  void* result;
+  chunknumber_t u;
+};
+static void pre_add_to_free_chunks(void *extra) {
+  struct atfc *a = (struct atfc*)extra;
+  int f = a->f;
+  int r = free_chunks[f];
+  prefetch_write(&free_chunks[f]);
+  a->u = chunk_infos[r].next;
+}
+static void do_add_to_free_chunks(void *extra) {
+  struct atfc *a = (struct atfc*)extra;
+  int f = a->f;
+  chunknumber_t r = free_chunks[f];
+  free_chunks[f] = chunk_infos[r].next;
+  a->result = (void*)((uint64_t)r*chunksize);
+}
+
+static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
 // Effect: Allocate n_chunks of chunks.
 // Requires: n_chunks is power of two.
 {
   int f = lg_of_power_of_two(n_chunks);
   if (0) printf("Getting %d chunks. Tryin free_chunks[%d]\n", n_chunks, f);
-  if (free_chunks[f]==0) {
+  if (atomic_load(&free_chunks[f]) ==0) {
     return mmap_chunk_aligned_block(n_chunks);
   } else {
     // Do this atomically.
-    chunknumber_t r = free_chunks[f];
-    free_chunks[f] = chunk_infos[r].next;
-    return (void*)((uint64_t)r*chunksize);
+    atfc a = {f, NULL, 0};
+    atomically(&huge_lock, pre_add_to_free_chunks, do_add_to_free_chunks, (void*)&a);
+    return a.result;
   }
 }
 
@@ -89,21 +113,21 @@ void test_huge_malloc(void) {
   bassert((uint64_t)b % chunksize==0);
   chunknumber_t b_n = address_2_chunknumber(b);
   if (print) printf("b=%p c=0x%x diff=%ld\n", b, b_n, (char*)a-(char*)b);
-  bassert(a_n - b_n == 1);
+  bassert(abs((int)a_n - (int)b_n) == 1);
   bassert(chunk_infos[b_n].bin_number == first_huge_bin_number);
 
   void *c = huge_malloc(2*chunksize);
   bassert((uint64_t)c % chunksize==0);
   chunknumber_t c_n = address_2_chunknumber(c);
-  if (print) printf("c=%p diff=%ld bin = %u\n", c, (char*)b-(char*)c, chunk_infos[c_n].bin_number);
-  bassert(b_n - c_n == 2);
+  if (print) printf("c=%p diff=%ld bin = %u b_n=%d c_n=%d\n", c, (char*)b-(char*)c, chunk_infos[c_n].bin_number, b_n, c_n);
+  bassert((b_n - c_n == 2) || (c_n - b_n ==1));
   bassert(chunk_infos[c_n].bin_number == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
 
   void *d = huge_malloc(2*chunksize);
   bassert((uint64_t)d % chunksize==0);
   chunknumber_t d_n = address_2_chunknumber(d);
-  if (print) printf("d=%p\n", d);
-  bassert(c_n - d_n == 2);
+  if (print) printf("d=%p c_n=%d d_n=%d diff=%d abs=%d\n", d, c_n, d_n, c_n-d_n, (int)std::abs((int)c_n-(int)d_n));
+  bassert(std::abs((int)c_n - (int)d_n) == 2);
   bassert(chunk_infos[c_n].bin_number == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
 
   {
