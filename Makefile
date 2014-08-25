@@ -1,24 +1,25 @@
-# COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
+COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
 C_CXX_FLAGS = -W -Wall -Werror -O0 -g -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
+CPPFLAGS = -DTESTING
 
-malloc: CPPFLAGS+=-DTESTING
-malloc: malloc.o makehugepage.o rng.o print.o huge_malloc.o bassert.o
+malloc: malloc.o makechunk.o rng.o huge_malloc.o bassert.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
-ATOMICALLY_H = atomically.h rng.h
 objsizes: malloc_internal.h
 generated_constants.h: objsizes
 	./$< > $@
-makehugepage.o: makehugepage.h $(ATOMICALLY_H) print.h generated_constants.h malloc_internal.h
-malloc.o: makehugepage.h generated_constants.h malloc_internal.h
-rng.o: rng.h
-print.o: print.h
 
-$(patsubst %.c, %.o, $(wildcard *.c)): bassert.h
+ALL_SOURCES_INCLUDING_OBJSIZES = $(patsubst %.cc, %, $(wildcard *.cc)) $(patsubst %.c, %, $(wildcard *.c))
+ALL_LIB_SOURCES = $(filter-out objsizes, $(ALL_SOURCES_INCLUDING_OBJSIZES))
+objsizes $(patsubst %, %.o, $(ALL_LIB_SOURCES)): bassert.h
+# Must name generated_constants.h specifically, since wildcard won't find it after a clean.
+$(patsubst %, %.o, $(ALL_LIB_SOURCES)): $(wildcard *.h) generated_constants.h
+
+foo:
+	echo needs generated_constants.h: $(patsubst %, %.o, $(ALL_LIB_SOURCES))
 
 check: malloc
 	./malloc
-t: generated_constants.h
 clean:
-	rm -f t malloc *.o
+	rm -f t malloc *.o generated_constants.h objsizes

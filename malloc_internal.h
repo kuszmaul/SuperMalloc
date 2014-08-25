@@ -28,7 +28,9 @@ static inline uint64_t hyperceil(uint64_t a)
   uint64_t r = ((a <= 1)
 		? 1
 		: 1ul<<(64 - __builtin_clzl(a-1)));
+#ifdef TESTING
   if (0) printf("hyperceil(%ld)==%ld\n", a, r);
+#endif
   return r;
 }
 static inline int lg_of_power_of_two(uint64_t a)
@@ -80,6 +82,12 @@ const chunknumber_t null_chunknumber = 0;
 // chunk_infos[] array to form the links.
 
 extern chunknumber_t free_chunks[log_max_chunknumber];
+
+void *mmap_chunk_aligned_block(size_t n_chunks);
+
+#ifdef TESTING
+void test_makechunk(void);
+#endif
 
 #endif
 

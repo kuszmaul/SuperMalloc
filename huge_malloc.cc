@@ -6,7 +6,6 @@
 
 #include "bassert.h"
 #include "generated_constants.h"
-#include "makehugepage.h"
 
 // For each binned size, we need to maintain arrays of lists of pages.  The length of the array is the number of objects that fit into a page.
 //  The first list is pages that have one empty slot.  The second list is pages with two empty slots.  The third list is pages with
