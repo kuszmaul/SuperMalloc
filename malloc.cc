@@ -1,7 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <sys/mman.h>
 
 #include <algorithm>
@@ -12,36 +11,37 @@
 
 #include "makehugepage.h"
 #include "generated_constants.h"
+#include "bassert.h"
 
 #ifdef TESTING
 static void test_size_2_bin(void) {
     for (size_t i=8; i<=largest_large; i++) {
         binnumber_t g = size_2_bin(i);
-        assert(g<first_huge_bin_number);
-        assert(i <= static_bin_info[g].object_size);
-        if (g>0) assert(i > static_bin_info[g-1].object_size);
-        else assert(g==0 && i==8);
+        bassert(g<first_huge_bin_number);
+        bassert(i <= static_bin_info[g].object_size);
+        if (g>0) bassert(i > static_bin_info[g-1].object_size);
+        else bassert(g==0 && i==8);
 	size_t s = bin_2_size(g);
-	assert(s>=i);
-	assert(size_2_bin(s) == g);
+	bassert(s>=i);
+	bassert(size_2_bin(s) == g);
     }
-    assert(size_2_bin(largest_large+1) == first_huge_bin_number);
-    assert(size_2_bin(largest_large+4096) == first_huge_bin_number);
-    assert(size_2_bin(largest_large+4096+1) == 1+first_huge_bin_number);
-    assert(bin_2_size(first_huge_bin_number) == largest_large+4096);
-    assert(bin_2_size(first_huge_bin_number+1) == largest_large+4096*2);
-    assert(bin_2_size(first_huge_bin_number+2) == largest_large+4096*3);
+    bassert(size_2_bin(largest_large+1) == first_huge_bin_number);
+    bassert(size_2_bin(largest_large+4096) == first_huge_bin_number);
+    bassert(size_2_bin(largest_large+4096+1) == 1+first_huge_bin_number);
+    bassert(bin_2_size(first_huge_bin_number) == largest_large+4096);
+    bassert(bin_2_size(first_huge_bin_number+1) == largest_large+4096*2);
+    bassert(bin_2_size(first_huge_bin_number+2) == largest_large+4096*3);
     for (int k = 0; k < 1000; k++) {
       size_t s = chunksize * 10 + pagesize * k;
       binnumber_t b = size_2_bin(s);
-      assert(size_2_bin(bin_2_size(b))==b);
-      assert(bin_2_size(size_2_bin(s))==s);
+      bassert(size_2_bin(bin_2_size(b))==b);
+      bassert(bin_2_size(size_2_bin(s))==s);
     }
 
     // Verify that all the bins that are 256 or larger are multiples of a cache line.
     for (binnumber_t i = 0; i <= first_huge_bin_number; i++) {
       size_t os = static_bin_info[i].object_size;
-      assert(os < 256 || os%64 == 0);
+      bassert(os < 256 || os%64 == 0);
     }
 }
 #endif
@@ -53,7 +53,7 @@ void initialize_malloc(void) {
   const size_t alloc_size = n_elts * sizeof(chunk_info);
   const size_t n_chunks   = ceil(alloc_size, chunksize);
   chunk_infos = (chunk_info*)mmap_chunk_aligned_block(n_chunks);
-  assert(chunk_infos);
+  bassert(chunk_infos!=0);
 }
 
 chunknumber_t free_chunks[log_max_chunknumber];
@@ -95,10 +95,10 @@ static void test_bitmap(void) {
     if (print) printf("x       100=%p\n", x);
     uint8_t *y = allocate_bitmap(1);
     if (print) printf("y         1=%p\n", y);
-    assert(x+ceil(100,8)==y);
+    bassert(x+ceil(100,8)==y);
     uint8_t *z = allocate_bitmap(1);
     if (print) printf("z         1=%p\n", z);
-    assert(y+1==z);
+    bassert(y+1==z);
     size_t s = 8* ((1<<21) - 107/8 - 2);
     uint8_t *w = allocate_bitmap(s);
     if (print) printf("w %9ld=%p\n", s, w);
@@ -111,7 +111,7 @@ static void test_bitmap(void) {
     // This should fail.
     uint8_t *d = allocate_bitmap(1+(8ul<<21));
     if (print) printf("c 1+(8<<21)=%p\n", d);
-    assert(d==0);
+    bassert(d==0);
 }
 #endif
 
@@ -153,7 +153,7 @@ static void add_chunk_to_bin(binnumber_t bin)
   chunknumber_t chunknum = address_2_chunknumber(c);
   chunk_infos[chunknum].bin_number = bin;
   page *p = (page*)c;
-  assert(chunksize / pagesize == pointers_per_page); // this happens to be true.
+  bassert(chunksize / pagesize == pointers_per_page); // this happens to be true.
   p->pop.page_count = pointers_per_page-2;
   p->pop.next_page_of_pages = NULL;
   for (uint64_t i = 0; i < pointers_per_page - 2; i++) {
@@ -222,7 +222,7 @@ static void* get_object_from_page_and_place_page_in_list(binnumber_t bin, page *
 
 static void* non_huge_malloc(size_t size) {
   binnumber_t bin = size_2_bin(size);
-  assert(bin < first_huge_bin_number);
+  bassert(bin < first_huge_bin_number);
   int fpi = bins[bin].fullest_page_index;
   if (fpi != 0) {
     // There's partially full page.  Remove p from the partially filled pages where it lives now, and get an object from it.
@@ -319,9 +319,9 @@ static uint64_t slow_hyperceil(uint64_t a) {
 }
 
 static void test_hyperceil_v(uint64_t a, uint64_t expected) {
-  assert(hyperceil(a)==slow_hyperceil(a));
+  bassert(hyperceil(a)==slow_hyperceil(a));
   if (expected) {
-    assert(hyperceil(a)==expected);
+    bassert(hyperceil(a)==expected);
   }
 }
 

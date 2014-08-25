@@ -2,11 +2,14 @@
 #define MALLOC_CONSTANTS_H
 
 #ifdef TESTING
-#include <assert.h>
 #include <stdio.h>
+#include "bassert.h"
+
 #endif
 
 #include <stdint.h>
+
+
 
 const uint64_t pagesize = 4096;
 const uint64_t log_chunksize = 21;
@@ -33,7 +36,7 @@ static inline int lg_of_power_of_two(uint64_t a)
 // Requires: a is a power of two.
 {
 #ifdef TESTING
-  assert((a & (a-1))==0);
+  bassert((a & (a-1))==0);
 #endif
   return __builtin_ctz(a);
 }

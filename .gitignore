@@ -3,3 +3,8 @@
 Makefile
 malloc
 objsizes
+
+# ignore the gcov outptu
+*.gcov
+*.gcno
+*.gcda

@@ -1,10 +1,10 @@
 #include "makehugepage.h"
 
-#include <assert.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 #include <errno.h>
 
+#include "bassert.h"
 #include "atomically.h"
 #include "generated_constants.h"
 #include "print.h"
@@ -19,8 +19,8 @@ static size_t addr_getoffset(void *p) {
 
 void* mmap_size(size_t size) {
   void *r = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-  assert(r!=NULL);
-  assert(r!=MAP_FAILED);
+  bassert(r!=NULL);
+  bassert(r!=MAP_FAILED);
   return r;
 }
 
@@ -34,7 +34,7 @@ static void unmap(void *p, size_t size) {
       write_string(2, ") error=");
       write_int(2, errno, 10);
     }
-    assert(r==0);
+    bassert(r==0);
   }
 }
 
@@ -163,14 +163,14 @@ void *chunk_create(void) {
 void test_chunk_create(void) {
   {
     void *p = chunk_get_from_pool();
-    assert(p==0);
+    bassert(p==0);
   }
   {
     chunk_create_into_pool();
     void *p = chunk_get_from_pool();
-    assert(p);
+    bassert(p!=0);
     long pl = (long)p;
-    assert(pl%chunksize == 0);
+    bassert(pl%chunksize == 0);
   }
 }
 #endif
