@@ -4,12 +4,13 @@
 
 #include "malloc_internal.h"
 #include "bassert.h"
-#include "atomically.h"
 #include "generated_constants.h"
 
 #ifdef TESTING
 #include <string.h>
 #endif
+
+// Nothing in this file seems to need locking.  We rely on the thread safety of mmap and munmap.
 
 static size_t addr_getoffset(void *p) {
   return ((uintptr_t)p) % chunksize;
@@ -26,7 +27,7 @@ static void unmap(void *p, size_t size) {
   if (size>0) {
     int r = munmap(p, size);
 #ifdef TESTING
-    if (0 && r!=0) {
+    if (1 && r!=0) {
       fprintf(stderr, "Failure doing munmap(%p, %ld) error=%d\n", p, size, errno);
       abort();
     }
@@ -100,6 +101,6 @@ void test_makechunk(void) {
     void *v = mmap_chunk_aligned_block(1);
     bassert(v!=0);
     bassert(((uint64_t)v) % chunksize == 0);
-    munmap(v, 1*chunksize);
+    unmap(v, 1*chunksize);
   }
 }
