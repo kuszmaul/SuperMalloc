@@ -102,6 +102,9 @@ void huge_free(void *m) {
 void test_huge_malloc(void) {
   const bool print = false;
 
+  // Sometimes mmap works its way down (e.g., under linux 3.15.8).  Sometimes it works its way up (e.g., under valgrind under linux 3.15.8)
+  // So the tests below have to look at the absolute difference instead of the relative difference.
+
   void *a = huge_malloc(largest_large + 1);
   bassert((uint64_t)a % chunksize==0);
   chunknumber_t a_n = address_2_chunknumber(a);
