@@ -16,9 +16,36 @@ struct large_object_list_cell {
   };
 };
 
-const binnumber_t n_large_classes = first_huge_bin_number - first_large_bin_number;
+static const binnumber_t n_large_classes = first_huge_bin_number - first_large_bin_number;
 static large_object_list_cell* free_large_objects[n_large_classes]; // For each large size, a list (threaded through the chunk headers) of all the free objects of that size.
 // Later we'll be a little careful about demapping those large objects (and we'll need to remember which are which, but we may also want thread-specific parts).  For now, just demap them all.
+
+static unsigned int large_lock = 0;
+
+struct large_malloc_pop_s {
+  large_object_list_cell **free_large_objects_ptr;
+  large_object_list_cell *result;
+};
+void predo_large_malloc_pop(void *ev) {
+  large_malloc_pop_s *e = (large_malloc_pop_s*)ev;
+  large_object_list_cell *h = *e->free_large_objects_ptr;
+  prefetch_write(e->free_large_objects_ptr);
+  if (h != NULL) {
+    e->result = atomic_load(&h->next);
+  }
+}
+
+void do_large_malloc_pop(void *ev) {
+  large_malloc_pop_s *e = (large_malloc_pop_s*)ev;
+  large_object_list_cell *h = *e->free_large_objects_ptr;
+  if (0) printf(" dlmp: h=%p\n", h);
+  if(h == NULL) {
+    e->result = NULL;
+  } else {
+    *e->free_large_objects_ptr = h->next;
+    e->result = h;
+  }
+}
 
 void* large_malloc(size_t size)
 // Effect: Allocate a large object (page allocated, multiple per chunk)
@@ -35,11 +62,25 @@ void* large_malloc(size_t size)
   bassert(b < first_huge_bin_number);
 
 again:
-  // This needs to be done atomically (along the successful branch)
+  // This needs to be done atomically (along the successful branch).
+  // It cannot be done with a compare-and-swap since we read two locations that
+  // are visible to other threads (getting h, and getting h->next).
   large_object_list_cell *h = free_large_objects[b - first_large_bin_number];
   if (0) printf("h==%p\n", h);
   if (h != NULL) {
-    free_large_objects[b-first_large_bin_number] = h->next;
+    if (0) {
+      free_large_objects[b-first_large_bin_number] = h->next;
+    } else {
+      // The strategy for the atomic version is that we set e.result to NULL if the list
+      // becomes empty (so that we go around and do chunk allocation again).
+      large_malloc_pop_s e = {&free_large_objects[b-first_large_bin_number], 0};
+      atomically(&large_lock,
+		   predo_large_malloc_pop,
+		   do_large_malloc_pop,
+		   &e);
+      h = e.result;
+      if (h==NULL) goto again;
+    }
     // that was the atomic part.
     uint32_t footprint = pagesize*ceil(size, pagesize);
     h->footprint = footprint;
