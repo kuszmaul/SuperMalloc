@@ -84,7 +84,7 @@ void* huge_malloc(size_t size) {
 
 void huge_free(void *m) {
   chunknumber_t  cn  = address_2_chunknumber(m);
-  bassert(cn!=0);
+  bassert(cn);
   binnumber_t   bin  = chunk_infos[cn].bin_number;
   uint64_t      siz  = bin_2_size(bin);
   chunknumber_t csiz = siz/chunksize;

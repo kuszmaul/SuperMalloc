@@ -92,14 +92,14 @@ void *mmap_chunk_aligned_block(size_t n_chunks)
 void test_makechunk(void) {
   {
     void *v = mmap_size(4096);
-    bassert(v!=0);
+    bassert(v);
     unmap(v, 4096);
     unmap(NULL, 0);
   }
 
   {
     void *v = mmap_chunk_aligned_block(1);
-    bassert(v!=0);
+    bassert(v);
     bassert(((uint64_t)v) % chunksize == 0);
     unmap(v, 1*chunksize);
   }

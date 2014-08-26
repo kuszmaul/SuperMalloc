@@ -7,10 +7,10 @@
 #include <stdlib.h>
 
 #ifdef COVERAGE
-extern void bassert_f(int test, const char *pred, const char *file, int line, const char *fun);
+extern void bassert_f(bool test, const char *pred, const char *file, int line, const char *fun);
 #else
-static inline  void bassert_f(int test, const char *pred, const char *file, int line, const char *fun) __attribute((unused));
-static inline  void bassert_f(int test, const char *pred, const char *file, int line, const char *fun) {
+static inline  void bassert_f(bool test, const char *pred, const char *file, int line, const char *fun) __attribute((unused));
+static inline  void bassert_f(bool test, const char *pred, const char *file, int line, const char *fun) {
   if (!test) {
     fprintf(stderr, "assertion failed: %s in %s at %s:%d\n", pred, fun, file, line);
     abort();;
@@ -18,7 +18,7 @@ static inline  void bassert_f(int test, const char *pred, const char *file, int 
 }
 #endif
 
-#define bassert(e) bassert_f(e, #e, __FILE__, __LINE__, __FUNCTION__)
+#define bassert(e) bassert_f((e)!=0, #e, __FILE__, __LINE__, __FUNCTION__)
 #ifdef assert
 #warning assert is deprecated, use bassert
 #else

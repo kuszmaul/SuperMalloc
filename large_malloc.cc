@@ -106,7 +106,7 @@ void* large_malloc(size_t size)
     } else {
       // No already free objects.  Get a chunk
       void *chunk = mmap_chunk_aligned_block(1);
-      bassert(chunk!=0);
+      bassert(chunk);
       if (0) printf("chunk=%p\n", chunk);
 
       if (0) printf("usable_size=%ld\n", usable_size);
@@ -186,11 +186,11 @@ void test_large_malloc(void) {
   int64_t fp = get_footprint();
   {
     void *x = large_malloc(pagesize);
-    bassert(x!=0);
+    bassert(x);
     bassert((uint64_t)x % chunksize == 2*pagesize);
 
     void *y = large_malloc(pagesize);
-    bassert(y!=0);
+    bassert(y);
     bassert((uint64_t)y % chunksize == 3*pagesize);
 
     int64_t fy = large_footprint(y);
@@ -209,13 +209,13 @@ void test_large_malloc(void) {
   bassert(get_footprint() - fp == 0);
   {
     void *x = large_malloc(2*pagesize);
-    bassert(x!=0);
+    bassert(x);
     bassert((uint64_t)x % chunksize == (2+0)*pagesize);
 
     bassert(get_footprint() - fp == 2*pagesize);
 
     void *y = large_malloc(2*pagesize);
-    bassert(y!=0);
+    bassert(y);
     bassert((uint64_t)y % chunksize == (2+2)*pagesize);
 
     bassert(get_footprint() - fp == 4*pagesize);
@@ -230,11 +230,11 @@ void test_large_malloc(void) {
   bassert(get_footprint() - fp == 0);
   {
     void *x = large_malloc(largest_large);
-    bassert(x!=0);
+    bassert(x);
     bassert((uint64_t)x % chunksize == (2+0)*pagesize);
 
     void *y = large_malloc(largest_large);
-    bassert(y!=0);
+    bassert(y);
     bassert((uint64_t)y % chunksize == 2*pagesize + largest_large);
 
     large_free(x);
@@ -251,7 +251,7 @@ void test_large_malloc(void) {
     if (0) printf("s=%ld\n", s);
 
     void *x = large_malloc(s);
-    bassert(x!=0);
+    bassert(x);
     bassert((uint64_t)x % chunksize == (2+0)*pagesize);
 
     bassert(large_footprint(x) == s);
@@ -259,7 +259,7 @@ void test_large_malloc(void) {
     bassert(get_footprint() - fp == (int64_t)s);
 
     void *y = large_malloc(s);
-    bassert(y!=0);
+    bassert(y);
     bassert((uint64_t)y % chunksize == 2*pagesize + bin_2_size(size_2_bin(s)));
 
     bassert(large_footprint(y) == s);

@@ -52,7 +52,7 @@ void initialize_malloc(void) {
   const size_t alloc_size = n_elts * sizeof(chunk_info);
   const size_t n_chunks   = ceil(alloc_size, chunksize);
   chunk_infos = (chunk_info*)mmap_chunk_aligned_block(n_chunks);
-  bassert(chunk_infos!=0);
+  bassert(chunk_infos);
 }
 
 chunknumber_t free_chunks[log_max_chunknumber];
