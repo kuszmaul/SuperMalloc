@@ -16,10 +16,13 @@ int main () {
   printf("#include <stdint.h>\n");
   printf("#include <sys/types.h>\n");
   const uint64_t linesize = 64;
-  const uint64_t overhead = linesize;
-  printf("// In small and medium pages we reserve the first cache line\n");
-  printf("// (%ld bytes) for a in-use bitmap.\n", overhead);
-
+  const uint64_t overhead = 0;
+  printf("// For chunks containing small objects, we reserve the first\n");
+  printf("// several pages for bitmaps and linked lists.\n");
+  printf("//   There's a per_page struct containing 2 pointers and a\n");
+  printf("//   bitmap, and there are 512 of those.\n");
+  printf("// As a result, there is no overhead in each page, but there is\n");
+  printf("// overhead per chunk, which affects the large object sizes.\n\n");
   printf("// We obtain hugepages from the operating system via mmap(2).\n");
   printf("// By `hugepage', I mean only mmapped pages.\n");
   printf("// By `page', I mean only a page inside a hugepage.\n");
@@ -91,18 +94,18 @@ class2:
   printf("static const binnumber_t first_huge_bin_number   = %u;\n", first_huge_bin);
   //  printf("static const uint64_t    slot_size               = %u;\n", slot_size);
   
-
+  printf("struct per_page; // Forward decl needed here.\n");
   printf("struct dynamic_small_bin_info {\n");
   printf("  union {\n");
   printf("    struct {\n");
   {
     int count = 0;
     for (int b = 0; b < first_large_bin;  b++ ) {
-      printf("      void *b%d[%d];\n", b, static_bins[b].objects_per_page+1);
+      printf("      per_page *b%d[%d];\n", b, static_bins[b].objects_per_page+1);
       count += static_bins[b].objects_per_page+1;
     }
     printf("    };\n");
-    printf("    void *b[%d];\n", count);
+    printf("    per_page *b[%d];\n", count);
   }
   printf("  };\n");
   printf("};\n");

@@ -22,7 +22,7 @@ struct per_page {
   uint64_t bitmap[bitmap_n_words]; // up to 512 objects (8 bytes per object) per page.
 };
 struct small_chunk_header {
-  struct per_page ll[512];  // This object  exactly 8 pages long.  We don't use the first 8 elements of the array.  We could get it down to 6 pages if we packed it, but weant these things to be cache-aligned.  For objects of size 16 we could get it it down to 4 pages of wastage.
+  per_page ll[512];  // This object  exactly 8 pages long.  We don't use the first 8 elements of the array.  We could get it down to 6 pages if we packed it, but weant these things to be cache-aligned.  For objects of size 16 we could get it it down to 4 pages of wastage.
 };
 const uint64_t n_pages_wasted = sizeof(small_chunk_header)/pagesize;
 const uint64_t n_pages_used   = (chunksize/pagesize)-n_pages_wasted;
@@ -60,11 +60,11 @@ again:
       for (uint32_t w = 0; w < bitmap_n_words; w++) {
 	sch->ll[i].bitmap[w] = 0;
       }
-      sch->ll[i].prev = (i == n_pages_wasted) ? NULL : &sch->ll[i-1];
-      sch->ll[i].next = (i+1 == o_per_page)   ? NULL : &sch->ll[i+1];
+      sch->ll[i].prev = (i   == 0)              ? NULL : &sch->ll[i-1];
+      sch->ll[i].next = (i+1 == n_pages_used)   ? NULL : &sch->ll[i+1];
     }
     // Do this atomically
-    per_page *old_h = (per_page*)dsbi.lists.b[dsbi_offset + o_per_page]; // really ought to get rid of that cast by forward declaring a per_page in the generated_constants.h file.
+    per_page *old_h = dsbi.lists.b[dsbi_offset + o_per_page]; // really ought to get rid of that cast by forward declaring a per_page in the generated_constants.h file.
     dsbi.lists.b[dsbi_offset + o_per_page] = &sch->ll[0];
     sch->ll[n_pages_used-1].next = old_h;
     abort();
