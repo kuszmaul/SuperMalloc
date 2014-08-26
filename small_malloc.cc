@@ -142,7 +142,8 @@ void* small_malloc(size_t size)
 #ifdef TESTING
 const int n8 = 600000;
 static void* data8[n8];
-
+const int n16 = n8/2;
+static void* data16[n16];
 
 void test_small_malloc(void) {
   test_small_page_header();
@@ -152,5 +153,19 @@ void test_small_malloc(void) {
   }
   printf("%p ", data8[0]);
   printf("%p\n", data8[n8-1]);
+
+  for (int i = 0; i < n16; i++) {
+    data16[i] = small_malloc(16);
+  }
+  printf("%p ", data16[0]);
+  printf("%p\n", data16[n16-1]);
+
+  void *x = small_malloc(2048);
+  printf("x (2k)=%p\n", x);
+  void *y = small_malloc(2048);
+  printf("y (2k)=%p\n", y);
+  void *z = small_malloc(2048);
+  printf("z (2k)=%p\n", z);
+
 }
 #endif
