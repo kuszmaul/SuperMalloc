@@ -38,7 +38,7 @@ void* small_malloc(size_t size)
 // treated the same by all the code, it's just the sizes that matter).
 // We want to allocate a small object in the fullest possible page.
 {
-  printf("small_malloc(%ld)\n", size);
+  if (0) printf("small_malloc(%ld)\n", size);
   binnumber_t bin = size_2_bin(size);
   //size_t usable_size = bin_2_size(bin);
   bassert(bin < first_large_bin_number);
@@ -47,9 +47,9 @@ void* small_malloc(size_t size)
   uint32_t o_size     = static_bin_info[bin].object_size;
   while (1) {
     int fullest = atomic_load(&dsbi.fullest_offset[bin]); // Otherwise it looks racy.
-    printf(" bin=%d off=%d  fullest=%d\n", bin, dsbi_offset, fullest);
+    if (0) printf(" bin=%d off=%d  fullest=%d\n", bin, dsbi_offset, fullest);
     if (fullest==0) {
-      printf("Need a page\n");
+      printf("Need a chunk\n");
       void *chunk = mmap_chunk_aligned_block(1);
       bassert(chunk);
       small_chunk_header *sch = (small_chunk_header*)chunk;
@@ -71,7 +71,7 @@ void* small_malloc(size_t size)
       // End of atomically.
     }
 
-    printf("There's one somewhere\n");
+    if (0) printf("There's one somewhere\n");
     void *result = NULL;
     // Do this atomically
     fullest = dsbi.fullest_offset[bin]; // we'll want to reread this in the transaction, so let's do it now even without the atomicity.
@@ -118,8 +118,8 @@ void* small_malloc(size_t size)
 	  int      bit_to_set = __builtin_ctzl(bwbar);
 	  result_pp->bitmap[w] |= (1ul<<bit_to_set);
 
-	  printf("result_pp  = %p\n", result_pp);
-	  printf("bit_to_set = %d\n", bit_to_set);
+	  if (0) printf("result_pp  = %p\n", result_pp);
+	  if (0) printf("bit_to_set = %d\n", bit_to_set);
 
 	  uint64_t chunk_address = ((int64_t)result_pp) & ~(chunksize-1);
 	  uint64_t wasted_off   = n_pages_wasted*pagesize;
@@ -132,7 +132,7 @@ void* small_malloc(size_t size)
       }
       abort(); // It's bad if we get here, it means that there was no bit in the bitmap, but the data structure said there should be.
    did_set_bitmap:
-      printf("Did set bitmap, got %p\n", result);
+      if (0) printf("Did set bitmap, got %p\n", result);
     }
     // End of atomically
     if (result) return result;
@@ -140,9 +140,17 @@ void* small_malloc(size_t size)
 }
 
 #ifdef TESTING
+const int n8 = 600000;
+static void* data8[n8];
+
+
 void test_small_malloc(void) {
   test_small_page_header();
-  void *x __attribute__((unused)) = small_malloc(8);
-  void *y __attribute__((unused)) = small_malloc(8);
+
+  for (int i = 0; i < n8; i++) {
+    data8[i] = small_malloc(8);
+  }
+  printf("%p ", data8[0]);
+  printf("%p\n", data8[n8-1]);
 }
 #endif
