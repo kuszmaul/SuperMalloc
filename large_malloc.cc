@@ -107,9 +107,19 @@ void large_free(void *p) {
   large_object_list_cell *entries = (large_object_list_cell*)(((uint64_t) p)  & ~(chunksize-1));
   uint32_t footprint = entries[objnum].footprint;
   add_to_footprint(-(int64_t)footprint);
+  large_object_list_cell **h = free_large_objects+ (bin - first_large_bin_number);
+  large_object_list_cell *ei = entries+objnum;
   // This part atomic. Can be done with comapre_and_swap
-  entries[objnum].next = free_large_objects[bin - first_large_bin_number];
-  free_large_objects[bin - first_large_bin_number] = &entries[0];
+  if (1) {
+    ei->next = *h;
+    *h = ei;
+  } else {
+    while (1) {
+      large_object_list_cell *first = *h;
+      ei->next = first;
+      if (__sync_bool_compare_and_swap(h, first, ei)) break;
+    }
+  }
 }
 
 

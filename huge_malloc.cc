@@ -94,13 +94,15 @@ void huge_free(void *m) {
   madvise(m, siz, MADV_DONTNEED);
   // Do this atomically.  This one is simple enough to be done with a compare and swap.
   
-  //  chunk_infos[cn].next = free_chunks[hlog];
-  //  free_chunks[hlog] = cn;
-
-  while (1) {
-    chunknumber_t hd = atomic_load(&free_chunks[hlog]);
-    chunk_infos[cn].next = hd;
-    if (__sync_bool_compare_and_swap(&free_chunks[hlog], hd, cn)) break;
+  if (0) {
+      chunk_infos[cn].next = free_chunks[hlog];
+      free_chunks[hlog] = cn;
+  } else {
+    while (1) {
+      chunknumber_t hd = atomic_load(&free_chunks[hlog]);
+      chunk_infos[cn].next = hd;
+      if (__sync_bool_compare_and_swap(&free_chunks[hlog], hd, cn)) break;
+    }
   }
 }
 
