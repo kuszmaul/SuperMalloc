@@ -23,13 +23,16 @@ static large_object_list_cell* free_large_objects[n_large_classes]; // For each 
 static unsigned int large_lock = 0;
 
 struct large_malloc_pop_s {
-  large_object_list_cell **free_large_objects_ptr;
+  large_object_list_cell **free_head;
   large_object_list_cell *result;
 };
 void predo_large_malloc_pop(void *ev) {
+  // For the predo, we basically want to look at the free head (and make it writeable) and
+  // read the next pointer (but only if the free-head is non-null, since the free-head could
+  // have become null by now, and we would need to allocate another chunk.)
   large_malloc_pop_s *e = (large_malloc_pop_s*)ev;
-  large_object_list_cell *h = *e->free_large_objects_ptr;
-  prefetch_write(e->free_large_objects_ptr);
+  large_object_list_cell *h = *e->free_head;
+  prefetch_write(e->free_head);
   if (h != NULL) {
     e->result = atomic_load(&h->next);
   }
@@ -37,12 +40,12 @@ void predo_large_malloc_pop(void *ev) {
 
 void do_large_malloc_pop(void *ev) {
   large_malloc_pop_s *e = (large_malloc_pop_s*)ev;
-  large_object_list_cell *h = *e->free_large_objects_ptr;
+  large_object_list_cell *h = *e->free_head;
   if (0) printf(" dlmp: h=%p\n", h);
   if(h == NULL) {
     e->result = NULL;
   } else {
-    *e->free_large_objects_ptr = h->next;
+    *e->free_head = h->next;
     e->result = h;
   }
 }
@@ -61,76 +64,80 @@ void* large_malloc(size_t size)
   bassert(b >= first_large_bin_number);
   bassert(b < first_huge_bin_number);
 
-again:
-  // This needs to be done atomically (along the successful branch).
-  // It cannot be done with a compare-and-swap since we read two locations that
-  // are visible to other threads (getting h, and getting h->next).
-  large_object_list_cell *h = free_large_objects[b - first_large_bin_number];
-  if (0) printf("h==%p\n", h);
-  if (h != NULL) {
-    if (0) {
-      free_large_objects[b-first_large_bin_number] = h->next;
-    } else {
-      // The strategy for the atomic version is that we set e.result to NULL if the list
-      // becomes empty (so that we go around and do chunk allocation again).
-      large_malloc_pop_s e = {&free_large_objects[b-first_large_bin_number], 0};
-      atomically(&large_lock,
+  large_object_list_cell **free_head = &free_large_objects[b - first_large_bin_number];
+
+  while (1) { // Keep going until we find a free object and return it.
+  
+    // This needs to be done atomically (along the successful branch).
+    // It cannot be done with a compare-and-swap since we read two locations that
+    // are visible to other threads (getting h, and getting h->next).
+    large_object_list_cell *h = *free_head;
+    if (0) printf("h==%p\n", h);
+    if (h != NULL) {
+      if (0) {
+	// This is what we want the atomic code below to do.
+	// The atomic code will have to re-read *free_head to get h again.
+	*free_head = h->next;
+      } else {
+	// The strategy for the atomic version is that we set e.result to NULL if the list
+	// becomes empty (so that we go around and do chunk allocation again).
+	large_malloc_pop_s e = {free_head, 0};
+	atomically(&large_lock,
 		   predo_large_malloc_pop,
 		   do_large_malloc_pop,
 		   &e);
-      h = e.result;
-      if (h==NULL) goto again;
-    }
-    // that was the atomic part.
-    uint32_t footprint = pagesize*ceil(size, pagesize);
-    h->footprint = footprint;
-    add_to_footprint(footprint);
-    if (0) printf("setting its footprint to %d\n", h->footprint);
-    if (0) printf("returning the page corresponding to %p\n", h);
-    void* chunk = (void*)(((uint64_t)h)& ~(chunksize-1));
-    if (0) printf("chunk=%p\n", chunk);
-    large_object_list_cell *chunk_as_list_cell = (large_object_list_cell*)chunk;
-    size_t offset = h-chunk_as_list_cell;
-    if (0) printf("offset=%ld\n", offset);
-    void* address = (void*)((char*)chunk + 2*pagesize + offset * usable_size);
-    if (0) printf("result=%p\n", address);
-    return address;
-  } else {
-    // No already free objects.  Get a chunk
-    void *chunk = mmap_chunk_aligned_block(1);
-    bassert(chunk!=0);
-    if (0) printf("chunk=%p\n", chunk);
-
-    if (0) printf("usable_size=%ld\n", usable_size);
-    size_t objects_per_chunk = chunksize/usable_size;
-    if (0) printf("opce=%ld\n", objects_per_chunk);
-    size_t size_of_header = objects_per_chunk * sizeof(large_object_list_cell);
-    if (0) printf("soh=%ld\n", size_of_header);
-
-    large_object_list_cell *entry = (large_object_list_cell*)chunk;
-    for (size_t i = 0; i+1 < objects_per_chunk; i++) {
-      entry[i].next = &entry[i+1];
-    }
-    chunk_infos[address_2_chunknumber(chunk)].bin_number = b;
-
-    // Do this atomically. 
-    if (0) {
-      entry[objects_per_chunk-1].next = free_large_objects[b - first_large_bin_number];
-      free_large_objects[b - first_large_bin_number] = &entry[0];
-    } else {
-      while (1) {
-	large_object_list_cell *old_first = free_large_objects[b - first_large_bin_number];
-	entry[objects_per_chunk-1].next = old_first;
-	if (__sync_bool_compare_and_swap(&free_large_objects[b - first_large_bin_number],
-					 old_first,
-					 &entry[0]))
-	  break;
+	h = e.result;
+	if (h==NULL) continue; // Go try again
       }
-    }
-    
-    if (0) printf("Got object\n");
+      // that was the atomic part.
+      uint32_t footprint = pagesize*ceil(size, pagesize);
+      h->footprint = footprint;
+      add_to_footprint(footprint);
+      if (0) printf("setting its footprint to %d\n", h->footprint);
+      if (0) printf("returning the page corresponding to %p\n", h);
+      void* chunk = (void*)(((uint64_t)h)& ~(chunksize-1));
+      if (0) printf("chunk=%p\n", chunk);
+      large_object_list_cell *chunk_as_list_cell = (large_object_list_cell*)chunk;
+      size_t offset = h-chunk_as_list_cell;
+      if (0) printf("offset=%ld\n", offset);
+      void* address = (void*)((char*)chunk + 2*pagesize + offset * usable_size);
+      if (0) printf("result=%p\n", address);
+      return address;
+    } else {
+      // No already free objects.  Get a chunk
+      void *chunk = mmap_chunk_aligned_block(1);
+      bassert(chunk!=0);
+      if (0) printf("chunk=%p\n", chunk);
 
-    goto again;
+      if (0) printf("usable_size=%ld\n", usable_size);
+      size_t objects_per_chunk = chunksize/usable_size;
+      if (0) printf("opce=%ld\n", objects_per_chunk);
+      size_t size_of_header = objects_per_chunk * sizeof(large_object_list_cell);
+      if (0) printf("soh=%ld\n", size_of_header);
+
+      large_object_list_cell *entry = (large_object_list_cell*)chunk;
+      for (size_t i = 0; i+1 < objects_per_chunk; i++) {
+	entry[i].next = &entry[i+1];
+      }
+      chunk_infos[address_2_chunknumber(chunk)].bin_number = b;
+
+      // Do this atomically. 
+      if (0) {
+	entry[objects_per_chunk-1].next = *free_head;
+	*free_head = &entry[0];
+      } else {
+	while (1) {
+	  large_object_list_cell *old_first = *free_head;
+	  entry[objects_per_chunk-1].next = old_first;
+	  if (__sync_bool_compare_and_swap(free_head,
+					   old_first,
+					   &entry[0]))
+	    break;
+	}
+      }
+    
+      if (0) printf("Got object\n");
+    }
   }
 }
 
