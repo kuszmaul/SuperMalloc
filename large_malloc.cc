@@ -73,8 +73,19 @@ again:
     chunk_infos[address_2_chunknumber(chunk)].bin_number = b;
 
     // Do this atomically. 
-    entry[objects_per_chunk-1].next = free_large_objects[b - first_large_bin_number];
-    free_large_objects[b - first_large_bin_number] = &entry[0];
+    if (0) {
+      entry[objects_per_chunk-1].next = free_large_objects[b - first_large_bin_number];
+      free_large_objects[b - first_large_bin_number] = &entry[0];
+    } else {
+      while (1) {
+	large_object_list_cell *old_first = free_large_objects[b - first_large_bin_number];
+	entry[objects_per_chunk-1].next = old_first;
+	if (__sync_bool_compare_and_swap(&free_large_objects[b - first_large_bin_number],
+					 old_first,
+					 &entry[0]))
+	  break;
+      }
+    }
     
     if (0) printf("Got object\n");
 
