@@ -5,9 +5,9 @@
 #include <sys/mman.h>
 
 #include "atomically.h"
-#include "malloc_internal.h"
 #include "bassert.h"
 #include "generated_constants.h"
+#include "malloc_internal.h"
 
 struct large_object_list_cell {
   union {

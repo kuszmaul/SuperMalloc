@@ -1,9 +1,9 @@
 /* Maintain a count of the footprint. */
 
+#include <sched.h>
+
 #include "malloc_internal.h"
 #include "atomically.h"
-
-#include <sched.h>
 
 static const int processor_number_limit = 128; // should be enough for now.
 static uint64_t partitioned_footprint[processor_number_limit];

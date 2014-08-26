@@ -2,15 +2,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/mman.h>
-
-#include <algorithm>
-
 #ifdef TESTING
 #include <stdio.h>
 #endif
 
-#include "generated_constants.h"
+#include <algorithm>
+
 #include "bassert.h"
+#include "generated_constants.h"
 
 #ifdef TESTING
 static void test_size_2_bin(void) {
