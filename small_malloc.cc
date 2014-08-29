@@ -11,7 +11,7 @@ static struct {
  // pages are in slot 0, the 1-free are in slot 1, and so forth.  Note
  // that we can have full pages and have the fullest_offset be nonzero
  // (because not all pages are full).
-  int fullest_offset[first_large_bin_number];
+  uint32_t fullest_offset[first_large_bin_number];
 } dsbi;
 
 const uint32_t bitmap_n_words = pagesize/64/8; /* 64 its per uint64_t, 8 is the smallest object */ 
@@ -127,7 +127,7 @@ void* small_malloc(size_t size)
 	  uint64_t wasted_off   = n_pages_wasted*pagesize;
 	  uint64_t page_num     = (((uint64_t)result_pp)%chunksize)/sizeof(per_page);
 	  uint64_t page_off     = page_num*pagesize;
-	  uint64_t obj_off      = bit_to_set * o_size;
+	  uint64_t obj_off      = (w * 64 + bit_to_set) * o_size;
 	  result = (void*)(chunk_address + wasted_off + page_off + obj_off);
 	  goto did_set_bitmap;
 	}
@@ -149,11 +149,51 @@ void small_free(void* p) {
   printf("     sch  =%p\n", sch);
   uint64_t page_num = (((uint64_t)p)%chunksize)/pagesize;
   printf(" page_num =%ld\n", page_num);
+  bassert(page_num >= n_pages_wasted);
   chunknumber_t chunk_num  = address_2_chunknumber(p);
   printf(" chunk_num=%d\n", chunk_num);
   binnumber_t   bin        = chunk_infos[chunk_num].bin_number;
   printf(" bin      =%d\n", bin);
-  abort();
+  uint32_t useful_page_num = page_num - n_pages_wasted;
+  per_page             *pp = &sch->ll[useful_page_num];
+  printf(" per_page =%p (prev=%p next=%p bitmap=%16lx %16lx %16lx %16lx %16lx %16lx %16lx %16lx)\n", pp, pp->prev, pp->next,
+	 pp->bitmap[0], pp->bitmap[1], pp->bitmap[2], pp->bitmap[3], pp->bitmap[4], pp->bitmap[5], pp->bitmap[6], pp->bitmap[7]);
+  bassert((pp->bitmap[useful_page_num/64] >> (useful_page_num%64)) & 1);
+  // Do this atomically.
+  uint32_t old_count = 0;
+  for (uint32_t i = 0; i < bitmap_n_words; i++) old_count += __builtin_popcountl(pp->bitmap[i]);
+  pp->bitmap[useful_page_num/64] &= ~ ( 1ul << (useful_page_num%64 ));
+  printf("                                              newbitmap=%16lx %16lx %16lx %16lx %16lx %16lx %16lx %16lx)\n",
+	 pp->bitmap[0], pp->bitmap[1], pp->bitmap[2], pp->bitmap[3], pp->bitmap[4], pp->bitmap[5], pp->bitmap[6], pp->bitmap[7]);
+  printf("old_count = %d\n", old_count);
+  uint32_t o_per_page = static_bin_info[bin].objects_per_page;
+  bassert(old_count < o_per_page);
+
+  int dsbi_offset = dynamic_small_bin_offset(bin);
+  printf("dsbi_offset  = %d\n", dsbi_offset);
+
+  // remove from old list
+  per_page * pp_next = pp->next;  
+  per_page * pp_prev = pp->prev;
+  if (pp_prev == NULL) {
+    dsbi.lists.b[dsbi_offset + old_count] = pp_next;
+  } else {
+    pp_prev->next = pp_next;
+  }
+  if (pp_next != NULL) {
+    pp_next->prev = pp_prev;
+  }
+  // Fix up the old_count
+  if (pp_next == NULL && dsbi.fullest_offset[bin] == old_count) {
+    dsbi.fullest_offset[bin] = old_count+1;
+  }
+  // Add to new list
+  pp->prev = NULL;
+  pp->next = dsbi.lists.b[dsbi_offset + old_count + 1];
+  if (dsbi.lists.b[dsbi_offset + old_count + 1]) {
+    dsbi.lists.b[dsbi_offset + old_count + 1]->prev = pp;
+  }
+  dsbi.lists.b[dsbi_offset + old_count + 1] = pp;
 }
 
 #ifdef TESTING
@@ -177,14 +217,19 @@ void test_small_malloc(void) {
   printf("%p ", data16[0]);
   printf("%p\n", data16[n16-1]);
 
+  {
+    void *x = small_malloc(2048);
+    printf("x (2k)=%p\n", x);
+    small_free(x);
+  }
   void *x = small_malloc(2048);
   printf("x (2k)=%p\n", x);
+
   void *y = small_malloc(2048);
   printf("y (2k)=%p\n", y);
   void *z = small_malloc(2048);
   printf("z (2k)=%p\n", z);
   bassert(chunk_infos[address_2_chunknumber(z)].bin_number == size_2_bin(2048));
 
-  small_free(x);
 }
 #endif
