@@ -1,9 +1,13 @@
-COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
+# COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
 C_CXX_FLAGS = -W -Wall -Werror -O0 -g -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
-CPPFLAGS = -DTESTING
 
+# While compiling malloc or any of its .o files, compile with -DTESTING
+libbmalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o bassert.o footprint.o
+	$(CXX) $^ -shared -o $@
+
+malloc: CPPFLAGS = -DTESTING
 malloc: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o bassert.o footprint.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
 objsizes: malloc_internal.h

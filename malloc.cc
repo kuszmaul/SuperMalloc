@@ -53,208 +53,10 @@ void initialize_malloc(void) {
   chunk_infos = (chunk_info*)mmap_chunk_aligned_block(n_chunks);
   bassert(chunk_infos);
 }
-
-chunknumber_t free_chunks[log_max_chunknumber];
-
-union bitmap_chunk {
-    unsigned char data[chunksize];
-    bitmap_chunk  *next;
-};
-
-union page;
-
-const uint64_t pointers_per_page = pagesize/sizeof(page*);
-
-const uint64_t n_slots_per_page = (pagesize-64)/sizeof(uint64_t);
-
-union page {
-  struct page_in_use {
-    uint64_t n_free_slots;
-    uint64_t first_free_slot;
-    page *next, *prev; // doubly linked list of pages with the same count
-    union {
-      uint8_t data[pagesize - 64];
-      int64_t slots[n_slots_per_page];
-    } __attribute__((aligned(64)));
-  } piu;
-  struct page_of_pages {
-    uint64_t page_count;
-    page   *next_page_of_pages;
-    page   *pages[pointers_per_page-2];
-  } pop;
-  uint8_t raw_data[pagesize];
-};
-  
-
-struct non_huge_bin {
-  page *free_pages; // points at a page_of_pages, each subpage is just a page which may be all zeros (and may be madvise'd DONT_NEED).
-  uint32_t fullest_page_index; // This is the minimum i such that partially_filled_page[i+1]!=NULL.  (Initially zero)
-  page *partially_filled_pages[504]; // these are the doubly linked (pointing at headers).  [0] is the list of pages with no free slots, [1] is the list with 1 free slot.  Since the smallest objects is 8 bytes, and the page header uses some bytes, there are at most 504 free objects.
-} bins[first_huge_bin_number];
-
-#if 0
-static void add_chunk_to_bin(binnumber_t bin)
-// Effect: Add a chunk to a bin (which is a non-huge bin).
-{
-  void *c = chunk_create();
-  chunknumber_t chunknum = address_2_chunknumber(c);
-  chunk_infos[chunknum].bin_number = bin;
-  page *p = (page*)c;
-  bassert(chunksize / pagesize == pointers_per_page); // this happens to be true.
-  p->pop.page_count = pointers_per_page-2;
-  p->pop.next_page_of_pages = NULL;
-  for (uint64_t i = 0; i < pointers_per_page - 2; i++) {
-    p->pop.pages[i] = p+i+2;
-  }
-  p[1].pop.page_count = 0;
-  p[1].pop.next_page_of_pages = p;
-  bins[bin].free_pages = p+1;
+void maybe_initialize_malloc(void) {
+  // This should be protected by a lock.
+  if (!chunk_infos) initialize_malloc();
 }
-#endif
-
-static page *remove_free_page_from_bin(binnumber_t bin)
-//  Effect: Assume there's a free page in the bin, remove a free page from the bin and return it.
-{
-  page *p = bins[bin].free_pages;
-  uint64_t pc = p->pop.page_count;
-  if (pc > 0) {
-    page *r = p->pop.pages[pc-1];
-    p->pop.page_count = pc-1;
-    return r;
-  } else {
-    bins[bin].free_pages = p->pop.next_page_of_pages;
-    return p;
-  }
-}
-
-static void init_page_of_bin(binnumber_t bin, page *p)
-// Effect: p is a previously uninitialized page that belongs in a particular bin.
-//   Initialize it (including its free list), but don't put it into the partially_filled_pages array, since there isn't a slot
-//   there for empty pages.
-{
-  uint32_t objsize = static_bin_info[bin].object_size;
-  p->piu.n_free_slots = static_bin_info[bin].objects_per_page;
-  p->piu.first_free_slot = objsize;
-  for (uint64_t i = 0; i < n_slots_per_page; i += objsize) {
-    p->piu.slots[i] = (i+1 < n_slots_per_page) ? i+1 : -1;
-  }
-}
-
-static void* get_object_from_page_and_place_page_in_list(binnumber_t bin, page *p)
-// Effect: p is a page with at least one free object in it.  Return
-//  that object, and modify p so that the new object is removed from
-//  the freelist.  Add p to the partially_filled_pages (unless p is completely full).
-{
-  uint64_t ffs = p->piu.first_free_slot;
-  int64_t *result = &p->piu.slots[ffs];
-  uint32_t new_free_slots = --p->piu.n_free_slots;
-  p->piu.first_free_slot = *result;
-  p->piu.prev = NULL;
-  uint32_t old_fpi = bins[bin].fullest_page_index;
-  uint32_t new_fpi;
-  if (old_fpi == 0 || new_free_slots < old_fpi) {
-    new_fpi = new_free_slots;
-    printf("new_fpi=%d old_fpi=%d\n", new_free_slots, old_fpi);
-    bins[bin].fullest_page_index = new_free_slots;
-  } else {
-    new_fpi = old_fpi;
-  }
-  page *old_head = bins[bin].partially_filled_pages[new_fpi-1];
-  p->piu.next = old_head;
-  if (old_head) {
-    old_head->piu.prev = p;
-  }
-  bins[bin].partially_filled_pages[new_fpi-1] = p;
-  return result;
-}
-
-static void* non_huge_malloc(size_t size) {
-  binnumber_t bin = size_2_bin(size);
-  bassert(bin < first_huge_bin_number);
-  int fpi = bins[bin].fullest_page_index;
-  if (fpi != 0) {
-    // There's partially full page.  Remove p from the partially filled pages where it lives now, and get an object from it.
-    page *p = bins[bin].partially_filled_pages[fpi-1];
-    bins[bin].partially_filled_pages[fpi-1] = p->piu.next;
-    if (p->piu.next) {
-      p->piu.next->piu.prev = NULL;
-    }
-    void *r = get_object_from_page_and_place_page_in_list(bin, p);
-    return r;
-  } else if (bins[bin].free_pages) {
- got_free_pages:
-    page *p = remove_free_page_from_bin(bin);
-    printf("got free page (%p)\n", p);
-    init_page_of_bin(bin, p);
-    void *o = get_object_from_page_and_place_page_in_list(bin, p);
-    return o;
-  } else {
-    // There are no pages free, so allocate a chunk.
-    abort();
-    //add_chunk_to_bin(bin);
-    goto got_free_pages;
-  }
-}
-
-#ifdef TESTING
-static void test_non_huge_malloc(void) {
-  {
-    void *v = non_huge_malloc(8);
-    printf("m(8)=%p\n", v);
-  }
-  {
-    void *v = non_huge_malloc(8);
-    printf("m(8)=%p\n", v);
-  }
-  {
-    void *v = non_huge_malloc(8);
-    printf("m(8)=%p\n", v);
-  }
-  const int c = 100;
-  void **a = (void**)non_huge_malloc(sizeof(void*)*c);
-  printf("a=%p\n", a);
-  for (int i = 0; i < c; i++) {
-    a[i] = non_huge_malloc(80);
-    printf("a[%d]=%p\n", i, a[i]);
-  }
-}
-#endif
-
-#if 0
-
-struct into_page {
-  into_page *next; // this is a pointer into the middle of a page.  We do arithmetic to get to the beginning of the page.
-};
-struct page_of_pages {
-  page_of_pages *next;
-  short n_pages_here;
-  void *pages[510];
-};
-#endif
-
-#if 0
-struct bin {
-  uint16_t object_size, objects_per_page;
-  into_page **page_lists; // page_lists[0] has a list of pages that have 1 object free.  Total length page_lists[objects_per_page-1]
-  // We don't bother to keep empty pages.
-  // It really should be a dense list so we don't have to search through things.
-  page_of_pages *empty_pages;
-} bins[n_bins];
-
-void* small_malloc(size_t size) {
-  int32_t g = size_2_bin(size);
-  uint16_t limit = bins[g].objects_per_page;
-  into_page **pl = bins[g].page_lists;
-  for (int i = 0; i < limit-1; i++) {
-    if (pl[i]) {
-      // Found an object.  Got to go to the bitmap, figure out which one to use next, queue it up, and then return pi[i]
-      abort();
-      return pl[i];
-    }
-  }
-  abort();
-}
-#endif
 
 #ifdef TESTING
 static uint64_t slow_hyperceil(uint64_t a) {
@@ -304,18 +106,27 @@ int main() {
 //   BIG, used for large allocations.  These are 2MB-aligned chunks.  We use BIG for anything bigger than a quarter of a chunk.
 //   SMALL fit within a chunk.  Everything within a single chunk is the same size.
 // The sizes are the powers of two (1<<X) as well as (1<<X)*1.25 and (1<<X)*1.5 and (1<<X)*1.75
-extern "C" void *mymalloc(size_t size) {
+extern "C" void *malloc(size_t size) {
     // We use a bithack to find the right size.
-    if (size==0) return NULL;
-    if (size<8)  size=8; // special case the very small objects.
-    if (size>= 512*1024ul) {
-        // huge case
-      return huge_malloc(size);
-    } else {
-      abort();      
-    }
+  maybe_initialize_malloc();
+  if (size <= largest_small) return small_malloc(size);
+  if (size <= largest_large) return large_malloc(size);
+  return huge_malloc(size);
 }
 
+extern "C" void free(void *p) {
+  chunknumber_t cn = address_2_chunknumber(p);
+  binnumber_t bin = chunk_infos[cn].bin_number;
+  if (bin < first_large_bin_number) return small_free(p);
+  if (bin < first_huge_bin_number)  return large_free(p);
+  return huge_free(p);
+}
+
+extern "C" void* realloc(void *p, size_t size) {
+  if (p == NULL) return malloc(size);
+  printf("realloc(%p, %ld)\n", p, size);
+  abort();
+}
 
 // The basic idea of allocation, is that that we allocate 2MiB chunks
 // (which are 2MiB aligned), and everything within a 2MiB chunk is the

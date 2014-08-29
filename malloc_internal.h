@@ -8,7 +8,7 @@
 #endif
 
 #include <stdint.h>
-
+#include <sys/types.h>
 
 
 const uint64_t pagesize = 4096;
@@ -91,6 +91,7 @@ void test_makechunk(void);
 #endif
 
 void *large_malloc(size_t);
+void large_free(void*);
 #ifdef TESTING
 void test_large_malloc(void);
 #endif
@@ -98,6 +99,8 @@ void test_large_malloc(void);
 void add_to_footprint(int64_t delta);
 int64_t get_footprint(void);
 
+void *small_malloc(size_t);
+void small_free(void*);
 #ifdef TESTING
 void test_small_malloc(void);
 #endif

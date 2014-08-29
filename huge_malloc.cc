@@ -21,6 +21,9 @@ struct atfc {
   void* result;
   chunknumber_t u;
 };
+
+chunknumber_t free_chunks[log_max_chunknumber];
+
 static void pre_add_to_free_chunks(void *extra) {
   struct atfc *a = (struct atfc*)extra;
   int f = a->f;

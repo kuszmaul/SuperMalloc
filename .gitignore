@@ -1,6 +1,6 @@
 *.o
+*.so
 *~
-Makefile
 malloc
 objsizes
 
