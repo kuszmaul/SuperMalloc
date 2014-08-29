@@ -52,6 +52,8 @@ void* small_malloc(size_t size)
       printf("Need a chunk\n");
       void *chunk = mmap_chunk_aligned_block(1);
       bassert(chunk);
+      chunk_infos[address_2_chunknumber(chunk)].bin_number = bin;
+
       small_chunk_header *sch = (small_chunk_header*)chunk;
       for (uint32_t i = 0; i < n_pages_used; i++) { // really ought to git rid of that division.  There's no reason for it, except that I'm trying to keep the code simple for now.
 	for (uint32_t w = 0; w < bitmap_n_words; w++) {
@@ -139,6 +141,21 @@ void* small_malloc(size_t size)
   } 
 }
 
+void small_free(void* p) {
+  printf("small_free(%p)\n", p);
+  void *chunk = (void*)((uint64_t)p&~(chunksize-1));
+  printf("     chunk=%p\n", chunk);
+  small_chunk_header *sch = (small_chunk_header*)chunk;
+  printf("     sch  =%p\n", sch);
+  uint64_t page_num = (((uint64_t)p)%chunksize)/pagesize;
+  printf(" page_num =%ld\n", page_num);
+  chunknumber_t chunk_num  = address_2_chunknumber(p);
+  printf(" chunk_num=%d\n", chunk_num);
+  binnumber_t   bin        = chunk_infos[chunk_num].bin_number;
+  printf(" bin      =%d\n", bin);
+  abort();
+}
+
 #ifdef TESTING
 const int n8 = 600000;
 static void* data8[n8];
@@ -166,6 +183,8 @@ void test_small_malloc(void) {
   printf("y (2k)=%p\n", y);
   void *z = small_malloc(2048);
   printf("z (2k)=%p\n", z);
+  bassert(chunk_infos[address_2_chunknumber(z)].bin_number == size_2_bin(2048));
 
+  small_free(x);
 }
 #endif
