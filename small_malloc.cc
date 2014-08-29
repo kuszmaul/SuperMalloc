@@ -142,35 +142,39 @@ void* small_malloc(size_t size)
 }
 
 void small_free(void* p) {
-  printf("small_free(%p)\n", p);
+  if (0) printf("small_free(%p)\n", p);
   void *chunk = (void*)((uint64_t)p&~(chunksize-1));
-  printf("     chunk=%p\n", chunk);
+  if (0) printf("     chunk=%p\n", chunk);
   small_chunk_header *sch = (small_chunk_header*)chunk;
-  printf("     sch  =%p\n", sch);
+  if (0) printf("     sch  =%p\n", sch);
   uint64_t page_num = (((uint64_t)p)%chunksize)/pagesize;
-  printf(" page_num =%ld\n", page_num);
+  if (0) printf(" page_num =%ld\n", page_num);
   bassert(page_num >= n_pages_wasted);
   chunknumber_t chunk_num  = address_2_chunknumber(p);
-  printf(" chunk_num=%d\n", chunk_num);
+  if (0) printf(" chunk_num=%d\n", chunk_num);
   binnumber_t   bin        = chunk_infos[chunk_num].bin_number;
-  printf(" bin      =%d\n", bin);
+  if (0) printf(" bin      =%d\n", bin);
   uint32_t useful_page_num = page_num - n_pages_wasted;
+  if (0) printf(" useful   =%d\n", useful_page_num);
   per_page             *pp = &sch->ll[useful_page_num];
-  printf(" per_page =%p (prev=%p next=%p bitmap=%16lx %16lx %16lx %16lx %16lx %16lx %16lx %16lx)\n", pp, pp->prev, pp->next,
-	 pp->bitmap[0], pp->bitmap[1], pp->bitmap[2], pp->bitmap[3], pp->bitmap[4], pp->bitmap[5], pp->bitmap[6], pp->bitmap[7]);
-  bassert((pp->bitmap[useful_page_num/64] >> (useful_page_num%64)) & 1);
+  if (0) printf(" per_page =%p (prev=%14p next=%14p bitmap=%16lx %16lx %16lx %16lx %16lx %16lx %16lx %16lx)\n", pp, pp->prev, pp->next,
+		pp->bitmap[0], pp->bitmap[1], pp->bitmap[2], pp->bitmap[3], pp->bitmap[4], pp->bitmap[5], pp->bitmap[6], pp->bitmap[7]);
+  uint32_t o_size     = static_bin_info[bin].object_size;
+  uint64_t         objnum = (((uint64_t)p)%pagesize) / o_size;
+  bassert((pp->bitmap[objnum/64] >> (objnum%64)) & 1);
   // Do this atomically.
   uint32_t old_count = 0;
   for (uint32_t i = 0; i < bitmap_n_words; i++) old_count += __builtin_popcountl(pp->bitmap[i]);
-  pp->bitmap[useful_page_num/64] &= ~ ( 1ul << (useful_page_num%64 ));
-  printf("                                              newbitmap=%16lx %16lx %16lx %16lx %16lx %16lx %16lx %16lx)\n",
-	 pp->bitmap[0], pp->bitmap[1], pp->bitmap[2], pp->bitmap[3], pp->bitmap[4], pp->bitmap[5], pp->bitmap[6], pp->bitmap[7]);
-  printf("old_count = %d\n", old_count);
+  // clear the bit.
+  pp->bitmap[objnum/64] &= ~ ( 1ul << (objnum%64 ));
+  if (0) printf("                                                                newbitmap=%16lx %16lx %16lx %16lx %16lx %16lx %16lx %16lx)\n",
+		pp->bitmap[0], pp->bitmap[1], pp->bitmap[2], pp->bitmap[3], pp->bitmap[4], pp->bitmap[5], pp->bitmap[6], pp->bitmap[7]);
+  if (0) printf(" old_count = %d\n", old_count);
   uint32_t o_per_page = static_bin_info[bin].objects_per_page;
-  bassert(old_count < o_per_page);
+  bassert(old_count > 0 && old_count <= o_per_page);
 
   int dsbi_offset = dynamic_small_bin_offset(bin);
-  printf("dsbi_offset  = %d\n", dsbi_offset);
+  if (0) printf("dsbi_offset  = %d\n", dsbi_offset);
 
   // remove from old list
   per_page * pp_next = pp->next;  
@@ -185,15 +189,15 @@ void small_free(void* p) {
   }
   // Fix up the old_count
   if (pp_next == NULL && dsbi.fullest_offset[bin] == old_count) {
-    dsbi.fullest_offset[bin] = old_count+1;
+    dsbi.fullest_offset[bin] = old_count-1;
   }
   // Add to new list
   pp->prev = NULL;
-  pp->next = dsbi.lists.b[dsbi_offset + old_count + 1];
-  if (dsbi.lists.b[dsbi_offset + old_count + 1]) {
-    dsbi.lists.b[dsbi_offset + old_count + 1]->prev = pp;
+  pp->next = dsbi.lists.b[dsbi_offset + old_count - 1];
+  if (dsbi.lists.b[dsbi_offset + old_count - 1]) {
+    dsbi.lists.b[dsbi_offset + old_count - 1]->prev = pp;
   }
-  dsbi.lists.b[dsbi_offset + old_count + 1] = pp;
+  dsbi.lists.b[dsbi_offset + old_count - 1] = pp;
 }
 
 #ifdef TESTING
@@ -230,6 +234,17 @@ void test_small_malloc(void) {
   void *z = small_malloc(2048);
   printf("z (2k)=%p\n", z);
   bassert(chunk_infos[address_2_chunknumber(z)].bin_number == size_2_bin(2048));
+
+  for (int i = 0; i < n8; i++) {
+    small_free(data8[i]);
+  }
+  for (int i = 0; i < n16; i++) {
+    small_free(data16[i]);
+  }
+  small_free(x);
+  small_free(y);
+  small_free(z);
+  
 
 }
 #endif
