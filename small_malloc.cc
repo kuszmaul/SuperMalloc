@@ -73,9 +73,9 @@ struct small_malloc_add_pages_from_chunk_s {
   uint32_t dsbi_offset;
   uint32_t o_per_page;
   small_chunk_header *sch;
-};
+} __attribute__((aligned(64)));
 
-void predo_small_malloc_add_pages_from_new_chunk(void *vv) {
+static void predo_small_malloc_add_pages_from_new_chunk(void *vv) {
   small_malloc_add_pages_from_chunk_s *v = (small_malloc_add_pages_from_chunk_s *)vv;
   binnumber_t bin = v->bin;
   uint32_t dsbi_offset = v->dsbi_offset;
@@ -90,7 +90,7 @@ void predo_small_malloc_add_pages_from_new_chunk(void *vv) {
   }
 }
 
-void do_small_malloc_add_pages_from_new_chunk(void *vv) {
+static void do_small_malloc_add_pages_from_new_chunk(void *vv) {
   small_malloc_add_pages_from_chunk_s *v = (small_malloc_add_pages_from_chunk_s *)vv;
   binnumber_t bin = v->bin;
   uint32_t dsbi_offset = v->dsbi_offset;
@@ -101,6 +101,125 @@ void do_small_malloc_add_pages_from_new_chunk(void *vv) {
   sch->ll[n_pages_used-1].next = old_h;
   if (dsbi.fullest_offset[bin] == 0) { // must test this again here.
     dsbi.fullest_offset[bin] = o_per_page;
+  }
+}
+
+struct do_small_malloc_s {
+  void *result;
+  binnumber_t bin;
+  uint32_t dsbi_offset;
+  uint32_t o_per_page;
+  uint32_t o_size;
+} __attribute__((aligned(64)));
+
+static void predo_small_malloc(void* vv) {
+  do_small_malloc_s *v = (do_small_malloc_s*)vv;
+  binnumber_t bin = v->bin;
+  uint32_t dsbi_offset = v->dsbi_offset;
+  uint32_t o_per_page  = v->o_per_page;
+  uint32_t o_size __attribute__((unused)) = atomic_load(&v->o_size);
+  uint32_t fullest = dsbi.fullest_offset[bin]; // we'll want to reread this in the transaction, so let's do it now even without the atomicity.
+  if (fullest != 0)  {
+    per_page *result_pp = dsbi.lists.b[dsbi_offset + fullest];
+    if (result_pp) {
+      per_page *next = result_pp->next;
+      if (next) {
+	per_page *ignore __attribute__((unused)) = atomic_load(&next->prev);
+	prefetch_write(&next->prev);
+      }
+      prefetch_write(&dsbi.lists.b[dsbi_offset + fullest]);
+      prefetch_write(&result_pp->next);
+      per_page *old_h_below = dsbi.lists.b[dsbi_offset + fullest -1];
+      if (old_h_below) {
+	per_page *ignore __attribute__((unused)) = atomic_load(&old_h_below->prev);
+	prefetch_write(&old_h_below->prev);
+      }
+      prefetch_write(&dsbi.lists.b[dsbi_offset + fullest -1]);
+      prefetch_write(&dsbi.fullest_offset[bin]);
+      if (fullest == 0) {
+	for (uint32_t new_fullest = 1; new_fullest <= o_per_page; new_fullest++) {
+	  if (atomic_load(&dsbi.lists.b[dsbi_offset + new_fullest]))
+	    break;
+	}
+      }
+      for (uint32_t w = 0; w < bitmap_n_words; w++) {
+	uint64_t bw = result_pp->inuse_bitmap[w];
+	if (bw != UINT64_MAX) {
+	  prefetch_write(&result_pp->inuse_bitmap[w]);
+	}
+      }
+    }
+  }
+}  
+
+
+static void do_small_malloc(void* vv) {
+  do_small_malloc_s *v = (do_small_malloc_s*)vv;
+  binnumber_t bin = v->bin;
+  uint32_t dsbi_offset = v->dsbi_offset;
+  uint32_t o_per_page  = v->o_per_page;
+  uint32_t o_size = v->o_size;
+
+  uint32_t fullest = dsbi.fullest_offset[bin]; // we'll want to reread this in the transaction, so let's do it now even without the atomicity.
+  if (fullest != 0) {
+    per_page *result_pp = dsbi.lists.b[dsbi_offset + fullest];
+
+    bassert(result_pp);
+    // update the linked list.
+    per_page *next = result_pp->next;
+    if (next) {
+      next->prev = NULL;
+    }
+    dsbi.lists.b[dsbi_offset + fullest] = next;
+
+    // Add the item to the next list down.
+      
+    per_page *old_h_below = dsbi.lists.b[dsbi_offset + fullest -1];
+    result_pp->next = old_h_below;
+    if (old_h_below) {
+      old_h_below->prev = result_pp;
+    }
+    dsbi.lists.b[dsbi_offset + fullest -1] = result_pp;
+      
+    // Must also figure out the new fullest.
+    if (fullest > 1) {
+      dsbi.fullest_offset[bin] = fullest-1;
+    } else {
+      // It was the last item in the page, so we must look to see if we have any other pages.
+      int use_new_fullest = 0;
+      for (uint32_t new_fullest = 1; new_fullest <= o_per_page; new_fullest++) {
+	if (dsbi.lists.b[dsbi_offset + new_fullest]) {
+	  use_new_fullest = new_fullest;
+	  break;
+	}
+      }
+      dsbi.fullest_offset[bin] = use_new_fullest;
+    }
+
+    // Now set the bitmap
+    for (uint32_t w = 0; w < bitmap_n_words; w++) {
+      uint64_t bw = result_pp->inuse_bitmap[w];
+      if (bw != UINT64_MAX) {
+	// Found an empty bit.
+	uint64_t bwbar = ~bw;
+	int      bit_to_set = __builtin_ctzl(bwbar);
+	result_pp->inuse_bitmap[w] |= (1ul<<bit_to_set);
+
+	if (0) printf("result_pp  = %p\n", result_pp);
+	if (0) printf("bit_to_set = %d\n", bit_to_set);
+
+	uint64_t chunk_address = ((int64_t)result_pp) & ~(chunksize-1);
+	uint64_t wasted_off   = n_pages_wasted*pagesize;
+	uint64_t page_num     = (((uint64_t)result_pp)%chunksize)/sizeof(per_page);
+	uint64_t page_off     = page_num*pagesize;
+	uint64_t obj_off      = (w * 64 + bit_to_set) * o_size;
+	v->result = (void*)(chunk_address + wasted_off + page_off + obj_off);
+	goto did_set_bitmap;
+      }
+    }
+    abort(); // It's bad if we get here, it means that there was no bit in the bitmap, but the data structure said there should be.
+ did_set_bitmap:
+    if (0) printf("Did set bitmap, got %p\n", v->result);
   }
 }
 
@@ -142,72 +261,13 @@ void* small_malloc(size_t size)
 
     if (0 && needed) printf("Chunked\n");
     if (0) printf("There's one somewhere\n");
-    void *result = NULL;
-    // Do this atomically
-    fullest = dsbi.fullest_offset[bin]; // we'll want to reread this in the transaction, so let's do it now even without the atomicity.
-    if (fullest!=0) {
-      per_page *result_pp = dsbi.lists.b[dsbi_offset + fullest];
+    
 
-      bassert(result_pp);
-      // update the linked list.
-      per_page *next = result_pp->next;
-      if (next) {
-	next->prev = NULL;
-      }
-      dsbi.lists.b[dsbi_offset + fullest] = next;
+    struct do_small_malloc_s v = {NULL, bin, dsbi_offset, o_per_page, o_size};
+    atomically(&small_lock.l, predo_small_malloc, do_small_malloc, &v);
 
-      // Add the item to the next list down.
-      
-      per_page *old_h_below = dsbi.lists.b[dsbi_offset + fullest -1];
-      result_pp->next = old_h_below;
-      if (old_h_below) {
-	old_h_below->prev = result_pp;
-      }
-      dsbi.lists.b[dsbi_offset + fullest -1] = result_pp;
-      
-      // Must also figure out the new fullest.
-      if (fullest > 1) {
-	dsbi.fullest_offset[bin] = fullest-1;
-      } else {
-	// It was the last item in the page, so we must look to see if we have any other pages.
-	int use_new_fullest = 0;
-	for (uint32_t new_fullest = 1; new_fullest <= o_per_page; new_fullest++) {
-	  if (dsbi.lists.b[dsbi_offset + new_fullest]) {
-	    use_new_fullest = new_fullest;
-	    break;
-	  }
-	}
-	dsbi.fullest_offset[bin] = use_new_fullest;
-      }
-
-      // Now set the bitmap
-      for (uint32_t w = 0; w < bitmap_n_words; w++) {
-	uint64_t bw = result_pp->inuse_bitmap[w];
-	if (bw != UINT64_MAX) {
-	  // Found an empty bit.
-	  uint64_t bwbar = ~bw;
-	  int      bit_to_set = __builtin_ctzl(bwbar);
-	  result_pp->inuse_bitmap[w] |= (1ul<<bit_to_set);
-
-	  if (0) printf("result_pp  = %p\n", result_pp);
-	  if (0) printf("bit_to_set = %d\n", bit_to_set);
-
-	  uint64_t chunk_address = ((int64_t)result_pp) & ~(chunksize-1);
-	  uint64_t wasted_off   = n_pages_wasted*pagesize;
-	  uint64_t page_num     = (((uint64_t)result_pp)%chunksize)/sizeof(per_page);
-	  uint64_t page_off     = page_num*pagesize;
-	  uint64_t obj_off      = (w * 64 + bit_to_set) * o_size;
-	  result = (void*)(chunk_address + wasted_off + page_off + obj_off);
-	  goto did_set_bitmap;
-	}
-      }
-      abort(); // It's bad if we get here, it means that there was no bit in the bitmap, but the data structure said there should be.
-   did_set_bitmap:
-      if (0) printf("Did set bitmap, got %p\n", result);
-    }
-    // End of atomically
     verify_small_invariants();
-    if (result) return result;
+    if (v.result) return v.result;
   }
 }
 
