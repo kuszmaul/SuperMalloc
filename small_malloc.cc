@@ -244,6 +244,7 @@ void* small_malloc(size_t size)
       if (0) printf("Need a chunk\n");
       needed = true;
       void *chunk = mmap_chunk_aligned_block(1);
+      printf("small_map %p\n", chunk);
       bassert(chunk);
       chunk_infos[address_2_chunknumber(chunk)].bin_number = bin;
 
@@ -267,7 +268,10 @@ void* small_malloc(size_t size)
     atomically(&small_lock.l, predo_small_malloc, do_small_malloc, &v);
 
     verify_small_invariants();
-    if (v.result) return v.result;
+    if (v.result) {
+      bassert(chunk_infos[address_2_chunknumber(v.result)].bin_number == bin);
+      return v.result;
+    }
   }
 }
 
@@ -276,7 +280,47 @@ struct do_small_free_s {
   per_page *pp;
   uint64_t objnum;
   uint32_t dsbi_offset;
-};
+  uint32_t o_per_page;
+} __attribute__((aligned(64)));
+
+void predo_small_free(void *vv) {
+  do_small_free_s   *v = (do_small_free_s*)vv;
+  binnumber_t      bin = v->bin;
+  per_page         *pp = v->pp;
+  uint64_t      objnum = v->objnum;
+  uint32_t dsbi_offset = v->dsbi_offset;
+  uint32_t o_per_page  = v->o_per_page;
+  uint32_t old_count = 0;
+  for (uint32_t i = 0; i < bitmap_n_words; i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
+  uint64_t bm __attribute__((unused)) = atomic_load(&pp->inuse_bitmap[objnum/64]);
+  prefetch_write(&pp->inuse_bitmap[objnum/64]);
+
+  uint32_t old_offset_within = o_per_page - old_count;
+  uint32_t old_offset_dsbi = dsbi_offset + old_offset_within;
+  uint32_t new_offset = old_offset_dsbi + 1;
+
+  per_page *p_n __attribute__((unused)) = atomic_load(&pp->next);
+  per_page *p_p                         = atomic_load(&pp->prev);
+
+  prefetch_write(&pp->next);
+  prefetch_write(&pp->prev);
+  if (p_p == NULL) {
+    prefetch_write(&dsbi.lists.b[old_offset_dsbi]);
+  } else {
+    prefetch_write(&p_p->next);
+  }
+  if (p_n != NULL) {
+    prefetch_write(&p_n->prev);
+  }
+  if (old_offset_within == 0
+      || (p_n == NULL && dsbi.fullest_offset[bin] == old_offset_within)) {
+    prefetch_write(&dsbi.fullest_offset[bin]);
+  }
+  if (dsbi.lists.b[new_offset]) {
+    prefetch_write(&dsbi.lists.b[new_offset]->prev);
+  }
+  prefetch_write(&dsbi.lists.b[new_offset]);
+}
 
 void do_small_free(void *vv) {
   do_small_free_s   *v = (do_small_free_s*)vv;
@@ -284,12 +328,13 @@ void do_small_free(void *vv) {
   per_page         *pp = v->pp;
   uint64_t      objnum = v->objnum;
   uint32_t dsbi_offset = v->dsbi_offset;
+  uint32_t  o_per_page = v->o_per_page;
 
   uint32_t old_count = 0;
   for (uint32_t i = 0; i < bitmap_n_words; i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
   // clear the bit.
+  bassert(pp->inuse_bitmap[objnum/64] & (1ul << (objnum%64)));
   pp->inuse_bitmap[objnum/64] &= ~ ( 1ul << (objnum%64 ));
-  uint32_t o_per_page = static_bin_info[bin].objects_per_page;
   bassert(old_count > 0 && old_count <= o_per_page);
 
   uint32_t old_offset_within = o_per_page - old_count;
@@ -338,11 +383,12 @@ void small_free(void* p) {
   uint64_t         objnum = (((uint64_t)p)%pagesize) / o_size;
   bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
   uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
+  uint32_t o_per_page = static_bin_info[bin].objects_per_page;
 
-  struct do_small_free_s v = {bin, pp, objnum, dsbi_offset};
+  struct do_small_free_s v = {bin, pp, objnum, dsbi_offset, o_per_page};
 
   // Do this atomically.
-  do_small_free(&v);
+  atomically(&small_lock.l, predo_small_free, do_small_free, &v);
   verify_small_invariants();
 }
 
