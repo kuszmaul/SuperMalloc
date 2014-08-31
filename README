@@ -1,0 +1,62 @@
+Some basic results (4 threads a_count=1000000)
+
+                  rss   time
+glibc          388752    11.16 ( 9.1 user)
+bmalloc        168372    11.92 (15.74 user))
+hoard          313284     8.12 ( .79 user)
+
+
+
+[bradley@30-87-232 benchmarks]$ time ./server
+currentrss=1760
+....................................................................................................................................................................................................................................................Total_size_for_this_thread=31167784
+Total_size_for_this_thread=27727126
+Total_size_for_this_thread=27341095
+Total_size_for_this_thread=30455573
+a=978167 d=0, a=992335 d=0, a=992071 d=0, a=1000002 d=0, 
+thread sum =27727126
+thread sum =27341095
+thread sum =31167784
+thread sum =30455573
+before deleting: currentrss=388752KiB
+currentrss=388752KiB
+maxrss=388752KiB
+
+real	0m11.164s
+user	0m9.103s
+sys	0m0.753s
+[bradley@30-87-232 benchmarks]$ time ./server-bmalloc 
+currentrss=1760
+.....................................................................................................................................................................................................................................................Total_size_for_this_thread=28812487
+Total_size_for_this_thread=27312814
+Total_size_for_this_thread=34281324
+Total_size_for_this_thread=26775209
+a=986246 d=0, a=992280 d=0, a=989159 d=0, a=1000002 d=0, 
+thread sum =34281324
+thread sum =26775209
+thread sum =27312814
+thread sum =28812487
+before deleting: currentrss=168372KiB
+currentrss=168372KiB
+maxrss=168372KiB
+
+real	0m11.920s
+user	0m15.747s
+sys	0m0.362s
+
+[bradley@30-87-232 benchmarks]$ LD_PRELOAD=/home/bradley/projectlocker/svn/bradleycvs/bmalloc/benchmarks/Hoard/Hoard/src/libhoard.so time ./server
+currentrss=1616
+...................................................................................................................................................................................................................................................Total_size_for_this_thread=28307684
+Total_size_for_this_thread=30499216
+Total_size_for_this_thread=27597824
+Total_size_for_this_thread=30854142
+a=1000002 d=0, a=984035 d=0, a=977496 d=0, a=980520 d=0, 
+thread sum =28307684
+thread sum =30499216
+thread sum =27597824
+thread sum =30854142
+before deleting: currentrss=313284KiB
+currentrss=313284KiB
+maxrss=313284KiB
+8.12user 0.79system 0:10.86elapsed 82%CPU (0avgtext+0avgdata 313588maxresident)k
+0inputs+0outputs (0major+77778minor)pagefaults 0swaps

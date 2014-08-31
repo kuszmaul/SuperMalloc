@@ -55,7 +55,7 @@ int main () {
     }
   }
 class2:
-  uint64_t largest_small;
+  uint64_t largest_small = 0;
   printf("// Class 2 small objects are chosen to fit as many in a page as can fit.\n");
   printf("// Class 2 objects are always a multiple of a cache line.\n");
   for(uint32_t n_objects_per_page = 12; n_objects_per_page > 1; n_objects_per_page--) {

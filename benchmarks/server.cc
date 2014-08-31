@@ -75,7 +75,7 @@ class thread_info {
 };
 
 long n_mallocs = 10;
-int n_threads = 2;
+int n_threads = 4;
 int64_t memory_total = 1u<<28;
 int64_t memory_per_thread;
 thread_info *thread_infos;
@@ -143,7 +143,7 @@ static void run_malloc_run(thread_info *ti) {
     int64_t biggest_a_time = -1, biggest_d_time = -1;
     while (!get_stop_flag()) {
         if (a_count > a_count_limit) set_stop_flag(true);
-        if (a_count % 1024 == 0) { printf("."); fflush(stdout); getrss(); }
+        if (a_count % (1024*16) == 0) { printf("."); fflush(stdout); getrss(); }
         size_t  s = pick_size(ti);
         int64_t e = a_count+pick_expiration(s);
         object *o = new object(e,s);

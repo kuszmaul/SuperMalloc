@@ -1,5 +1,5 @@
 # COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
-C_CXX_FLAGS = -W -Wall -Werror -O0 -g -pthread -fPIC -mrtm $(COVERAGE)
+C_CXX_FLAGS = -W -Wall -Werror -O2 -g -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 
