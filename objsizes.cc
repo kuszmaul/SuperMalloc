@@ -109,8 +109,8 @@ class2:
   }
   printf("  };\n");
   printf("};\n");
-  printf("static int dynamic_small_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));\n");
-  printf("static int dynamic_small_bin_offset(binnumber_t bin) {\n");
+  printf("static uint32_t dynamic_small_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));\n");
+  printf("static uint32_t dynamic_small_bin_offset(binnumber_t bin) {\n");
   printf("  if (0) {\n");
   printf("    switch(bin) {\n");
   {
