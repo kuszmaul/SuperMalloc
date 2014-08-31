@@ -6,12 +6,13 @@
 static struct {
   dynamic_small_bin_info lists;
 
- // 0 means all pages are full.  Else 1 means there's a page with 1
- // free slot.  Else 2 means there's one with 2 free slots.  The full
- // pages are in slot 0, the 1-free are in slot 1, and so forth.  Note
- // that we can have full pages and have the fullest_offset be nonzero
- // (because not all pages are full).
-  uint32_t fullest_offset[first_large_bin_number];
+ // 0 means all pages are full (all the pages are in slot 0).
+ // Else 1 means there's a page with 1 free slot, and some page is in slot 1.
+ // Else 2 means there's one with 2 free slots, and some page is in slot 2.
+ // The full pages are in slot 0, the 1-free are in slot 1, and so forth.  Note
+ // that we can have some full pages and have the fullest_offset be nonzero
+ // (if not *all* pages are full).
+  uint16_t fullest_offset[first_large_bin_number];
 } dsbi;
 
 const uint32_t bitmap_n_words = pagesize/64/8; /* 64 its per uint64_t, 8 is the smallest object */ 
@@ -19,7 +20,7 @@ const uint32_t bitmap_n_words = pagesize/64/8; /* 64 its per uint64_t, 8 is the 
 struct per_page {
   per_page *next __attribute__((aligned(64)));
   per_page *prev;
-  uint64_t bitmap[bitmap_n_words]; // up to 512 objects (8 bytes per object) per page.
+  uint64_t inuse_bitmap[bitmap_n_words]; // up to 512 objects (8 bytes per object) per page.  The bit is set if the object is in use.
 };
 struct small_chunk_header {
   per_page ll[512];  // This object  exactly 8 pages long.  We don't use the first 8 elements of the array.  We could get it down to 6 pages if we packed it, but weant these things to be cache-aligned.  For objects of size 16 we could get it it down to 4 pages of wastage.
@@ -33,23 +34,66 @@ void test_small_page_header(void) {
 }
 #endif
 
+static void verify_small_invariants(void) {
+  for (binnumber_t bin = 0; bin < first_large_bin_number; bin++) {
+    uint16_t fullest_off = dsbi.fullest_offset[bin];
+    int start       = dynamic_small_bin_offset(bin);
+    int opp = static_bin_info[bin].objects_per_page;
+    if (fullest_off==0) {
+      for (uint16_t i = 1; i <= opp; i++) {
+	bassert(dsbi.lists.b[start + i] == NULL);
+      }
+    } else {
+      bassert(fullest_off <= opp);
+      bassert(dsbi.lists.b[start + fullest_off] != NULL);
+      for (uint16_t i = 1; i < fullest_off; i++) {
+	bassert(dsbi.lists.b[start + i] == NULL);
+      }
+    }
+    for (uint16_t i = 0; i <= opp; i++) {
+      per_page *prev_pp = NULL;
+      for (per_page *pp = dsbi.lists.b[start + i]; pp; pp = pp->next) {
+	bassert(prev_pp == pp->prev);
+	prev_pp = pp;
+	int sum = 0;
+	for (uint32_t j = 0; j < bitmap_n_words; j++) {
+	  sum += __builtin_popcountl(pp->inuse_bitmap[j]);
+	}
+	bassert(sum == opp - i);
+      }
+    }
+  }
+}
+
+static void verify_popcount(const per_page *result_pp, uint32_t fullest, uint32_t o_per_page) {
+  uint32_t count = 0;
+  for (uint32_t i = 0; i < bitmap_n_words; i++) {
+    count += __builtin_popcountl(result_pp->inuse_bitmap[i]);
+  }
+  bassert(count <= o_per_page);
+  bassert(o_per_page - count == fullest);
+}
+
 void* small_malloc(size_t size)
 // Effect: Allocate a small object (subpage, class 1 and class 2 are
 // treated the same by all the code, it's just the sizes that matter).
 // We want to allocate a small object in the fullest possible page.
 {
   if (0) printf("small_malloc(%ld)\n", size);
+  verify_small_invariants();
   binnumber_t bin = size_2_bin(size);
   //size_t usable_size = bin_2_size(bin);
   bassert(bin < first_large_bin_number);
   int dsbi_offset = dynamic_small_bin_offset(bin);
   uint32_t o_per_page = static_bin_info[bin].objects_per_page;
   uint32_t o_size     = static_bin_info[bin].object_size;
+  bool needed = false;
   while (1) {
-    int fullest = atomic_load(&dsbi.fullest_offset[bin]); // Otherwise it looks racy.
+    uint32_t fullest = atomic_load(&dsbi.fullest_offset[bin]); // Otherwise it looks racy.
     if (0) printf(" bin=%d off=%d  fullest=%d\n", bin, dsbi_offset, fullest);
     if (fullest==0) {
       printf("Need a chunk\n");
+      needed = true;
       void *chunk = mmap_chunk_aligned_block(1);
       bassert(chunk);
       chunk_infos[address_2_chunknumber(chunk)].bin_number = bin;
@@ -57,7 +101,7 @@ void* small_malloc(size_t size)
       small_chunk_header *sch = (small_chunk_header*)chunk;
       for (uint32_t i = 0; i < n_pages_used; i++) { // really ought to git rid of that division.  There's no reason for it, except that I'm trying to keep the code simple for now.
 	for (uint32_t w = 0; w < bitmap_n_words; w++) {
-	  sch->ll[i].bitmap[w] = 0;
+	  sch->ll[i].inuse_bitmap[w] = 0;
 	}
 	sch->ll[i].prev = (i   == 0)              ? NULL : &sch->ll[i-1];
 	sch->ll[i].next = (i+1 == n_pages_used)   ? NULL : &sch->ll[i+1];
@@ -73,12 +117,17 @@ void* small_malloc(size_t size)
       // End of atomically.
     }
 
+    if (needed) printf("Chunked\n");
     if (0) printf("There's one somewhere\n");
     void *result = NULL;
     // Do this atomically
     fullest = dsbi.fullest_offset[bin]; // we'll want to reread this in the transaction, so let's do it now even without the atomicity.
     if (fullest!=0) {
       per_page *result_pp = dsbi.lists.b[dsbi_offset + fullest];
+
+      verify_popcount(result_pp, dsbi.fullest_offset[bin], o_per_page);
+      verify_popcount(result_pp, fullest, o_per_page);
+
       bassert(result_pp);
       // update the linked list.
       per_page *next = result_pp->next;
@@ -113,12 +162,12 @@ void* small_malloc(size_t size)
 
       // Now set the bitmap
       for (uint32_t w = 0; w < bitmap_n_words; w++) {
-	uint64_t bw = result_pp->bitmap[w];
+	uint64_t bw = result_pp->inuse_bitmap[w];
 	if (bw != UINT64_MAX) {
 	  // Found an empty bit.
 	  uint64_t bwbar = ~bw;
 	  int      bit_to_set = __builtin_ctzl(bwbar);
-	  result_pp->bitmap[w] |= (1ul<<bit_to_set);
+	  result_pp->inuse_bitmap[w] |= (1ul<<bit_to_set);
 
 	  if (0) printf("result_pp  = %p\n", result_pp);
 	  if (0) printf("bit_to_set = %d\n", bit_to_set);
@@ -134,14 +183,17 @@ void* small_malloc(size_t size)
       }
       abort(); // It's bad if we get here, it means that there was no bit in the bitmap, but the data structure said there should be.
    did_set_bitmap:
+      verify_popcount(result_pp, dsbi.fullest_offset[bin], o_per_page);
       if (0) printf("Did set bitmap, got %p\n", result);
     }
     // End of atomically
+    verify_small_invariants();
     if (result) return result;
-  } 
+  }
 }
 
 void small_free(void* p) {
+  verify_small_invariants();
   if (0) printf("small_free(%p)\n", p);
   void *chunk = (void*)((uint64_t)p&~(chunksize-1));
   if (0) printf("     chunk=%p\n", chunk);
@@ -158,17 +210,17 @@ void small_free(void* p) {
   if (0) printf(" useful   =%d\n", useful_page_num);
   per_page             *pp = &sch->ll[useful_page_num];
   if (0) printf(" per_page =%p (prev=%14p next=%14p bitmap=%16lx %16lx %16lx %16lx %16lx %16lx %16lx %16lx)\n", pp, pp->prev, pp->next,
-		pp->bitmap[0], pp->bitmap[1], pp->bitmap[2], pp->bitmap[3], pp->bitmap[4], pp->bitmap[5], pp->bitmap[6], pp->bitmap[7]);
+		pp->inuse_bitmap[0], pp->inuse_bitmap[1], pp->inuse_bitmap[2], pp->inuse_bitmap[3], pp->inuse_bitmap[4], pp->inuse_bitmap[5], pp->inuse_bitmap[6], pp->inuse_bitmap[7]);
   uint32_t o_size     = static_bin_info[bin].object_size;
   uint64_t         objnum = (((uint64_t)p)%pagesize) / o_size;
-  bassert((pp->bitmap[objnum/64] >> (objnum%64)) & 1);
+  bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
   // Do this atomically.
   uint32_t old_count = 0;
-  for (uint32_t i = 0; i < bitmap_n_words; i++) old_count += __builtin_popcountl(pp->bitmap[i]);
+  for (uint32_t i = 0; i < bitmap_n_words; i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
   // clear the bit.
-  pp->bitmap[objnum/64] &= ~ ( 1ul << (objnum%64 ));
+  pp->inuse_bitmap[objnum/64] &= ~ ( 1ul << (objnum%64 ));
   if (0) printf("                                                                newbitmap=%16lx %16lx %16lx %16lx %16lx %16lx %16lx %16lx)\n",
-		pp->bitmap[0], pp->bitmap[1], pp->bitmap[2], pp->bitmap[3], pp->bitmap[4], pp->bitmap[5], pp->bitmap[6], pp->bitmap[7]);
+		pp->inuse_bitmap[0], pp->inuse_bitmap[1], pp->inuse_bitmap[2], pp->inuse_bitmap[3], pp->inuse_bitmap[4], pp->inuse_bitmap[5], pp->inuse_bitmap[6], pp->inuse_bitmap[7]);
   if (0) printf(" old_count = %d\n", old_count);
   uint32_t o_per_page = static_bin_info[bin].objects_per_page;
   bassert(old_count > 0 && old_count <= o_per_page);
@@ -190,6 +242,7 @@ void small_free(void* p) {
   // Fix up the old_count
   if (pp_next == NULL && dsbi.fullest_offset[bin] == old_count) {
     dsbi.fullest_offset[bin] = old_count-1;
+    verify_popcount(pp, dsbi.fullest_offset[bin], o_per_page);
   }
   // Add to new list
   pp->prev = NULL;
@@ -198,6 +251,8 @@ void small_free(void* p) {
     dsbi.lists.b[dsbi_offset + old_count - 1]->prev = pp;
   }
   dsbi.lists.b[dsbi_offset + old_count - 1] = pp;
+  verify_small_invariants();
+  verify_popcount(pp, old_count-1, o_per_page);
 }
 
 #ifdef TESTING
