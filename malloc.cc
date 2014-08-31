@@ -8,6 +8,7 @@
 
 #include <algorithm>
 
+#include "atomically.h"
 #include "bassert.h"
 #include "generated_constants.h"
 
@@ -44,6 +45,7 @@ static void test_size_2_bin(void) {
 }
 #endif
 
+static unsigned int initialize_lock=0;
 struct chunk_info *chunk_infos;
 
 void initialize_malloc(void) {
@@ -52,10 +54,17 @@ void initialize_malloc(void) {
   const size_t n_chunks   = ceil(alloc_size, chunksize);
   chunk_infos = (chunk_info*)mmap_chunk_aligned_block(n_chunks);
   bassert(chunk_infos);
+  printf("chunk_infos=%p\n", chunk_infos);
 }
+
 void maybe_initialize_malloc(void) {
   // This should be protected by a lock.
+  if (atomic_load(&chunk_infos)) return;
+  while (__sync_lock_test_and_set(&initialize_lock, 1)) {
+    _mm_pause();
+  }
   if (!chunk_infos) initialize_malloc();
+  __sync_lock_release(&initialize_lock);
 }
 
 #ifdef TESTING
@@ -107,18 +116,37 @@ int main() {
 extern "C" void *malloc(size_t size) {
     // We use a bithack to find the right size.
   maybe_initialize_malloc();
-  if (size <= largest_small) return small_malloc(size);
-  if (size <= largest_large) return large_malloc(size);
-  return huge_malloc(size);
+  void *result;
+  if (size <= largest_small) {
+    result = small_malloc(size);
+  } else if (size <= largest_large) {
+    result = large_malloc(size);
+  } else {
+    result = huge_malloc(size);
+  }
+  return result;
 }
 
 extern "C" void free(void *p) {
+  maybe_initialize_malloc();
   if (p == NULL) return;
   chunknumber_t cn = address_2_chunknumber(p);
   binnumber_t bin = chunk_infos[cn].bin_number;
-  if (bin < first_large_bin_number) return small_free(p);
-  if (bin < first_huge_bin_number)  return large_free(p);
-  return huge_free(p);
+  if (bin < first_large_bin_number) {
+    small_free(p);
+  } else if (bin < first_huge_bin_number) {
+    large_free(p);
+  } else {
+    huge_free(p);
+  }
+}
+
+extern "C" void free_known_size(void *p, size_t size) {
+  if (p == NULL) return;
+  chunknumber_t cn = address_2_chunknumber(p);
+  binnumber_t bin = chunk_infos[cn].bin_number;
+  bassert(bin == size_2_bin(size));
+  free(p);
 }
 
 extern "C" void* realloc(void *p, size_t size) {
