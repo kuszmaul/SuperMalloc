@@ -101,7 +101,9 @@ void* large_malloc(size_t size)
       size_t offset = h-chunk_as_list_cell;
       if (0) printf("offset=%ld\n", offset);
       void* address = (void*)((char*)chunk + 2*pagesize + offset * usable_size);
+      bassert(address_2_chunknumber(address)==address_2_chunknumber(chunk));
       if (0) printf("result=%p\n", address);
+      bassert(chunk_infos[address_2_chunknumber(address)].bin_number == b);
       return address;
     } else {
       // No already free objects.  Get a chunk
@@ -110,7 +112,7 @@ void* large_malloc(size_t size)
       if (0) printf("chunk=%p\n", chunk);
 
       if (0) printf("usable_size=%ld\n", usable_size);
-      size_t objects_per_chunk = chunksize/usable_size;
+      size_t objects_per_chunk = (chunksize-2*pagesize)/usable_size;
       if (0) printf("opce=%ld\n", objects_per_chunk);
       size_t size_of_header = objects_per_chunk * sizeof(large_object_list_cell);
       if (0) printf("soh=%ld\n", size_of_header);
@@ -168,7 +170,7 @@ void large_free(void *p) {
   add_to_footprint(-(int64_t)footprint);
   large_object_list_cell **h = free_large_objects+ (bin - first_large_bin_number);
   large_object_list_cell *ei = entries+objnum;
-  // This part atomic. Can be done with comapre_and_swap
+  // This part atomic. Can be done with compare_and_swap
   if (1) {
     ei->next = *h;
     *h = ei;
