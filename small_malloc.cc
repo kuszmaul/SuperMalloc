@@ -244,7 +244,6 @@ void* small_malloc(size_t size)
       if (0) printf("Need a chunk\n");
       needed = true;
       void *chunk = mmap_chunk_aligned_block(1);
-      printf("small_map %p\n", chunk);
       bassert(chunk);
       chunk_infos[address_2_chunknumber(chunk)].bin_number = bin;
 

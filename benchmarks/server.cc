@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <valgrind/helgrind.h>
 
+extern "C" void free_known_size(void*, size_t);
 
 struct object {
     int64_t expiration_date;
@@ -43,7 +44,12 @@ struct object {
     }
     ~object() {
         if (data) {
-            free(data);
+	  if (0) {
+	    // This works only for bmalloc, and is useful for debugging.
+	    free_known_size(data, size);
+	  } else {
+	    free(data);
+	  }
         }
     }
 };

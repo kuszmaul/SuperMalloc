@@ -54,7 +54,6 @@ void initialize_malloc(void) {
   const size_t n_chunks   = ceil(alloc_size, chunksize);
   chunk_infos = (chunk_info*)mmap_chunk_aligned_block(n_chunks);
   bassert(chunk_infos);
-  printf("chunk_infos=%p\n", chunk_infos);
 }
 
 void maybe_initialize_malloc(void) {
