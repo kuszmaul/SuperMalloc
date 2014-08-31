@@ -228,11 +228,15 @@ void small_free(void* p) {
   int dsbi_offset = dynamic_small_bin_offset(bin);
   if (0) printf("dsbi_offset  = %d\n", dsbi_offset);
 
+  uint32_t old_offset = dsbi_offset + o_per_page - old_count;
+  uint32_t new_offset = old_offset + 1;
+
   // remove from old list
   per_page * pp_next = pp->next;  
   per_page * pp_prev = pp->prev;
   if (pp_prev == NULL) {
-    dsbi.lists.b[dsbi_offset + old_count] = pp_next;
+    bassert(dsbi.lists.b[old_offset] == pp);
+    dsbi.lists.b[old_offset] = pp_next;
   } else {
     pp_prev->next = pp_next;
   }
@@ -240,19 +244,17 @@ void small_free(void* p) {
     pp_next->prev = pp_prev;
   }
   // Fix up the old_count
-  if (pp_next == NULL && dsbi.fullest_offset[bin] == old_count) {
-    dsbi.fullest_offset[bin] = old_count-1;
-    verify_popcount(pp, dsbi.fullest_offset[bin], o_per_page);
+  if (pp_next == NULL && dsbi.fullest_offset[bin] == old_offset) {
+    dsbi.fullest_offset[bin] = new_offset;
   }
   // Add to new list
   pp->prev = NULL;
-  pp->next = dsbi.lists.b[dsbi_offset + old_count - 1];
-  if (dsbi.lists.b[dsbi_offset + old_count - 1]) {
-    dsbi.lists.b[dsbi_offset + old_count - 1]->prev = pp;
+  pp->next = dsbi.lists.b[new_offset];
+  if (dsbi.lists.b[new_offset]) {
+    dsbi.lists.b[new_offset]->prev = pp;
   }
-  dsbi.lists.b[dsbi_offset + old_count - 1] = pp;
+  dsbi.lists.b[new_offset] = pp;
   verify_small_invariants();
-  verify_popcount(pp, old_count-1, o_per_page);
 }
 
 #ifdef TESTING
