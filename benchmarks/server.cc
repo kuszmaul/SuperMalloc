@@ -239,10 +239,10 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
         }
         printf ("thread sum =%ld\n", sum_this_thread);
     }
-    printf("before deleting: currentrss=%ld\n", getrss());
+    printf("before deleting: currentrss=%ldKiB\n", getrss());
     delete [] threads;
     delete [] thread_infos;
-    printf("currentrss=%ld\n", getrss());
-    printf("maxrss=%ld\n", maxrss);
+    printf("currentrss=%ldKiB\n", getrss());
+    printf("maxrss=%ldKiB\n", maxrss);
     return 0;
 }

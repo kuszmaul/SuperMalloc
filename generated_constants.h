@@ -116,8 +116,8 @@ struct dynamic_small_bin_info {
     per_page *b[3120];
   };
 };
-static int dynamic_small_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));
-static int dynamic_small_bin_offset(binnumber_t bin) {
+static uint32_t dynamic_small_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));
+static uint32_t dynamic_small_bin_offset(binnumber_t bin) {
   if (0) {
     switch(bin) {
       case 0: return 0;

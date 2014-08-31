@@ -115,6 +115,7 @@ extern "C" void *malloc(size_t size) {
 }
 
 extern "C" void free(void *p) {
+  if (p == NULL) return;
   chunknumber_t cn = address_2_chunknumber(p);
   binnumber_t bin = chunk_infos[cn].bin_number;
   if (bin < first_large_bin_number) return small_free(p);

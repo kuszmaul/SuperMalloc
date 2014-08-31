@@ -35,6 +35,7 @@ void test_small_page_header(void) {
 #endif
 
 static void verify_small_invariants(void) {
+  return;
   for (binnumber_t bin = 0; bin < first_large_bin_number; bin++) {
     uint16_t fullest_off = dsbi.fullest_offset[bin];
     int start       = dynamic_small_bin_offset(bin);
@@ -65,15 +66,6 @@ static void verify_small_invariants(void) {
   }
 }
 
-static void verify_popcount(const per_page *result_pp, uint32_t fullest, uint32_t o_per_page) {
-  uint32_t count = 0;
-  for (uint32_t i = 0; i < bitmap_n_words; i++) {
-    count += __builtin_popcountl(result_pp->inuse_bitmap[i]);
-  }
-  bassert(count <= o_per_page);
-  bassert(o_per_page - count == fullest);
-}
-
 void* small_malloc(size_t size)
 // Effect: Allocate a small object (subpage, class 1 and class 2 are
 // treated the same by all the code, it's just the sizes that matter).
@@ -92,7 +84,7 @@ void* small_malloc(size_t size)
     uint32_t fullest = atomic_load(&dsbi.fullest_offset[bin]); // Otherwise it looks racy.
     if (0) printf(" bin=%d off=%d  fullest=%d\n", bin, dsbi_offset, fullest);
     if (fullest==0) {
-      printf("Need a chunk\n");
+      if (0) printf("Need a chunk\n");
       needed = true;
       void *chunk = mmap_chunk_aligned_block(1);
       bassert(chunk);
@@ -117,16 +109,13 @@ void* small_malloc(size_t size)
       // End of atomically.
     }
 
-    if (needed) printf("Chunked\n");
+    if (0 && needed) printf("Chunked\n");
     if (0) printf("There's one somewhere\n");
     void *result = NULL;
     // Do this atomically
     fullest = dsbi.fullest_offset[bin]; // we'll want to reread this in the transaction, so let's do it now even without the atomicity.
     if (fullest!=0) {
       per_page *result_pp = dsbi.lists.b[dsbi_offset + fullest];
-
-      verify_popcount(result_pp, dsbi.fullest_offset[bin], o_per_page);
-      verify_popcount(result_pp, fullest, o_per_page);
 
       bassert(result_pp);
       // update the linked list.
@@ -183,7 +172,6 @@ void* small_malloc(size_t size)
       }
       abort(); // It's bad if we get here, it means that there was no bit in the bitmap, but the data structure said there should be.
    did_set_bitmap:
-      verify_popcount(result_pp, dsbi.fullest_offset[bin], o_per_page);
       if (0) printf("Did set bitmap, got %p\n", result);
     }
     // End of atomically
@@ -225,18 +213,20 @@ void small_free(void* p) {
   uint32_t o_per_page = static_bin_info[bin].objects_per_page;
   bassert(old_count > 0 && old_count <= o_per_page);
 
-  int dsbi_offset = dynamic_small_bin_offset(bin);
+  uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
   if (0) printf("dsbi_offset  = %d\n", dsbi_offset);
 
-  uint32_t old_offset = dsbi_offset + o_per_page - old_count;
-  uint32_t new_offset = old_offset + 1;
+  uint32_t old_offset_within = o_per_page - old_count;
+  uint32_t new_offset_within = old_offset_within + 1;
+  uint32_t old_offset_dsbi = dsbi_offset + old_offset_within;
+  uint32_t new_offset = old_offset_dsbi + 1;
 
   // remove from old list
   per_page * pp_next = pp->next;  
   per_page * pp_prev = pp->prev;
   if (pp_prev == NULL) {
-    bassert(dsbi.lists.b[old_offset] == pp);
-    dsbi.lists.b[old_offset] = pp_next;
+    bassert(dsbi.lists.b[old_offset_dsbi] == pp);
+    dsbi.lists.b[old_offset_dsbi] = pp_next;
   } else {
     pp_prev->next = pp_next;
   }
@@ -244,8 +234,10 @@ void small_free(void* p) {
     pp_next->prev = pp_prev;
   }
   // Fix up the old_count
-  if (pp_next == NULL && dsbi.fullest_offset[bin] == old_offset) {
-    dsbi.fullest_offset[bin] = new_offset;
+  if (old_offset_within == 0) {
+    dsbi.fullest_offset[bin] = new_offset_within;
+  } else if (pp_next == NULL && dsbi.fullest_offset[bin] == old_offset_within) {
+    dsbi.fullest_offset[bin] = new_offset_within;
   }
   // Add to new list
   pp->prev = NULL;
