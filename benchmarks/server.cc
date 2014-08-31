@@ -69,7 +69,7 @@ class thread_info {
 };
 
 long n_mallocs = 10;
-int n_threads = 1;
+int n_threads = 2;
 int64_t memory_total = 1u<<28;
 int64_t memory_per_thread;
 thread_info *thread_infos;
