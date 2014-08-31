@@ -66,6 +66,44 @@ static void verify_small_invariants(void) {
   }
 }
 
+lock small_lock;
+
+struct small_malloc_add_pages_from_chunk_s {
+  binnumber_t bin;
+  uint32_t dsbi_offset;
+  uint32_t o_per_page;
+  small_chunk_header *sch;
+};
+
+void predo_small_malloc_add_pages_from_new_chunk(void *vv) {
+  small_malloc_add_pages_from_chunk_s *v = (small_malloc_add_pages_from_chunk_s *)vv;
+  binnumber_t bin = v->bin;
+  uint32_t dsbi_offset = v->dsbi_offset;
+  uint32_t o_per_page  = v->o_per_page;
+  small_chunk_header *sch = v->sch;
+  per_page *old_h __attribute__((unused)) = atomic_load(&dsbi.lists.b[dsbi_offset + o_per_page]);
+  per_page *other_old_h __attribute__((unused)) = atomic_load(&sch->ll[n_pages_used-1].next);
+  prefetch_write(&dsbi.lists.b[dsbi_offset + o_per_page]);
+  prefetch_write(&sch->ll[n_pages_used-1].next);
+  if (dsbi.fullest_offset[bin]) {
+    prefetch_write(&dsbi.fullest_offset[bin]);
+  }
+}
+
+void do_small_malloc_add_pages_from_new_chunk(void *vv) {
+  small_malloc_add_pages_from_chunk_s *v = (small_malloc_add_pages_from_chunk_s *)vv;
+  binnumber_t bin = v->bin;
+  uint32_t dsbi_offset = v->dsbi_offset;
+  uint32_t o_per_page  = v->o_per_page;
+  small_chunk_header *sch = v->sch;
+  per_page *old_h = dsbi.lists.b[dsbi_offset + o_per_page];
+  dsbi.lists.b[dsbi_offset + o_per_page] = &sch->ll[0];
+  sch->ll[n_pages_used-1].next = old_h;
+  if (dsbi.fullest_offset[bin] == 0) { // must test this again here.
+    dsbi.fullest_offset[bin] = o_per_page;
+  }
+}
+
 void* small_malloc(size_t size)
 // Effect: Allocate a small object (subpage, class 1 and class 2 are
 // treated the same by all the code, it's just the sizes that matter).
@@ -76,7 +114,7 @@ void* small_malloc(size_t size)
   binnumber_t bin = size_2_bin(size);
   //size_t usable_size = bin_2_size(bin);
   bassert(bin < first_large_bin_number);
-  int dsbi_offset = dynamic_small_bin_offset(bin);
+  uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
   uint32_t o_per_page = static_bin_info[bin].objects_per_page;
   uint32_t o_size     = static_bin_info[bin].object_size;
   bool needed = false;
@@ -98,15 +136,8 @@ void* small_malloc(size_t size)
 	sch->ll[i].prev = (i   == 0)              ? NULL : &sch->ll[i-1];
 	sch->ll[i].next = (i+1 == n_pages_used)   ? NULL : &sch->ll[i+1];
       }
-      // Do this atomically
-      per_page *old_h = dsbi.lists.b[dsbi_offset + o_per_page]; // really ought to get rid of that cast by forward declaring a per_page in the generated_constants.h file.
-      dsbi.lists.b[dsbi_offset + o_per_page] = &sch->ll[0];
-      sch->ll[n_pages_used-1].next = old_h;
-      if (dsbi.fullest_offset[bin] == 0) { // must test this again here.
-	dsbi.fullest_offset[bin] = o_per_page;
-      }
-      fullest = o_per_page;
-      // End of atomically.
+      struct small_malloc_add_pages_from_chunk_s v = {bin, dsbi_offset, o_per_page, sch};
+      atomically(&small_lock.l, predo_small_malloc_add_pages_from_new_chunk, do_small_malloc_add_pages_from_new_chunk, &v);
     }
 
     if (0 && needed) printf("Chunked\n");
