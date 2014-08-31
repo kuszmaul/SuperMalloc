@@ -19,7 +19,7 @@ static inline bool mylock_wait(volatile unsigned int *mylock) {
       sched_yield();
       too_long = true;
     } else {
-      __asm__ volatile("pause");
+        _mm_pause();
     }
   }
   return too_long;
