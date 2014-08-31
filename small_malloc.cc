@@ -271,41 +271,26 @@ void* small_malloc(size_t size)
   }
 }
 
-void small_free(void* p) {
-  verify_small_invariants();
-  if (0) printf("small_free(%p)\n", p);
-  void *chunk = (void*)((uint64_t)p&~(chunksize-1));
-  if (0) printf("     chunk=%p\n", chunk);
-  small_chunk_header *sch = (small_chunk_header*)chunk;
-  if (0) printf("     sch  =%p\n", sch);
-  uint64_t page_num = (((uint64_t)p)%chunksize)/pagesize;
-  if (0) printf(" page_num =%ld\n", page_num);
-  bassert(page_num >= n_pages_wasted);
-  chunknumber_t chunk_num  = address_2_chunknumber(p);
-  if (0) printf(" chunk_num=%d\n", chunk_num);
-  binnumber_t   bin        = chunk_infos[chunk_num].bin_number;
-  if (0) printf(" bin      =%d\n", bin);
-  uint32_t useful_page_num = page_num - n_pages_wasted;
-  if (0) printf(" useful   =%d\n", useful_page_num);
-  per_page             *pp = &sch->ll[useful_page_num];
-  if (0) printf(" per_page =%p (prev=%14p next=%14p bitmap=%16lx %16lx %16lx %16lx %16lx %16lx %16lx %16lx)\n", pp, pp->prev, pp->next,
-		pp->inuse_bitmap[0], pp->inuse_bitmap[1], pp->inuse_bitmap[2], pp->inuse_bitmap[3], pp->inuse_bitmap[4], pp->inuse_bitmap[5], pp->inuse_bitmap[6], pp->inuse_bitmap[7]);
-  uint32_t o_size     = static_bin_info[bin].object_size;
-  uint64_t         objnum = (((uint64_t)p)%pagesize) / o_size;
-  bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
-  // Do this atomically.
+struct do_small_free_s {
+  binnumber_t bin;
+  per_page *pp;
+  uint64_t objnum;
+  uint32_t dsbi_offset;
+};
+
+void do_small_free(void *vv) {
+  do_small_free_s   *v = (do_small_free_s*)vv;
+  binnumber_t      bin = v->bin;
+  per_page         *pp = v->pp;
+  uint64_t      objnum = v->objnum;
+  uint32_t dsbi_offset = v->dsbi_offset;
+
   uint32_t old_count = 0;
   for (uint32_t i = 0; i < bitmap_n_words; i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
   // clear the bit.
   pp->inuse_bitmap[objnum/64] &= ~ ( 1ul << (objnum%64 ));
-  if (0) printf("                                                                newbitmap=%16lx %16lx %16lx %16lx %16lx %16lx %16lx %16lx)\n",
-		pp->inuse_bitmap[0], pp->inuse_bitmap[1], pp->inuse_bitmap[2], pp->inuse_bitmap[3], pp->inuse_bitmap[4], pp->inuse_bitmap[5], pp->inuse_bitmap[6], pp->inuse_bitmap[7]);
-  if (0) printf(" old_count = %d\n", old_count);
   uint32_t o_per_page = static_bin_info[bin].objects_per_page;
   bassert(old_count > 0 && old_count <= o_per_page);
-
-  uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
-  if (0) printf("dsbi_offset  = %d\n", dsbi_offset);
 
   uint32_t old_offset_within = o_per_page - old_count;
   uint32_t new_offset_within = old_offset_within + 1;
@@ -337,6 +322,27 @@ void small_free(void* p) {
     dsbi.lists.b[new_offset]->prev = pp;
   }
   dsbi.lists.b[new_offset] = pp;
+}
+
+void small_free(void* p) {
+  verify_small_invariants();
+  void *chunk = (void*)((uint64_t)p&~(chunksize-1));
+  small_chunk_header *sch = (small_chunk_header*)chunk;
+  uint64_t page_num = (((uint64_t)p)%chunksize)/pagesize;
+  bassert(page_num >= n_pages_wasted);
+  chunknumber_t chunk_num  = address_2_chunknumber(p);
+  binnumber_t   bin        = chunk_infos[chunk_num].bin_number;
+  uint32_t useful_page_num = page_num - n_pages_wasted;
+  per_page             *pp = &sch->ll[useful_page_num];
+  uint32_t o_size     = static_bin_info[bin].object_size;
+  uint64_t         objnum = (((uint64_t)p)%pagesize) / o_size;
+  bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
+  uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
+
+  struct do_small_free_s v = {bin, pp, objnum, dsbi_offset};
+
+  // Do this atomically.
+  do_small_free(&v);
   verify_small_invariants();
 }
 
