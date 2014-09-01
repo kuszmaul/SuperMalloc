@@ -134,7 +134,7 @@ static long getrss(void) {
     return this_max;
 }
 
-static int64_t a_count_limit = 1000000;
+static int64_t a_count_limit = 10000000;
 
 static void run_malloc_run(thread_info *ti) {
     int64_t a_count = 0;
@@ -209,7 +209,8 @@ static void run_malloc_run(thread_info *ti) {
     getrss();
     ti->a_count = a_count;
     ti->d_count = d_count;
-    printf("Total_size_for_this_thread=%ld\n", total_size_for_this_thread);
+    printf("Total_size_for_this_thread=%ld big_a=%ld big_d=%ld\n", total_size_for_this_thread,
+	   biggest_a_time, biggest_d_time);
 }
 
 int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused))) {
@@ -226,6 +227,7 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 
     if (1) {
         sleep(10);
+	printf("before stopping: currentrss=%ldKiB\n", getrss());
         set_stop_flag(true);
     }
 
