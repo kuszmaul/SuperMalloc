@@ -70,12 +70,17 @@ extern "C" void * worker (void *)
     // printf ("%d\n", j);
     for (i = 0; i < (nobjects / nthreads); i ++) {
       a[i] = new Foo[size];
+      // These stores are to force the cost of a cache miss, if the data isn't cached.
+      //  for this test: ./threadtest 4 1000 100000 8 8
+      //  it increases the runtime from 4.35s to 5.09s on my i7-4600U
+      __atomic_store_n(&a[i][0].y, i, __ATOMIC_RELEASE);
       for (volatile int d = 0; d < work; d++) {
 	volatile int f = 1;
 	f = f + f;
 	f = f * f;
 	f = f + f;
 	f = f * f;
+	__atomic_store_n(&a[i][d%size].x, f, __ATOMIC_RELEASE);
       }
       assert (a[i]);
     }
