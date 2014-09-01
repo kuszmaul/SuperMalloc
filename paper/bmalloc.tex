@@ -1,0 +1,54 @@
+Key insights:
+\begin{enumerate}
+ \item Virtual address space is cheap.  
+
+ We can waste virtual address space.
+
+ In fact, it's problematic to give back address space to some
+ operating systems, since the search data structures are not always
+ good.
+
+ \item Per-CPU caching gives most of the value of Per-thread caching.
+
+  No point in caching more than fits in L2 cache (L3 cache is shared.  Maybe L3 is worth it on a multi-socket machine), since we'll incur cache missues to use the data.  (See the rant about threadtest below: it doesn't touch the memory.)
+
+ \item RSS is very important for long-running applications.
+
+ \item Hoard's benchmarks measure the wrong thing.
+   \begin{enumerate}
+   \item cache-scratch is wrong: it measures false sharing.  There's a
+     fundamental tradeoff between minimizing the space allocated and
+     avoiding false sharing.  We argue that the right decision here is
+     to allow the programmer who is using malloc to make this
+     decision.  (JE Malloc also agrees.  They say, if you don't want
+     false sharing, ask for cache-aligned data.
+     \cite{http://people.freebsd.org/~jasone/jemalloc/bsdcan2006/jemalloc.pdf})
+   
+  \item cache-thrash
+
+  \item larson (not as tough as my server version)
+
+  \item shbench
+
+   \item threadtest is wrong: it doesn't touch the allocated memory.  (There's no point in caching more per thread than fits in cache)
+
+  \item linux-scalability
+
+   \end{enumerate}
+
+  \item Jemalloc benchmarks
+  \begin{enumuerate}
+ \item malloc-test
+ \item super-smack
+ \item cca
+ \item cfrack
+ \item gs
+ \item sh6bench
+ \item smlng
+  \end{enumuerate}
+
+
+ \item jemalloc has gone for fewer spacings over time.  We went with
+   similar spacing.  There's one anomaly near 4K where we are only 2x
+   space competitive, otherwise we are 25\% space competetive.
+\end{enumerate}
