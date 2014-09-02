@@ -1,10 +1,9 @@
 // stuff from jemalloc util.h
-
 #include <errno.h>
 #include <string.h>
 
 /* Sets error code */
-inline void
+static inline void
 set_errno(int errnum)
 {
 
@@ -16,7 +15,7 @@ set_errno(int errnum)
 }
 
 /* Get last error code */
-inline int
+static inline int
 get_errno(void)
 {
 

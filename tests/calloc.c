@@ -2,7 +2,7 @@
 #include "bmalloc.h"
 
 int main(int argc, char *argv[] __attribute__((unused))) {
-  assert(argc==1);
+  assert(argc == 1);
   size_t max_set = 8*1024*1024;
   for (size_t psize = 128; psize <= 1024ul*1024ul*1024ul; psize *= 2) {
     for (size_t size = psize; size < 2*psize; size += psize/8) {

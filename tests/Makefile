@@ -5,10 +5,11 @@ LDLIBS = -lbmalloc
 TARGETS = \
  aligned_alloc \
  calloc \
+ posix_memalign \
  #end
 
 default: $(TARGETS)
-$(TARGETS): ../bmalloc.h
+$(TARGETS): | ../bmalloc.h
 
 clean:
 	rm aligned_alloc

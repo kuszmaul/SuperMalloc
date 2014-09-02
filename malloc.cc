@@ -298,7 +298,7 @@ extern "C" void* aligned_alloc(size_t alignment, size_t size) {
 extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
   if (alignment & (alignment -1)) {
     // alignment must be a power of two.
-    return errno;
+    return EINVAL;
   }
   if (alignment < sizeof(void*)) {
     // alignment must be at least sizeof void*.

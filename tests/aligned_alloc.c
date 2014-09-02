@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "bmalloc.h"
 #include "util.h"
 
