@@ -1,12 +1,15 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#ifdef TESTING
-#include <stdio.h>
-#endif
+#include "bmalloc.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <sys/mman.h>
+#ifdef TESTING
+#include <cstdio>
+#endif
+
 
 #include "atomically.h"
 #include "bassert.h"
@@ -258,6 +261,18 @@ extern "C" void* realloc(void *p, size_t size) {
   abort();
 }
 
+extern "C" void* calloc(size_t number, size_t size) {
+  void *result = malloc(number*size);
+  size_t usable = malloc_usable_size(result);
+  if (((uint64_t)result % pagesize == 0) &&
+      (usable % pagesize == 0)) {
+    madvise(result, usable, MADV_DONTNEED);
+  } else {
+    memset(result, 0, size);
+  }
+  return result;
+}
+
 extern "C" void* aligned_alloc(size_t alignment, size_t size) {
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
@@ -278,6 +293,27 @@ extern "C" void* aligned_alloc(size_t alignment, size_t size) {
     bin++;
   }
   return malloc(bin_2_size(bin)); // it looks like it happens to be the case that all multiples of powers of two are aligned to that power of two.
+}
+
+extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
+  if (alignment & (alignment -1)) {
+    // alignment must be a power of two.
+    return errno;
+  }
+  if (alignment < sizeof(void*)) {
+    // alignment must be at least sizeof void*.
+    return EINVAL;
+  }
+  if (size == 0) {
+    *ptr = NULL;
+    return 0;
+  }
+  binnumber_t bin = size_2_bin(size);
+  while (bin_2_size(bin) & (alignment -1)) {
+    bin++;
+  }
+  *ptr = malloc(bin_2_size(bin));
+  return 0;
 }
 
 extern "C" size_t malloc_usable_size(const void *ptr) {
