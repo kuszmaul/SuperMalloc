@@ -43,7 +43,7 @@ static inline int lg_of_power_of_two(uint64_t a)
   return __builtin_ctz(a);
 }
 
-static inline chunknumber_t address_2_chunknumber(void *a) {
+static inline chunknumber_t address_2_chunknumber(const void *a) {
   // Given an address anywhere in a chunk, convert it to a chunk number from 0 to 1<<27
   uint64_t au = (uint64_t)a;
   uint64_t am = au/chunksize;

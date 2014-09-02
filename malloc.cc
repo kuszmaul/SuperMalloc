@@ -101,17 +101,9 @@ static void test_hyperceil(void) {
     test_hyperceil_v((1u<<i)+1, 2*(1u<<i));
   }
 }
-
-int main() {
-  initialize_malloc();
-  test_hyperceil();
-  test_size_2_bin();
-  test_makechunk();
-  test_huge_malloc();
-  test_large_malloc();
-  test_small_malloc();
-}
 #endif
+
+static uint64_t max_allocatable_size = (chunksize << 27)-1;
 
 static __thread uint32_t cached_cpu, cached_cpu_count;
 static uint32_t getcpu(void) {
@@ -213,8 +205,11 @@ static void cached_small_free(void *ptr, binnumber_t bin) {
 //   SMALL fit within a chunk.  Everything within a single chunk is the same size.
 // The sizes are the powers of two (1<<X) as well as (1<<X)*1.25 and (1<<X)*1.5 and (1<<X)*1.75
 extern "C" void *malloc(size_t size) {
-    // We use a bithack to find the right size.
   maybe_initialize_malloc();
+  if (size >= max_allocatable_size) {
+    errno = ENOMEM;
+    return NULL;
+  }
   void *result;
   if (size <= largest_small) {
     result = get_cached_small_malloc(size);
@@ -252,9 +247,41 @@ extern "C" void free_known_size(void *p, size_t size) {
 }
 
 extern "C" void* realloc(void *p, size_t size) {
+  if (size >= max_allocatable_size) {
+    errno = ENOMEM;
+    return NULL;
+  }
   if (p == NULL) return malloc(size);
   printf("realloc(%p, %ld)\n", p, size);
   abort();
+}
+
+extern "C" void* aligned_alloc(size_t alignment, size_t size) {
+  if (size >= max_allocatable_size) {
+    errno = ENOMEM;
+    return NULL;
+  }
+  if (alignment & (alignment-1)) {
+    // alignment must be a power of two
+    errno = EINVAL;
+    return NULL;
+  }
+  if ((size & (alignment-1)) != 0)  {
+    // size must be an integral multiple of alignment, which is easy to test since alignment is a power of two.
+    errno = EINVAL;
+    return NULL;
+  }
+  binnumber_t bin = size_2_bin(size);
+  while (bin_2_size(bin) & (alignment - 1)) {
+    bin++;
+  }
+  return malloc(bin_2_size(bin)); // it looks like it happens to be the case that all multiples of powers of two are aligned to that power of two.
+}
+
+extern "C" size_t malloc_usable_size(const void *ptr) {
+  chunknumber_t cn = address_2_chunknumber(ptr);
+  binnumber_t bin = chunk_infos[cn].bin_number;
+  return bin_2_size(bin);
 }
 
 // The basic idea of allocation, is that that we allocate 2MiB chunks
@@ -366,3 +393,14 @@ extern "C" void* realloc(void *p, size_t size) {
 // even at the beginning, since it probably means a single page table
 // entry for this table.
 
+#ifdef TESTING
+int main() {
+  initialize_malloc();
+  test_hyperceil();
+  test_size_2_bin();
+  test_makechunk();
+  test_huge_malloc();
+  test_large_malloc();
+  test_small_malloc();
+}
+#endif
