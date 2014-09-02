@@ -90,7 +90,7 @@ void huge_free(void *m) {
   bassert(cn);
   binnumber_t   bin  = chunk_infos[cn].bin_number;
   uint64_t      siz  = bin_2_size(bin);
-  chunknumber_t csiz = siz/chunksize;
+  chunknumber_t csiz = ceil(siz, chunksize);
   uint64_t     hceil = hyperceil(csiz);
   uint32_t      hlog = lg_of_power_of_two(hceil);
   bassert(hlog < log_max_chunknumber);

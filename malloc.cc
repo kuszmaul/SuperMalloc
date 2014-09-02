@@ -268,7 +268,7 @@ extern "C" void* calloc(size_t number, size_t size) {
       (usable % pagesize == 0)) {
     madvise(result, usable, MADV_DONTNEED);
   } else {
-    memset(result, 0, size);
+    memset(result, 0, number*size);
   }
   return result;
 }

@@ -7,8 +7,10 @@
 extern "C" {
 #endif
 
-void free(void* ptr) __THROW;
-void *aligned_alloc(size_t alignment, size_t size) __THROW;
+void* malloc(size_t) __THROW __attribute__((malloc));
+void* calloc(size_t /*number*/, size_t /*size*/) __THROW __attribute__((malloc));
+void free(void* /*ptr*/) __THROW;
+void *aligned_alloc(size_t /*alignment*/, size_t /*size*/) __THROW;
 
 // non_standard API
 size_t malloc_usable_size(const void *ptr);
