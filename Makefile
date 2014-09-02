@@ -9,7 +9,7 @@ libbmalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_mal
 
 malloc.o: cpucores.h
 malloc: CPPFLAGS = -DTESTING
-malloc: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o bassert.o footprint.o
+malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc bassert.cc footprint.cc | $(wildcard *.h) generated_constants.h
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
 objsizes: malloc_internal.h
 generated_constants.h: objsizes
