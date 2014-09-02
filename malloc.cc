@@ -10,6 +10,7 @@
 
 #include "atomically.h"
 #include "bassert.h"
+#include "cpucores.h"
 #include "generated_constants.h"
 
 #ifdef TESTING
@@ -48,12 +49,16 @@ static void test_size_2_bin(void) {
 static unsigned int initialize_lock=0;
 struct chunk_info *chunk_infos;
 
+uint32_t n_cores;
+
 void initialize_malloc(void) {
   const size_t n_elts = 1u<<27;
   const size_t alloc_size = n_elts * sizeof(chunk_info);
   const size_t n_chunks   = ceil(alloc_size, chunksize);
   chunk_infos = (chunk_info*)mmap_chunk_aligned_block(n_chunks);
   bassert(chunk_infos);
+
+  n_cores = cpucores();
 }
 
 void maybe_initialize_malloc(void) {
@@ -108,6 +113,101 @@ int main() {
 }
 #endif
 
+static __thread uint32_t cached_cpu, cached_cpu_count;
+static uint32_t getcpu(void) {
+  if ((cached_cpu_count++)%2048  ==0) { cached_cpu = sched_getcpu(); if (0) printf("cpu=%d\n", cached_cpu); }
+  return cached_cpu;
+}
+
+struct linked_list {
+  linked_list *next;
+};
+
+const int cpulimit = 128;
+struct cached_objects {
+  uint64_t bytecount;
+  linked_list *head;
+};
+struct CacheForCpu {
+  volatile unsigned int lock;
+  uint64_t attempt_count, success_count;
+  cached_objects c[first_large_bin_number] __attribute__((aligned(16))); // it's OK if the cached objects are on the same cacheline as the lock.
+} __attribute__((aligned(64)));
+
+CacheForCpu cache_for_cpu[cpulimit];
+
+struct get_cached_s {
+  struct cached_objects *c;
+  uint64_t size;
+  void *result;
+} __attribute__((aligned(64)));
+static void predo_get_cached(void *vv) {
+  get_cached_s *s = (get_cached_s*)vv;
+  linked_list *h = s->c->head;
+  prefetch_write(&s->result);
+  prefetch_write(&s->c->head);
+  prefetch_write(&s->c->bytecount);
+  if (h != NULL)  {
+    prefetch_read(&h->next);
+  }
+}
+static void do_get_cached(void *vv) {
+  get_cached_s *s = (get_cached_s*)vv;
+  linked_list *h = s->c->head;
+  if (h == NULL) {
+    s->result = NULL;
+  } else {
+    s->result = h;
+    s->c->head = h->next;
+    s->c->bytecount -= s->size;
+  }
+}
+
+static struct print_success_counts {
+  ~print_success_counts() {
+    printf("Success_counts=");
+    for (int i = 0; i < cpulimit; i++)
+      if (cache_for_cpu[i].attempt_count)
+	printf(" %ld/%ld=%.0f%%", cache_for_cpu[i].success_count, cache_for_cpu[i].attempt_count,
+	       100.0*(double)cache_for_cpu[i].success_count/(double)cache_for_cpu[i].attempt_count);
+    printf("\n");
+  }
+} psc;
+
+static void* get_cached_small_malloc(size_t size) {
+  binnumber_t bin = size_2_bin(size);
+  bassert(bin < first_large_bin_number);
+  // Still must access the cache atomically even though it's per processor.
+  int p = getcpu() % cpulimit;
+  __sync_fetch_and_add(&cache_for_cpu[p].attempt_count, 1);
+  linked_list *r = atomic_load(&cache_for_cpu[p].c[bin].head);
+  if (r == NULL) { return NULL; }
+  get_cached_s v = {&cache_for_cpu[p].c[bin], bin_2_size(bin), NULL};
+  atomically(&cache_for_cpu[p].lock,
+	     predo_get_cached,
+	     do_get_cached,
+	     &v);
+  __sync_fetch_and_add(&cache_for_cpu[p].success_count, 1);
+  return v.result;
+}
+
+static void cached_small_free(void *ptr, binnumber_t bin) {
+  int p = getcpu() % cpulimit;
+  cached_objects *cfc = &cache_for_cpu[p].c[bin];
+  if (atomic_load(&cfc->bytecount) > 4*1024*1024) {
+    small_free(ptr);
+  } else {
+    linked_list *ll = (linked_list *)ptr;
+    while (1) {
+      linked_list *h  = cfc->head;
+      ll->next        = h;
+      if (__sync_bool_compare_and_swap(&cfc->head, h, ll)) break;
+    }
+    // It's OK for the count to be out of sync.  It's just an heurstic.
+    __sync_fetch_and_add(&cfc->bytecount, bin_2_size(bin));
+  }
+}
+
 // Three kinds of mallocs:
 //   BIG, used for large allocations.  These are 2MB-aligned chunks.  We use BIG for anything bigger than a quarter of a chunk.
 //   SMALL fit within a chunk.  Everything within a single chunk is the same size.
@@ -117,7 +217,10 @@ extern "C" void *malloc(size_t size) {
   maybe_initialize_malloc();
   void *result;
   if (size <= largest_small) {
-    result = small_malloc(size);
+    result = get_cached_small_malloc(size);
+    if (!result) {
+      result = small_malloc(size);
+    }
   } else if (size <= largest_large) {
     result = large_malloc(size);
   } else {
@@ -132,7 +235,7 @@ extern "C" void free(void *p) {
   chunknumber_t cn = address_2_chunknumber(p);
   binnumber_t bin = chunk_infos[cn].bin_number;
   if (bin < first_large_bin_number) {
-    small_free(p);
+    cached_small_free(p, bin);
   } else if (bin < first_huge_bin_number) {
     large_free(p);
   } else {

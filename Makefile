@@ -7,6 +7,7 @@ CFLAGS = $(C_CXX_FLAGS) -std=c11
 libbmalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o bassert.o footprint.o
 	$(CXX) $^ -shared -o $@
 
+malloc.o: cpucores.h
 malloc: CPPFLAGS = -DTESTING
 malloc: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o bassert.o footprint.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
