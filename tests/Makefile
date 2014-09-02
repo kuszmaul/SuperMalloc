@@ -6,3 +6,5 @@ aligned_alloc:
 
 clean:
 	rm aligned_alloc
+check: aligned_alloc
+	./aligned_alloc

@@ -28,7 +28,9 @@ $(patsubst %, %.o, $(ALL_LIB_SOURCES)): $(wildcard *.h) generated_constants.h
 foo:
 	echo needs generated_constants.h: $(patsubst %, %.o, $(ALL_LIB_SOURCES))
 
-check: malloc
+check: malloc tests_check
 	./malloc
+tests_check:
+	cd tests;make check
 clean:
 	rm -f t malloc *.o generated_constants.h objsizes *.gcda

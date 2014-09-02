@@ -157,12 +157,14 @@ static void do_get_cached(void *vv) {
 
 static struct print_success_counts {
   ~print_success_counts() {
-    printf("Success_counts=");
-    for (int i = 0; i < cpulimit; i++)
-      if (cache_for_cpu[i].attempt_count)
-	printf(" %ld/%ld=%.0f%%", cache_for_cpu[i].success_count, cache_for_cpu[i].attempt_count,
-	       100.0*(double)cache_for_cpu[i].success_count/(double)cache_for_cpu[i].attempt_count);
-    printf("\n");
+    if (0) {
+      printf("Success_counts=");
+      for (int i = 0; i < cpulimit; i++)
+	if (cache_for_cpu[i].attempt_count)
+	  printf(" %ld/%ld=%.0f%%", cache_for_cpu[i].success_count, cache_for_cpu[i].attempt_count,
+		 100.0*(double)cache_for_cpu[i].success_count/(double)cache_for_cpu[i].attempt_count);
+      printf("\n");
+    }
   }
 } psc;
 

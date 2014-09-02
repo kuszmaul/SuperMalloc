@@ -22,7 +22,7 @@ main(void)
 	unsigned i;
 	void *p, *ps[NITER];
 
-	malloc_printf("Test begin\n");
+	if (0) malloc_printf("Test begin\n");
 
 	/* Test error conditions. */
 	alignment = 0;
@@ -95,7 +95,7 @@ main(void)
 	    alignment <= MAXALIGN;
 	    alignment <<= 1) {
 		total = 0;
-		malloc_printf("Alignment: %zu\n", alignment);
+		if (0) malloc_printf("Alignment: %zu\n", alignment);
 		for (size = alignment;
 		     size < 3 * alignment && size < (1U << 31);
 		     size += alignment) {
@@ -123,6 +123,6 @@ main(void)
 		}
 	}
 
-	malloc_printf("Test end\n");
+	if (0) malloc_printf("Test end\n");
 	return (0);
 }
