@@ -85,7 +85,7 @@ void *mem_allocator (void *arg)
 	int start = POOL_SIZE * thread_id;
 	int end = POOL_SIZE * (thread_id + 1);
 
-	if(verbose_flag) {
+	if(verbose_flag>2) {
 	  printf("Releaser %i works on memory pool %i to %i\n",
 		thread_id, start, end);
 	  printf("Releaser %i started...\n", thread_id);
@@ -117,7 +117,7 @@ void *mem_releaser(void *arg)
 	int start = POOL_SIZE * thread_id;
 	int end = POOL_SIZE * (thread_id + 1);
 
-	if(verbose_flag) {
+	if(verbose_flag>2) {
 	  printf("Allocator %i works on memory pool %i to %i\n",
 		thread_id, start, end);
 	  printf("Allocator %i started...\n", thread_id);
@@ -170,20 +170,20 @@ int run_memory_free_test()
 	/* Start up the mem_allocator and mem_releaser threads  */
 	for(i = 0; i < num_workers; ++i) {
 		ids[i] = i;
-		printf("Starting mem_releaser %i ...\n", i);
+		if (verbose_flag) printf("Starting mem_releaser %i ...\n", i);
 		if (pthread_create(&thread_ids[i * 2], NULL, mem_releaser, (void *)&ids[i])) {
 			perror("pthread_create mem_releaser");
 			exit(errno);
 		}
 
-		printf("Starting mem_allocator %i ...\n", i);
+		if (verbose_flag) printf("Starting mem_allocator %i ...\n", i);
 		if (pthread_create(&thread_ids[i * 2 + 1], NULL, mem_allocator, (void *)&ids[i])) {
 			perror("pthread_create mem_allocator");
 			exit(errno);
 		}
 	}
 
-	printf("Testing for %.2f seconds\n\n", run_time);
+	if (verbose_flag) printf("Testing for %.2f seconds\n\n", run_time);
 
 	for(i = 0; i < num_workers * 2; ++i)
 		pthread_join (thread_ids[i], &ptr);
@@ -191,15 +191,20 @@ int run_memory_free_test()
 	elapse_time = elapsed_time (&begin);
 
 	for(i = 0; i < num_workers; ++i) {
-		printf("Thread %2i frees %ld blocks in %.2f seconds. %.2f free/sec.\n",
-		 	i, counters[i].c, elapse_time, ((double)counters[i].c/elapse_time));
+		if (verbose_flag) {
+			printf("Thread %2i frees %ld blocks in %.2f seconds. %.2f free/sec.\n",
+			       i, counters[i].c, elapse_time, ((double)counters[i].c/elapse_time));
+		}
 	}
-	printf("----------------------------------------------------------------\n");
+	if (verbose_flag) printf("----------------------------------------------------------------\n");
 	for(i = 0; i < num_workers; ++i) total += counters[i].c;
-	printf("Total %ld freed in %.2f seconds. %.2fM free/second\n",
-		total, elapse_time, ((double) total/elapse_time)*1e-6);
+	if (verbose_flag)
+	  printf("Total %ld freed in %.2f seconds. %.2fM free/second\n",
+		 total, elapse_time, ((double) total/elapse_time)*1e-6);
+	else
+	  printf("%.0f\n", (double)total/elapse_time);
 
-	printf("Program done\n");
+	if (verbose_flag) printf("Program done\n");
 	return(0);
 }
 
@@ -209,7 +214,7 @@ void usage(char *prog)
 	printf("\t -w number of set of allocator and freer, default 2\n");
 	printf("\t -t run time in seconds, default 20.0 seconds.\n");
 	printf("\t -d debug mode\n");
-	printf("\t -v verbose mode\n");
+	printf("\t -v verbose mode (-v -v produces more verbose)\n");
 	exit(1);
 }
 
@@ -230,7 +235,7 @@ int main(int argc, char **argv)
 			debug_flag = 1;
 			break;
 		case 'v':
-			verbose_flag = 1;
+			verbose_flag++;
 			break;
 		default:
 			usage(argv[0]);

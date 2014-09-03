@@ -26,12 +26,10 @@ void* mmap_size(size_t size) {
 static void unmap(void *p, size_t size) {
   if (size>0) {
     int r = munmap(p, size);
-#ifdef TESTING
     if (1 && r!=0) {
       fprintf(stderr, "Failure doing munmap(%p, %ld) error=%d\n", p, size, errno);
       abort();
     }
-#endif
     bassert(r==0);
   }
 }
