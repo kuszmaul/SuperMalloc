@@ -142,7 +142,7 @@ static void predo_small_malloc(void* vv) {
 	    break;
 	}
       }
-      for (uint32_t w = 0; w < bitmap_n_words; w++) {
+      for (uint32_t w = 0; w < ceil(static_bin_info[bin].objects_per_page, 64); w++) {
 	uint64_t bw = result_pp->inuse_bitmap[w];
 	if (bw != UINT64_MAX) {
 	  prefetch_write(&result_pp->inuse_bitmap[w]);
@@ -197,7 +197,7 @@ static void do_small_malloc(void* vv) {
     }
 
     // Now set the bitmap
-    for (uint32_t w = 0; w < bitmap_n_words; w++) {
+    for (uint32_t w = 0; w < ceil(static_bin_info[bin].objects_per_page, 64); w++) {
       uint64_t bw = result_pp->inuse_bitmap[w];
       if (bw != UINT64_MAX) {
 	// Found an empty bit.
@@ -248,8 +248,8 @@ void* small_malloc(size_t size)
       chunk_infos[address_2_chunknumber(chunk)].bin_number = bin;
 
       small_chunk_header *sch = (small_chunk_header*)chunk;
-      for (uint32_t i = 0; i < n_pages_used; i++) { // really ought to git rid of that division.  There's no reason for it, except that I'm trying to keep the code simple for now.
-	for (uint32_t w = 0; w < bitmap_n_words; w++) {
+      for (uint32_t i = 0; i < n_pages_used; i++) {
+	for (uint32_t w = 0; w < ceil(static_bin_info[bin].objects_per_page, 64); w++) {
 	  sch->ll[i].inuse_bitmap[w] = 0;
 	}
 	sch->ll[i].prev = (i   == 0)              ? NULL : &sch->ll[i-1];
@@ -290,7 +290,7 @@ static void predo_small_free(void *vv) {
   uint32_t dsbi_offset = v->dsbi_offset;
   uint32_t o_per_page  = v->o_per_page;
   uint32_t old_count = 0;
-  for (uint32_t i = 0; i < bitmap_n_words; i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
+  for (uint32_t i = 0; i < ceil(static_bin_info[bin].objects_per_page, 64); i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
   uint64_t bm __attribute__((unused)) = atomic_load(&pp->inuse_bitmap[objnum/64]);
   prefetch_write(&pp->inuse_bitmap[objnum/64]);
 
@@ -330,7 +330,7 @@ static void do_small_free(void *vv) {
   uint32_t  o_per_page = v->o_per_page;
 
   uint32_t old_count = 0;
-  for (uint32_t i = 0; i < bitmap_n_words; i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
+  for (uint32_t i = 0; i < ceil(static_bin_info[bin].objects_per_page, 64); i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
   // clear the bit.
   bassert(pp->inuse_bitmap[objnum/64] & (1ul << (objnum%64)));
   pp->inuse_bitmap[objnum/64] &= ~ ( 1ul << (objnum%64 ));
