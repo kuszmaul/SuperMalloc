@@ -11,8 +11,8 @@
 #    	gnuplot home:     http://www.gnuplot.info
 #    	faq, bugs, etc:   type "help FAQ"
 #    	immediate help:   type "help"  (plot window: hit 'h')
-# set terminal pdfcairo  transparent fontscale 0.5 size 5.00in, 3.00in 
-# set output 'test-malloc_test.pdf'
+set terminal pdfcairo  transparent fontscale 0.5 size 5.00in, 3.00in 
+set output 'test-malloc_test.pdf'
 unset clip points
 set clip one
 unset clip two
