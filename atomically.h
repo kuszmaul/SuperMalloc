@@ -56,6 +56,18 @@ static inline void atomically(volatile unsigned int *mylock,
 			      void (*predo)(void *extra),
 			      void (*fun)(void*extra),
 			      void*extra) {
+
+  // Be a little optimistic: try to run the function without the predo if we the lock looks good
+  if (*mylock == 0) {
+    unsigned int xr = _xbegin();
+    if (xr == _XBEGIN_STARTED) {
+      fun(extra);
+      if (*mylock) _xabort(XABORT_LOCK_HELD);
+      _xend();
+      return;
+    }
+  }
+
   int count = 0;
   while (have_rtm && count < 20) {
     mylock_wait(mylock);

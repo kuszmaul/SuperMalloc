@@ -282,7 +282,7 @@ struct do_small_free_s {
   uint32_t o_per_page;
 } __attribute__((aligned(64)));
 
-void predo_small_free(void *vv) {
+static void predo_small_free(void *vv) {
   do_small_free_s   *v = (do_small_free_s*)vv;
   binnumber_t      bin = v->bin;
   per_page         *pp = v->pp;
@@ -321,7 +321,7 @@ void predo_small_free(void *vv) {
   prefetch_write(&dsbi.lists.b[new_offset]);
 }
 
-void do_small_free(void *vv) {
+static void do_small_free(void *vv) {
   do_small_free_s   *v = (do_small_free_s*)vv;
   binnumber_t      bin = v->bin;
   per_page         *pp = v->pp;
