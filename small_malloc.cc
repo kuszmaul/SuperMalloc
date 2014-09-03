@@ -34,7 +34,7 @@ void test_small_page_header(void) {
 }
 #endif
 
-static void verify_small_invariants(void) {
+static inline void verify_small_invariants(void) {
   return;
   for (binnumber_t bin = 0; bin < first_large_bin_number; bin++) {
     uint16_t fullest_off = dsbi.fullest_offset[bin];
@@ -332,9 +332,9 @@ static void do_small_free(void *vv) {
   uint32_t old_count = 0;
   for (uint32_t i = 0; i < ceil(static_bin_info[bin].objects_per_page, 64); i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
   // clear the bit.
-  bassert(pp->inuse_bitmap[objnum/64] & (1ul << (objnum%64)));
+  if (IS_TESTING) bassert(pp->inuse_bitmap[objnum/64] & (1ul << (objnum%64)));
   pp->inuse_bitmap[objnum/64] &= ~ ( 1ul << (objnum%64 ));
-  bassert(old_count > 0 && old_count <= o_per_page);
+  if (IS_TESTING) bassert(old_count > 0 && old_count <= o_per_page);
 
   uint32_t old_offset_within = o_per_page - old_count;
   uint32_t new_offset_within = old_offset_within + 1;
@@ -373,14 +373,14 @@ void small_free(void* p) {
   void *chunk = (void*)((uint64_t)p&~(chunksize-1));
   small_chunk_header *sch = (small_chunk_header*)chunk;
   uint64_t page_num = (((uint64_t)p)%chunksize)/pagesize;
-  bassert(page_num >= n_pages_wasted);
+  if (IS_TESTING) bassert(page_num >= n_pages_wasted);
   chunknumber_t chunk_num  = address_2_chunknumber(p);
   binnumber_t   bin        = chunk_infos[chunk_num].bin_number;
   uint32_t useful_page_num = page_num - n_pages_wasted;
   per_page             *pp = &sch->ll[useful_page_num];
   uint32_t o_size     = static_bin_info[bin].object_size;
   uint64_t         objnum = (((uint64_t)p)%pagesize) / o_size;
-  bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
+  if (IS_TESTING) bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
   uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
   uint32_t o_per_page = static_bin_info[bin].objects_per_page;
 

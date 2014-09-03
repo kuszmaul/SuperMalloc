@@ -105,5 +105,11 @@ void small_free(void*);
 void test_small_malloc(void);
 #endif
 
+#ifdef TESTING
+#define IS_TESTING 1
+#else
+#define IS_TESTING 0
+#endif
+
 #endif
 
