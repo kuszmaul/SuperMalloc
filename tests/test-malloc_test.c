@@ -9,6 +9,7 @@
  *         This file is part of XMALLOC, licensed under the GNU General
  *         Public License version 3. See COPYING for more information.
  */
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -17,8 +18,14 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include "xmalloc-config.h"
-#include "xmalloc.h"
+#include <unistd.h>
+//#include "xmalloc-config.h"
+//#include "xmalloc.h"
+
+#define CACHE_ALIGNED 1
+
+#define xmalloc malloc
+#define xfree free
 
 #define	POOL_SIZE	4096
 
@@ -30,13 +37,22 @@ double run_time = 5.0;
 /* array for thread ids */
 pthread_t *thread_ids;
 /* array for saving result of each thread */
-long *counters;
+struct counter {
+  long c
+#if CACHE_ALIGNED
+ __attribute__((aligned(64)))
+#endif
+;
+};
+struct counter *counters;
 /* memory pool used by all the threads */
 void **mem_pool;
 
+#define atomic_load(addr) __atomic_load_n(addr, __ATOMIC_CONSUME)
+#define atomic_store(addr, v) __atomic_store_n(addr, v, __ATOMIC_RELEASE)
+
 int done_flag = 0;
 struct timeval begin;
-
 
 static void
 tvsub(tdiff, t1, t0)
@@ -75,12 +91,12 @@ void *mem_allocator (void *arg)
 	  printf("Releaser %i started...\n", thread_id);
 	}
 
-	while(!done_flag) {
+	while(!atomic_load(&done_flag)) {
 
 		/* find first NULL slot */
 		for (i = start; i < end; ++i) {
-		  if (NULL == mem_pool[i]) {
-			mem_pool[i] = xmalloc(1024);
+		  if (NULL == atomic_load(&mem_pool[i])) {
+		        atomic_store(&mem_pool[i], xmalloc(1024));
 			if (debug_flag) 
 			  printf("Allocate %i: slot %i\n", 
 				thread_id, i);
@@ -107,15 +123,15 @@ void *mem_releaser(void *arg)
 	  printf("Allocator %i started...\n", thread_id);
 	}
 
-	while(!done_flag) {
+	while(!atomic_load(&done_flag)) {
 
 		/* find non-NULL slot */
 		for (i = start; i < end; ++i) {
-		   if (NULL != mem_pool[i]) {
-			  void *ptr = mem_pool[i];
-			  mem_pool[i] = NULL;
+		      void *ptr = atomic_load(&mem_pool[i]);
+		      if (NULL != ptr) {
+			  atomic_store(&mem_pool[i], NULL);
 			  xfree(ptr);
-			  ++counters[thread_id];
+			  ++counters[thread_id].c;
 			  if (debug_flag) 
 			    printf("Releaser %i: slot %i\n", 
 				thread_id, i);
@@ -125,7 +141,7 @@ void *mem_releaser(void *arg)
 		++loops;
 		if ( (0 == loops % check_interval) && 
 		     (elapsed_time(&begin) > run_time) ) {
-			done_flag = 1;
+		        atomic_store(&done_flag, 1);
 			break;
 		}
 	}
@@ -143,7 +159,7 @@ int run_memory_free_test()
 
 	/* Initialize counter */
 	for(i = 0; i < num_workers; ++i) 
-		counters[i] = 0;
+		counters[i].c = 0;
 
 	/* Initialize memory pool */
 	for (i = 0; i < POOL_SIZE * num_workers; ++i)
@@ -175,13 +191,13 @@ int run_memory_free_test()
 	elapse_time = elapsed_time (&begin);
 
 	for(i = 0; i < num_workers; ++i) {
-		printf("Thread %2i frees %d blocks in %.2f seconds. %.2f free/sec.\n",
-		 	i, counters[i], elapse_time, ((double)counters[i]/elapse_time));
+		printf("Thread %2i frees %ld blocks in %.2f seconds. %.2f free/sec.\n",
+		 	i, counters[i].c, elapse_time, ((double)counters[i].c/elapse_time));
 	}
 	printf("----------------------------------------------------------------\n");
-	for(i = 0; i < num_workers; ++i) total += counters[i];
-	printf("Total %d freed in %.2f seconds. %.2f free/second\n",
-		total, elapse_time, ((double) total/elapse_time));
+	for(i = 0; i < num_workers; ++i) total += counters[i].c;
+	printf("Total %ld freed in %.2f seconds. %.2fM free/second\n",
+		total, elapse_time, ((double) total/elapse_time)*1e-6);
 
 	printf("Program done\n");
 	return(0);
@@ -223,8 +239,11 @@ int main(int argc, char **argv)
 
 	/* allocate memory for working arrays */
 	thread_ids = (pthread_t *) xmalloc(sizeof(pthread_t) * num_workers * 2);
-	counters = (long *) xmalloc(sizeof(long) * num_workers);
-	mem_pool  = (void **) xmalloc(sizeof(void *) * POOL_SIZE * num_workers);
+	counters = (struct counter *) xmalloc(sizeof(*counters) * num_workers);
+	mem_pool  = (void **) (CACHE_ALIGNED
+			       ? aligned_alloc(64, sizeof(void *) * POOL_SIZE * num_workers)
+			       : malloc(sizeof(void *) * POOL_SIZE * num_workers));
+	    
 	
 	run_memory_free_test();
 	
