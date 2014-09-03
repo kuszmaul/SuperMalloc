@@ -1,6 +1,6 @@
 OPTFLAGS = -O2
 CPPFLAGS = -I..
-CFLAGS = -g -W -Wall -Werror -std=c99 $(OPTFLAGS)
+CFLAGS = -ggdb -W -Wall -Werror -std=c99 $(OPTFLAGS)
 LDFLAGS = -L.. -Wl,-rpath,..
 LDLIBS = -lbmalloc
 TARGETS = \
@@ -14,7 +14,7 @@ default: $(TARGETS)
 $(TARGETS): | ../bmalloc.h
 
 clean:
-	rm aligned_alloc
+	rm $(TARGETS)
 check: $(patsubst %,check_%,$(TARGETS))
 check_%: %
 	./$<

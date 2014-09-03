@@ -1,6 +1,6 @@
 # COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
 OPTFLAGS = -O2
-C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -g -pthread -fPIC -mrtm $(COVERAGE)
+C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 
