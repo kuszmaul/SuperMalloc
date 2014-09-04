@@ -1,5 +1,5 @@
 # COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
-OPTFLAGS = -O2
+OPTFLAGS = -O3 -flto
 C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
@@ -8,7 +8,7 @@ default: libsupermalloc.so malloc
 
 # While compiling malloc or any of its .o files, compile with -DTESTING
 libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o bassert.o footprint.o
-	$(CXX) $^ -shared -o $@
+	$(CXX) $(CXXFLAGS) $^ -shared -o $@
 
 malloc.o: cpucores.h
 malloc: CPPFLAGS = -DTESTING

@@ -109,7 +109,8 @@ class2:
   }
   printf("  };\n");
   printf("};\n");
-  printf("static uint32_t dynamic_small_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));\n");
+  printf("// dynamic_small_bin_offset is declared const even though one implementation looks in an array.  The array is a const\n");
+  printf("static uint32_t dynamic_small_bin_offset(binnumber_t bin) __attribute((const)) __attribute__((unused)) __attribute__((warn_unused_result));\n");
   printf("static uint32_t dynamic_small_bin_offset(binnumber_t bin) {\n");
   printf("  if (0) {\n");
   printf("    switch(bin) {\n");

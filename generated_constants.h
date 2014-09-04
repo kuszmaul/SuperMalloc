@@ -116,7 +116,8 @@ struct dynamic_small_bin_info {
     per_page *b[3120];
   };
 };
-static uint32_t dynamic_small_bin_offset(binnumber_t bin) __attribute((pure)) __attribute__((unused)) __attribute__((warn_unused_result));
+// dynamic_small_bin_offset is declared const even though one implementation looks in an array.  The array is a const
+static uint32_t dynamic_small_bin_offset(binnumber_t bin) __attribute((const)) __attribute__((unused)) __attribute__((warn_unused_result));
 static uint32_t dynamic_small_bin_offset(binnumber_t bin) {
   if (0) {
     switch(bin) {
