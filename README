@@ -1,3 +1,12 @@
+Installing jemalloc-3.6.0
+ cd jemalloc-3.6.0
+ ./configure --prefix=/home/bradley/bmalloc/jemalloc
+ make
+ make install
+
+
+--------------
+
 Some basic results (4 threads a_count=1000000)
 
                   rss   time
