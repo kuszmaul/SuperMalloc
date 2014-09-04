@@ -171,21 +171,27 @@ static struct print_success_counts {
   }
 } psc;
 
-static void* get_cached_small_malloc(size_t size) {
+static void* cached_small_malloc(size_t size)
+// Effect: try the cache first, then try small_malloc
+{
   binnumber_t bin = size_2_bin(size);
   bassert(bin < first_large_bin_number);
   // Still must access the cache atomically even though it's per processor.
   int p = getcpu() % cpulimit;
   __sync_fetch_and_add(&cache_for_cpu[p].attempt_count, 1);
   linked_list *r = atomic_load(&cache_for_cpu[p].c[bin].head);
-  if (r == NULL) { return NULL; }
+  if (r == NULL) { return small_malloc(size); }
   get_cached_s v = {&cache_for_cpu[p].c[bin], bin_2_size(bin), NULL};
   atomically(&cache_for_cpu[p].lock,
 	     predo_get_cached,
 	     do_get_cached,
 	     &v);
-  __sync_fetch_and_add(&cache_for_cpu[p].success_count, 1);
-  return v.result;
+  if (v.result) {
+    __sync_fetch_and_add(&cache_for_cpu[p].success_count, 1);
+    return v.result;
+  } else {
+    return small_malloc(size);
+  }
 }
 
 static void cached_small_free(void *ptr, binnumber_t bin) {
@@ -217,10 +223,7 @@ extern "C" void *malloc(size_t size) {
   }
   void *result;
   if (size <= largest_small) {
-    result = get_cached_small_malloc(size);
-    if (!result) {
-      result = small_malloc(size);
-    }
+    result = cached_small_malloc(size);
   } else if (size <= largest_large) {
     result = large_malloc(size);
   } else {
