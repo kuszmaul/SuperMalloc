@@ -135,7 +135,14 @@ struct CacheForCpu {
 
 CacheForCpu cache_for_cpu[cpulimit];
 
-cached_objects global[first_large_bin_number] __attribute__((aligned(64)));
+const int n_global_caches_limit = 8;
+
+struct global_cache_for_bin {
+  int n;
+  cached_objects objects[n_global_caches_limit];
+} __attribute__((aligned(64)));
+  
+global_cache_for_bin global[first_large_bin_number] __attribute__((aligned(64)));
 
 struct get_cached_s {
   cache_pair *p;
@@ -164,13 +171,17 @@ static void do_get_cached(void *vv) {
     linked_list *h2 = s->p->backup.head;
     if (h2 == NULL) {
       binnumber_t bin = s->bin;
-      linked_list *h3 = global[bin].head;
-      if (h3 == NULL) {
+      int gn = global[bin].n;
+      if (gn == 0) {
         s->result = NULL;
       } else {
+	linked_list *h3 = global[bin].objects[gn-1].head;
+	bassert(h3);
 	s->result = h3;
-	global[bin].head = h3->next;
-	global[bin].bytecount -= s->size;
+	s->p->current.head = h3->next;
+	s->p->current.tail = global[bin].objects[gn-1].tail;
+	s->p->current.bytecount = global[bin].objects[gn-1].bytecount - s->size;
+	global[bin].n = gn-1;
       }
     } else {
       s->result = h2;
@@ -207,7 +218,7 @@ static void* cached_small_malloc(size_t size)
   __sync_fetch_and_add(&cache_for_cpu[p].attempt_count, 1);
   if (   atomic_load(&cache_for_cpu[p].p[bin].current.head) == NULL
       && atomic_load(&cache_for_cpu[p].p[bin].backup.head) == NULL
-      && atomic_load(&global[bin].head) == NULL) {
+      && atomic_load(&global[bin].n) == 0) {
     return small_malloc(size);
   }
   get_cached_s v = {&cache_for_cpu[p].p[bin], bin_2_size(bin), bin, NULL};
@@ -263,24 +274,28 @@ static void do_small_free(void *dsfv) {
     cp->backup.head = item;
     item->next = old_head;
     cp->backup.bytecount += size;
-  } else if (global[bin].bytecount < cached_bytecount_limit) {
-    dsf->failed = false;
-    linked_list *add_head = cp->current.head;
-    linked_list *add_tail = cp->current.tail;
-    bassert(add_head && add_tail);
-    item->next = add_head;
-    if (global[bin].head == NULL) {
-      global[bin].tail = add_tail;
-      // tail is already NULL
-    } else {
-      add_tail->next = global[bin].tail;
-    }
-    global[bin].head = item;
-    global[bin].bytecount += cp->current.bytecount;
-    cp->current.bytecount = 0;
-    cp->current.head = NULL;
   } else {
-    dsf->failed = true;
+    int gn = global[bin].n;
+    if (gn < n_global_caches_limit) {
+      dsf->failed = false;
+      linked_list *add_head = cp->current.head;
+      linked_list *add_tail = cp->current.tail;
+      bassert(add_head && add_tail);
+      item->next = add_head;
+      if (global[bin].objects[gn].head == NULL) {
+	global[bin].objects[gn].tail = add_tail;
+	// tail is already NULL
+      } else {
+	add_tail->next = global[bin].objects[gn].tail;
+      }
+      global[bin].objects[gn].head = item;
+      global[bin].objects[gn].bytecount = cp->current.bytecount + size;
+      cp->current.bytecount = 0;
+      cp->current.head = NULL;
+      global[bin].n = gn+1;
+    } else {
+      dsf->failed = true;
+    }
   }
 }
 
