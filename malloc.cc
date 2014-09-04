@@ -122,39 +122,54 @@ const int cpulimit = 128;
 struct cached_objects {
   uint64_t bytecount;
   linked_list *head;
+  linked_list *tail; // We need the last item in the list so we can splice a list into another set in O(1) time.
+};
+struct cache_pair {
+  cached_objects current, backup;
 };
 struct CacheForCpu {
   volatile unsigned int lock;
   uint64_t attempt_count, success_count;
-  cached_objects c[first_large_bin_number] __attribute__((aligned(16))); // it's OK if the cached objects are on the same cacheline as the lock.
+  cache_pair p[first_large_bin_number] __attribute__((aligned(16))); // it's OK if the cached objects are on the same cacheline as the lock.
 } __attribute__((aligned(64)));
 
 CacheForCpu cache_for_cpu[cpulimit];
 
 struct get_cached_s {
-  struct cached_objects *c;
+  cache_pair *p;
   uint64_t size;
   void *result;
 } __attribute__((aligned(64)));
 static void predo_get_cached(void *vv) {
   get_cached_s *s = (get_cached_s*)vv;
-  linked_list *h = s->c->head;
+  linked_list *h = s->p->current.head;
   prefetch_write(&s->result);
-  prefetch_write(&s->c->head);
-  // prefetch_write(&s->c->bytecount);  Don't need to prefetch both head and bytecount
+  prefetch_write(s->p);
+  if (h != NULL) {
+    // prefetch_write(&s->c->bytecount);  Don't need to prefetch both head and bytecount
 
-  // it's OK to prefetch even if h is NULL
-  prefetch_read(&h->next);
+    // it's OK to prefetch even if h is NULL
+    prefetch_read(h);
+  } else {
+    prefetch_read(s->p->backup.head);
+  }
 }
 static void do_get_cached(void *vv) {
   get_cached_s *s = (get_cached_s*)vv;
-  linked_list *h = s->c->head;
+  linked_list *h = s->p->current.head;
   if (h == NULL) {
-    s->result = NULL;
+    linked_list *h2 = s->p->backup.head;
+    if (h2 == NULL) {
+      s->result = NULL;
+    } else {
+      s->result = h2;
+      s->p->backup.head = h2->next;
+      s->p->backup.bytecount -= s->size;
+    }
   } else {
     s->result = h;
-    s->c->head = h->next;
-    s->c->bytecount -= s->size;
+    s->p->current.head = h->next;
+    s->p->current.bytecount -= s->size;
   }
 }
 
@@ -179,9 +194,11 @@ static void* cached_small_malloc(size_t size)
   // Still must access the cache atomically even though it's per processor.
   int p = getcpu() % cpulimit;
   __sync_fetch_and_add(&cache_for_cpu[p].attempt_count, 1);
-  linked_list *r = atomic_load(&cache_for_cpu[p].c[bin].head);
-  if (r == NULL) { return small_malloc(size); }
-  get_cached_s v = {&cache_for_cpu[p].c[bin], bin_2_size(bin), NULL};
+  if (   atomic_load(&cache_for_cpu[p].p[bin].current.head) == NULL
+      && atomic_load(&cache_for_cpu[p].p[bin].backup.head) == NULL) {
+    return small_malloc(size);
+  }
+  get_cached_s v = {&cache_for_cpu[p].p[bin], bin_2_size(bin), NULL};
   atomically(&cache_for_cpu[p].lock,
 	     predo_get_cached,
 	     do_get_cached,
@@ -194,21 +211,73 @@ static void* cached_small_malloc(size_t size)
   }
 }
 
+struct do_small_free_s {
+  // input
+  cache_pair *cp;
+  linked_list *item;
+  uint64_t size;
+  // output
+  bool failed;
+};
+
+cached_objects global __attribute__((aligned(64)));
+
+const uint64_t cached_bytecount_limit = 4*1024*1024;
+static void do_small_free(void *dsfv) {
+  // Here's the logic:
+  //   If the current is small enough, add the free'd object to current.
+  //   else if backup is small enough, add the free'd object to backup.
+  //   else if global is small enough, add the free'd object to current and append the current into the global
+  //   else everything is full, so really free the object with small_free() (do this by setting dsf.failed)
+  do_small_free_s *dsf = (do_small_free_s*)dsfv;
+  cache_pair *cp = dsf->cp;
+  linked_list *item = dsf->item;
+  uint64_t size = dsf->size;
+  if (cp->current.bytecount < cached_bytecount_limit) {
+    dsf->failed = false;
+    linked_list *old_head = cp->current.head;
+    if (old_head == NULL) {
+      cp->current.tail = item;
+    }
+    cp->current.head = item;
+    item->next = old_head;
+    cp->current.bytecount += size;
+  } else if (cp->backup.bytecount < cached_bytecount_limit) {
+    dsf->failed = false;
+    linked_list *old_head = cp->backup.head;
+    if (old_head == NULL) {
+      cp->backup.tail = item;
+    }
+    cp->backup.head = item;
+    item->next = old_head;
+    cp->backup.bytecount += size;
+  } else if (global.bytecount < cached_bytecount_limit) {
+    dsf->failed = false;
+    linked_list *add_head = cp->current.head;
+    linked_list *add_tail = cp->current.tail;
+    bassert(add_head && add_tail);
+    item->next = add_head;
+    if (global.head == NULL) {
+      global.tail = add_tail;
+      // tail is already NULL
+    } else {
+      add_tail->next = global.tail;
+    }
+    global.head = item;
+    global.bytecount += cp->current.bytecount;
+    cp->current.bytecount = 0;
+    cp->current.head = NULL;
+  } else {
+    dsf->failed = true;
+  }
+}
+
 static void cached_small_free(void *ptr, binnumber_t bin) {
   int p = getcpu() % cpulimit;
-  cached_objects *cfc = &cache_for_cpu[p].c[bin];
-  if (atomic_load(&cfc->bytecount) > 4*1024*1024) {
-    small_free(ptr);
-  } else {
-    linked_list *ll = (linked_list *)ptr;
-    while (1) {
-      linked_list *h  = cfc->head;
-      ll->next        = h;
-      if (__sync_bool_compare_and_swap(&cfc->head, h, ll)) break;
-    }
-    // It's OK for the count to be out of sync.  It's just an heurstic.
-    __sync_fetch_and_add(&cfc->bytecount, bin_2_size(bin));
-  }
+  cache_pair *cp = &cache_for_cpu[p].p[bin];
+  do_small_free_s dsf = {cp, (linked_list*)ptr, bin_2_size(bin), false};
+  do_small_free(&dsf);
+  if (dsf.failed) { small_free(ptr); }
 }
 
 // Three kinds of mallocs:
