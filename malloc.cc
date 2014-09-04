@@ -141,10 +141,10 @@ static void predo_get_cached(void *vv) {
   linked_list *h = s->c->head;
   prefetch_write(&s->result);
   prefetch_write(&s->c->head);
-  prefetch_write(&s->c->bytecount);
-  if (h != NULL)  {
-    prefetch_read(&h->next);
-  }
+  // prefetch_write(&s->c->bytecount);  Don't need to prefetch both head and bytecount
+
+  // it's OK to prefetch even if h is NULL
+  prefetch_read(&h->next);
 }
 static void do_get_cached(void *vv) {
   get_cached_s *s = (get_cached_s*)vv;
