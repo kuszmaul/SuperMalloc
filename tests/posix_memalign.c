@@ -1,4 +1,4 @@
-#include "bmalloc.h"
+#include "supermalloc.h"
 #include <assert.h>
 #include <errno.h>
 #include <stdlib.h>

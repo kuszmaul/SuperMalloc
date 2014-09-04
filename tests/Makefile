@@ -2,7 +2,7 @@ OPTFLAGS = -O2
 CPPFLAGS = -I..
 CFLAGS = -ggdb -W -Wall -Werror -std=c99 $(OPTFLAGS)
 LDFLAGS = -L.. -Wl,-rpath,..
-LDLIBS = -lbmalloc
+LDLIBS = -lsupermalloc
 TARGETS = \
  aligned_alloc \
  calloc \
@@ -11,7 +11,7 @@ TARGETS = \
  #end
 
 default: $(TARGETS)
-$(TARGETS): | ../bmalloc.h
+$(TARGETS): | ../supermalloc.h
 
 clean:
 	rm $(TARGETS)
@@ -23,7 +23,7 @@ test-malloc_test: CFLAGS += -pthread
 
 test-malloc_test.data: test-malloc_test Makefile
 	rm -f $@
-	echo threads bmalloc jemalloc >> $@
+	echo threads supermalloc jemalloc >> $@
 	echo 1 $$(./$< -w 1) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 1) >> $@
 	echo 2 $$(./$< -w 2) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 2) >> $@
 	echo 3 $$(./$< -w 3) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 3) >> $@

@@ -1,5 +1,5 @@
 #define _GNU_SOURCE
-#include "bmalloc.h"
+#include "supermalloc.h"
 #include "util.h"
 
 #include <errno.h>

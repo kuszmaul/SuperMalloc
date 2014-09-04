@@ -1,5 +1,5 @@
 #include <assert.h>
-#include "bmalloc.h"
+#include "supermalloc.h"
 
 int main(int argc, char *argv[] __attribute__((unused))) {
   assert(argc == 1);

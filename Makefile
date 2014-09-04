@@ -4,10 +4,10 @@ C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 
-default: libbmalloc.so malloc
+default: libsupermalloc.so malloc
 
 # While compiling malloc or any of its .o files, compile with -DTESTING
-libbmalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o bassert.o footprint.o
+libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o bassert.o footprint.o
 	$(CXX) $^ -shared -o $@
 
 malloc.o: cpucores.h
