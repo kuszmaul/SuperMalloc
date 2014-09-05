@@ -14,7 +14,7 @@ default: $(TARGETS)
 $(TARGETS): | ../supermalloc.h
 
 clean:
-	rm $(TARGETS)
+	rm -f $(TARGETS)
 check: $(patsubst %,check_%,$(TARGETS))
 check_%: %
 	./$<
