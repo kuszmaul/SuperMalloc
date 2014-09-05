@@ -31,6 +31,6 @@ foo:
 check: malloc tests_check
 	./malloc
 tests_check: libsupermalloc.so
-	cd tests;make check
+	cd tests;$(MAKE) check
 clean:
 	rm -f t malloc *.o generated_constants.h objsizes *.gcda
