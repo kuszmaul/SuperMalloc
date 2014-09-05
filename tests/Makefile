@@ -15,9 +15,12 @@ $(TARGETS): | ../supermalloc.h
 
 clean:
 	rm -f $(TARGETS)
-check: $(patsubst %,check_%,$(TARGETS))
+.PHONY: check check_% check-test-malloc_test-w1
+check: $(patsubst %,check_%,$(TARGETS)) check-test-malloc_test-w1
 check_%: %
 	./$<
+check-test-malloc_test-w1: test-malloc_test
+	./$< -w1
 
 test-malloc_test: CFLAGS += -pthread
 

@@ -4,7 +4,11 @@ C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 
-default: libsupermalloc.so malloc
+default: libsupermalloc.so malloc tests_default
+.PHONY: default tests_default
+tests_default: libsupermalloc.so
+	cd tests;$(MAKE) default
+
 
 # While compiling malloc or any of its .o files, compile with -DTESTING
 libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o bassert.o footprint.o
@@ -30,8 +34,10 @@ foo:
 
 check: malloc tests_check
 	./malloc
+.PHONY: tests_check
 tests_check: libsupermalloc.so
 	cd tests;$(MAKE) check
+.PHONY: clean
 clean:
-	rm -f t malloc *.o generated_constants.h objsizes *.gcda
+	rm -f t malloc *.o *.so generated_constants.h objsizes *.gcda
 	cd tests;$(MAKE) clean
