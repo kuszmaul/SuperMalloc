@@ -30,7 +30,7 @@ foo:
 
 check: malloc tests_check
 	./malloc
-tests_check:
-	cd tests;make check
+tests_check: libsupermalloc.so
+	cd tests;$(MAKE) check
 clean:
 	rm -f t malloc *.o generated_constants.h objsizes *.gcda
