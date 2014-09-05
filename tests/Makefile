@@ -1,4 +1,4 @@
-OPTFLAGS = -O2
+OPTFLAGS = -O0
 CPPFLAGS = -I..
 CFLAGS = -ggdb -W -Wall -Werror -std=c99 $(OPTFLAGS)
 LDFLAGS = -L.. -Wl,-rpath,..

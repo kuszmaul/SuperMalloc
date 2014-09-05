@@ -1,10 +1,12 @@
 # COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
-OPTFLAGS = -O3 #-flto
+OPTFLAGS = -O0 #-flto
 C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 
-default: libsupermalloc.so malloc
+default: libsupermalloc.so malloc tests_default
+tests_default: libsupermalloc.so
+	cd tests;$(MAKE)
 
 # While compiling malloc or any of its .o files, compile with -DTESTING
 libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o bassert.o footprint.o
@@ -33,5 +35,5 @@ check: malloc tests_check
 tests_check: libsupermalloc.so
 	cd tests;$(MAKE) check
 clean:
-	rm -f t malloc *.o generated_constants.h objsizes *.gcda
+	rm -f t malloc *.o *.so generated_constants.h objsizes *.gcda
 	cd tests;$(MAKE) clean
