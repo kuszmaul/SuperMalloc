@@ -10,6 +10,7 @@
  *         Public License version 3. See COPYING for more information.
  */
 #define _GNU_SOURCE
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -92,10 +93,11 @@ void *mem_allocator (void *arg)
 	}
 
 	while(!atomic_load(&done_flag)) {
-
+	        bool did_one = false;
 		/* find first NULL slot */
 		for (i = start; i < end; ++i) {
 		  if (NULL == atomic_load(&mem_pool[i])) {
+		        did_one = true;
 		        atomic_store(&mem_pool[i], xmalloc(1024));
 			if (debug_flag) 
 			  printf("Allocate %i: slot %i\n", 
@@ -103,6 +105,7 @@ void *mem_allocator (void *arg)
 			break;
 		  }
 		}
+		if (!did_one) sched_yield();
 
 	}
 	pthread_exit(0);
@@ -124,11 +127,12 @@ void *mem_releaser(void *arg)
 	}
 
 	while(!atomic_load(&done_flag)) {
-
+	        bool did_one = false;
 		/* find non-NULL slot */
 		for (i = start; i < end; ++i) {
 		      void *ptr = atomic_load(&mem_pool[i]);
 		      if (NULL != ptr) {
+		          did_one = true;
 			  atomic_store(&mem_pool[i], NULL);
 			  xfree(ptr);
 			  ++counters[thread_id].c;
@@ -138,6 +142,7 @@ void *mem_releaser(void *arg)
 			  break;
 		   }
 		}
+		if (!did_one) sched_yield();
 		++loops;
 		if ( (0 == loops % check_interval) && 
 		     (elapsed_time(&begin) > run_time) ) {

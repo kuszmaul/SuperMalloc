@@ -1,5 +1,6 @@
 Key insights:
 \begin{enumerate}
+ \item Often benchmarks are not good.  For example test-malloc\_test.c spins, and for large numbers of threads behavs badly.  Adding a sched\_yield can help (we add it if it spins for a long time.  Also mm\_pause can help, but we didn't do it here.)
  \item  Why does jemalloc sometimes stall for a long time?  
  \item why do transactions fail (too big, conflicts with another thread, time slice interupts, page faults)?  We can avoid almost all of that for malloc.
 
