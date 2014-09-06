@@ -105,6 +105,11 @@ void small_free(void*);
 void test_small_malloc(void);
 #endif
 
+void* cached_small_malloc(size_t size);
+void cached_small_free(void *ptr, binnumber_t bin);
+
+const int cpulimit = 128;
+
 #ifdef TESTING
 #define IS_TESTING 1
 #else

@@ -22,7 +22,7 @@ struct cached_objects {
 struct CacheForCpu {
   volatile unsigned int lock;
   uint64_t attempt_count, success_count;
-  cached_objects c[first_large_bin_number] __attribute__((aligned(16))); // it's OK if the cached objects are on the same cacheline as the lock.
+  cached_objects c[first_large_bin_number] __attribute__((aligned(sizeof(cached_objects)))); // it's OK if the cached objects are on the same cacheline as the lock, but we don't want the cached objects to cross a cache boundary.
 } __attribute__((aligned(64)));
 
 CacheForCpu cache_for_cpu[cpulimit];
