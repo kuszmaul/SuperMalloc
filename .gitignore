@@ -4,7 +4,10 @@
 malloc
 objsizes
 
-# ignore the gcov outptu
+# ignore the gcov output
 *.gcov
 *.gcno
 *.gcda
+
+jemalloc*
+
