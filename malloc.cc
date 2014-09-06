@@ -131,31 +131,22 @@ struct CacheForCpu {
 
 CacheForCpu cache_for_cpu[cpulimit];
 
-struct get_cached_s {
-  struct cached_objects *c;
-  uint64_t size;
-  void *result;
-} __attribute__((aligned(64)));
-static void predo_get_cached(void *vv) {
-  get_cached_s *s = (get_cached_s*)vv;
-  linked_list *h = s->c->head;
-  prefetch_write(&s->result);
-  prefetch_write(&s->c->head);
-  // prefetch_write(&s->c->bytecount);  Don't need to prefetch both head and bytecount
-
-  // it's OK to prefetch even if h is NULL
-  prefetch_read(&h->next);
-}
-static void do_get_cached(void *vv) {
-  get_cached_s *s = (get_cached_s*)vv;
-  linked_list *h = s->c->head;
-  if (h == NULL) {
-    s->result = NULL;
-  } else {
-    s->result = h;
-    s->c->head = h->next;
-    s->c->bytecount -= s->size;
+static void predo_get_cached(struct cached_objects *c,
+			     uint64_t size __attribute__((unused))) {
+  linked_list *h = c->head;
+  if (h != NULL) {
+    prefetch_write(c);
+    prefetch_read(h);
   }
+}
+static void* do_get_cached(struct cached_objects *c,
+			   uint64_t size) {
+  linked_list *h = c->head;
+  if (h != NULL) {
+    c->head = h->next;
+    c->bytecount -= size;
+  }
+  return h;
 }
 
 static struct print_success_counts {
@@ -181,14 +172,14 @@ static void* cached_small_malloc(size_t size)
   __sync_fetch_and_add(&cache_for_cpu[p].attempt_count, 1);
   linked_list *r = atomic_load(&cache_for_cpu[p].c[bin].head);
   if (r == NULL) { return small_malloc(size); }
-  get_cached_s v = {&cache_for_cpu[p].c[bin], bin_2_size(bin), NULL};
-  atomically(&cache_for_cpu[p].lock,
-	     predo_get_cached,
-	     do_get_cached,
-	     &v);
-  if (v.result) {
+  void *result = atomically(&cache_for_cpu[p].lock,
+			    predo_get_cached,
+			    do_get_cached,
+			    &cache_for_cpu[p].c[bin],
+			    bin_2_size(bin));
+  if (result) {
     __sync_fetch_and_add(&cache_for_cpu[p].success_count, 1);
-    return v.result;
+    return result;
   } else {
     return small_malloc(size);
   }

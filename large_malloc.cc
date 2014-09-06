@@ -80,10 +80,10 @@ void* large_malloc(size_t size)
 	// The strategy for the atomic version is that we set e.result to NULL if the list
 	// becomes empty (so that we go around and do chunk allocation again).
 
-	h = vatomically(&large_lock,
-			predo_large_malloc_pop,
-			do_large_malloc_pop,
-			free_head);
+	h = atomically(&large_lock,
+		       predo_large_malloc_pop,
+		       do_large_malloc_pop,
+		       free_head);
 	if (h==NULL) continue; // Go try again
       }
       // that was the atomic part.

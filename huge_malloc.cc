@@ -24,19 +24,15 @@ struct atfc {
 
 chunknumber_t free_chunks[log_max_chunknumber];
 
-static void pre_add_to_free_chunks(void *extra) {
-  struct atfc *a = (struct atfc*)extra;
-  int f = a->f;
+static void pre_add_to_free_chunks(int f) {
   int r = free_chunks[f];
   prefetch_write(&free_chunks[f]);
-  a->u = chunk_infos[r].next;
+  prefetch_read(&chunk_infos[r]);
 }
-static void do_add_to_free_chunks(void *extra) {
-  struct atfc *a = (struct atfc*)extra;
-  int f = a->f;
+static void* do_add_to_free_chunks(int f) {
   chunknumber_t r = free_chunks[f];
   free_chunks[f] = chunk_infos[r].next;
-  a->result = (void*)((uint64_t)r*chunksize);
+  return (void*)((uint64_t)r*chunksize);
 }
 
 static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
@@ -49,9 +45,7 @@ static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
     return mmap_chunk_aligned_block(n_chunks);
   } else {
     // Do this atomically.
-    atfc a = {f, NULL, 0};
-    atomically(&huge_lock, pre_add_to_free_chunks, do_add_to_free_chunks, (void*)&a);
-    return a.result;
+    return atomically(&huge_lock, pre_add_to_free_chunks, do_add_to_free_chunks, f);
   }
 }
 
