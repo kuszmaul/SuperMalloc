@@ -18,31 +18,91 @@ struct linked_list {
 struct cached_objects {
   uint64_t bytecount;
   linked_list *head;
+  linked_list *tail;
 };
+struct CacheForBin {
+  cached_objects co[2];
+} __attribute__((aligned(64)));  // it's OK if the cached objects are on the same cacheline as the lock, but we don't want the cached objects to cross a cache boundary.  Since the CacheForBin has gotten to be 48 bytes, we might as well just align the struct to the cache.
+
 struct CacheForCpu {
-  volatile unsigned int lock;
   uint64_t attempt_count, success_count;
-  cached_objects c[first_large_bin_number] __attribute__((aligned(sizeof(cached_objects)))); // it's OK if the cached objects are on the same cacheline as the lock, but we don't want the cached objects to cross a cache boundary.
+  CacheForBin cb[first_large_bin_number];
 } __attribute__((aligned(64)));
 
 CacheForCpu cache_for_cpu[cpulimit];
 
-static void predo_get_cached(struct cached_objects *c,
-			     uint64_t size __attribute__((unused))) {
-  linked_list *h = c->head;
-  if (h != NULL) {
-    prefetch_write(c);
-    prefetch_read(h);
+static const int global_cache_depth = 8;
+
+struct GlobalCacheForBin {
+  uint8_t n_nonempty_caches;
+  cached_objects co[global_cache_depth];
+};
+
+struct GlobalCache {
+  GlobalCacheForBin gb[first_large_bin_number];
+};
+
+static GlobalCache global_cache;
+
+volatile unsigned int cache_lock;
+
+static inline linked_list* try_pop_from_cached_objects(cached_objects *co, uint64_t size) {
+  linked_list *h = co->head;
+  if (h) {
+    co->head = h->next;
+    co->bytecount -= size;
+    return h;
+  }
+  return NULL;
+}
+
+static inline void predo_get_cached(CacheForBin *cb,
+				     GlobalCacheForBin *gb,
+				     uint64_t size __attribute__((unused))) {
+  {
+    linked_list *h = atomic_load(&cb->co[0].head);
+    if (h) {
+      prefetch_read(h);
+      prefetch_write(&cb->co[0]);
+      return;
+    }
+  }
+  {
+    linked_list *h = atomic_load(&cb->co[1].head);
+    if (h) {
+      prefetch_read(h);
+      prefetch_write(&cb->co[1]);
+      return;
+    }
+  }
+  int n = gb->n_nonempty_caches;
+  if (n > 0) {
+    prefetch_read(&gb->co[n-1]);
+    prefetch_write(&cb->co[0]);
+    prefetch_write(&gb->n_nonempty_caches);
   }
 }
-static void* do_get_cached(struct cached_objects *c,
-			   uint64_t size) {
-  linked_list *h = c->head;
-  if (h != NULL) {
-    c->head = h->next;
-    c->bytecount -= size;
+
+static inline void* do_get_cached(CacheForBin *cb,
+				  GlobalCacheForBin *gb,
+				  uint64_t size) {
+  {
+    linked_list *h = try_pop_from_cached_objects(&cb->co[0], size);
+    if (h) return h;
   }
-  return h;
+  {
+    linked_list *h = try_pop_from_cached_objects(&cb->co[1], size);
+    if (h) return h;
+  }
+  {
+    int n = gb->n_nonempty_caches;
+    if (n > 0) {
+      cb->co[0] = gb->co[n-1];
+      gb->n_nonempty_caches = n-1;
+      return try_pop_from_cached_objects(&cb->co[1], size);
+    }
+  }
+  return NULL;
 }
 
 void* cached_small_malloc(size_t size)
@@ -53,12 +113,17 @@ void* cached_small_malloc(size_t size)
   // Still must access the cache atomically even though it's per processor.
   int p = getcpu() % cpulimit;
   __sync_fetch_and_add(&cache_for_cpu[p].attempt_count, 1);
-  linked_list *r = atomic_load(&cache_for_cpu[p].c[bin].head);
-  if (r == NULL) { return small_malloc(size); }
-  void *result = atomically(&cache_for_cpu[p].lock,
+  if (   (atomic_load(&cache_for_cpu[p].cb[bin].co[0].head) ==NULL)
+      && (atomic_load(&cache_for_cpu[p].cb[bin].co[1].head) ==NULL)
+      && (atomic_load(&global_cache.gb[bin].n_nonempty_caches) == 0)) {
+    // Don't bother doing a transaction if there's nothing in the caches.
+    return small_malloc(size);
+  }
+  void *result = atomically(&cache_lock,
 			    predo_get_cached,
 			    do_get_cached,
-			    &cache_for_cpu[p].c[bin],
+			    &cache_for_cpu[p].cb[bin],
+			    &global_cache.gb[bin],
 			    bin_2_size(bin));
   if (result) {
     __sync_fetch_and_add(&cache_for_cpu[p].success_count, 1);
@@ -68,20 +133,81 @@ void* cached_small_malloc(size_t size)
   }
 }
 
+static const uint64_t cache_bytecount_limit = 1024*1024;
+
+static inline bool predo_try_put_cached(cached_objects *co) {
+  linked_list *h = co->head;
+  if (h) {
+    prefetch_write(co);
+    prefetch_read(h);
+    return true;
+  } else {
+    return false;
+  }
+}
+
+static inline void predo_put_cached(linked_list *obj,
+				    CacheForBin *cb,
+				    GlobalCacheForBin *gb,
+				    uint64_t size __attribute__((unused))) {
+  prefetch_write(obj);
+  if (predo_try_put_cached(&cb->co[0])) return;
+  if (predo_try_put_cached(&cb->co[1])) return;
+  uint8_t gnum = gb->n_nonempty_caches;
+  if (gnum < global_cache_depth) {
+    prefetch_write(&gb->co[gnum]);
+    prefetch_write(&cb->co[0]);
+  }
+}
+
+
+static inline bool try_put_cached(linked_list *obj, cached_objects *co, uint64_t size) {
+  uint64_t bc = co->bytecount;
+  if (bc < cache_bytecount_limit) {
+    linked_list *h = co->head;
+    obj->next = h;
+    if (h == NULL) {
+      co->bytecount = size;
+      co->head = obj;
+      co->tail = obj;
+    } else {
+      co->bytecount = bc+size;
+      co->head = obj;
+    }
+    return true;
+  } else {
+    return false;
+  }
+}
+
+static inline bool do_put_cached(linked_list *obj,
+				 CacheForBin *cb,
+				 GlobalCacheForBin *gb,
+				 uint64_t size) {
+  if (try_put_cached(obj, &cb->co[0], size)) return true;
+  if (try_put_cached(obj, &cb->co[1], size)) return true;
+  uint8_t gnum = gb->n_nonempty_caches;
+  if (gnum < global_cache_depth) {
+    gb->co[gnum] = cb->co[0];
+    gb->n_nonempty_caches = gnum+1;
+    cb->co[0].head = NULL;
+    cb->co[0].bytecount = 0;
+    return true;
+  }
+  return false;
+}
+
 void cached_small_free(void *ptr, binnumber_t bin) {
   int p = getcpu() % cpulimit;
-  cached_objects *cfc = &cache_for_cpu[p].c[bin];
-  if (atomic_load(&cfc->bytecount) > 4*1024*1024) {
+  bool did_put = atomically(&cache_lock,
+			    predo_put_cached,
+			    do_put_cached,
+			    (linked_list*)ptr,
+			    &cache_for_cpu[p].cb[bin],
+			    &global_cache.gb[bin],
+			    bin_2_size(bin));
+  if (!did_put) {
     small_free(ptr);
-  } else {
-    linked_list *ll = (linked_list *)ptr;
-    while (1) {
-      linked_list *h  = cfc->head;
-      ll->next        = h;
-      if (__sync_bool_compare_and_swap(&cfc->head, h, ll)) break;
-    }
-    // It's OK for the count to be out of sync.  It's just an heurstic.
-    __sync_fetch_and_add(&cfc->bytecount, bin_2_size(bin));
   }
 }
 
