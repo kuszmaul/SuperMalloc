@@ -72,11 +72,9 @@ static void predo_small_malloc_add_pages_from_new_chunk(binnumber_t bin,
 							uint32_t dsbi_offset,
 							uint32_t o_per_page,
 							small_chunk_header *sch) {
-  per_page *old_h __attribute__((unused)) = atomic_load(&dsbi.lists.b[dsbi_offset + o_per_page]);
-  per_page *other_old_h __attribute__((unused)) = atomic_load(&sch->ll[n_pages_used-1].next);
   prefetch_write(&dsbi.lists.b[dsbi_offset + o_per_page]);
   prefetch_write(&sch->ll[n_pages_used-1].next);
-  if (dsbi.fullest_offset[bin]) {
+  if (dsbi.fullest_offset[bin] == 0) {
     prefetch_write(&dsbi.fullest_offset[bin]);
   }
 }
