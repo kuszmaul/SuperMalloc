@@ -8,10 +8,6 @@
 #include "rng.h"
 
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 static inline bool mylock_wait(volatile unsigned int *mylock) {
   bool too_long = false;
   while (*mylock) {
@@ -52,6 +48,58 @@ static inline void mylock_release(volatile unsigned int *mylock) {
 #define have_rtm 1
 #endif
 
+template<typename ReturnType, typename... Arguments>
+static inline ReturnType vatomically(volatile unsigned int *mylock,
+			            void (*predo)(Arguments... args),
+				    ReturnType (*fun)(Arguments... args),
+				    Arguments... args) {
+
+  // Be a little optimistic: try to run the function without the predo if we the lock looks good
+  if (*mylock == 0) {
+    unsigned int xr = _xbegin();
+    if (xr == _XBEGIN_STARTED) {
+      ReturnType r = fun(args...);
+      if (*mylock) _xabort(XABORT_LOCK_HELD);
+      _xend();
+      return r;
+    }
+  }
+
+  int count = 0;
+  while (have_rtm && count < 20) {
+    mylock_wait(mylock);
+    predo(args...);
+    while (mylock_wait(mylock)) {
+      // If the lock was held for a long time, then do the predo code again.
+      predo(args...);
+    }
+    unsigned int xr = _xbegin();
+    if (xr == _XBEGIN_STARTED) {
+      ReturnType r = fun(args...);
+      if (*mylock) _xabort(XABORT_LOCK_HELD);
+      _xend();
+      return r;
+    } else if ((xr & _XABORT_EXPLICIT) && (_XABORT_CODE(xr) == XABORT_LOCK_HELD)) {
+      count = 0; // reset the counter if we had an explicit lock contention abort.
+      continue;
+    } else {
+      count++;
+      for (int i = 1; i < count; i++) {
+	if (0 == (prandnum()&1023)) {
+	  sched_yield();
+	} else {
+	  __asm__ volatile("pause");
+	}
+      }
+    }
+  }
+  // We finally give up and acquire the lock.
+  predo(args...);
+  mylock_acquire(mylock);
+  ReturnType r = fun(args...);
+  mylock_release(mylock);
+  return r;
+}
 static inline void atomically(volatile unsigned int *mylock,
 			      void (*predo)(void *extra),
 			      void (*fun)(void*extra),
@@ -113,7 +161,4 @@ struct lock {
 #define prefetch_write(addr) __builtin_prefetch(addr, 1, 3)
 
 
-#ifdef __cplusplus
-}
-#endif
 #endif // ATOMICALLY_H

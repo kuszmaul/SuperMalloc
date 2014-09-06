@@ -26,27 +26,25 @@ struct large_malloc_pop_s {
   large_object_list_cell **free_head;
   large_object_list_cell *result;
 };
-void predo_large_malloc_pop(void *ev) {
+void predo_large_malloc_pop(large_object_list_cell **free_head) {
   // For the predo, we basically want to look at the free head (and make it writeable) and
   // read the next pointer (but only if the free-head is non-null, since the free-head could
   // have become null by now, and we would need to allocate another chunk.)
-  large_malloc_pop_s *e = (large_malloc_pop_s*)ev;
-  large_object_list_cell *h = *e->free_head;
-  prefetch_write(e->free_head);
+  large_object_list_cell *h = *free_head;
   if (h != NULL) {
-    e->result = atomic_load(&h->next);
+    prefetch_write(free_head);
+    prefetch_read(h);
   }
 }
 
-void do_large_malloc_pop(void *ev) {
-  large_malloc_pop_s *e = (large_malloc_pop_s*)ev;
-  large_object_list_cell *h = *e->free_head;
+large_object_list_cell* do_large_malloc_pop(large_object_list_cell **free_head) {
+  large_object_list_cell *h = *free_head;
   if (0) printf(" dlmp: h=%p\n", h);
   if(h == NULL) {
-    e->result = NULL;
+    return NULL;
   } else {
-    *e->free_head = h->next;
-    e->result = h;
+    *free_head = h->next;
+    return h;
   }
 }
 
@@ -81,12 +79,11 @@ void* large_malloc(size_t size)
       } else {
 	// The strategy for the atomic version is that we set e.result to NULL if the list
 	// becomes empty (so that we go around and do chunk allocation again).
-	large_malloc_pop_s e = {free_head, 0};
-	atomically(&large_lock,
-		   predo_large_malloc_pop,
-		   do_large_malloc_pop,
-		   &e);
-	h = e.result;
+
+	h = vatomically(&large_lock,
+			predo_large_malloc_pop,
+			do_large_malloc_pop,
+			free_head);
 	if (h==NULL) continue; // Go try again
       }
       // that was the atomic part.
