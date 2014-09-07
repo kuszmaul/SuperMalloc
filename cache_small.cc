@@ -1,8 +1,8 @@
 #include <stdio.h>
 
-#include "malloc_internal.h"
-#include "atomically.h"
-#include "generated_constants.h"
+#include "malloc_internal.hpp"
+#include "atomically.hpp"
+#include "generated_constants.hpp"
 #include "bassert.h"
 
 static __thread uint32_t cached_cpu, cached_cpu_count;
@@ -211,16 +211,13 @@ void cached_small_free(void *ptr, binnumber_t bin) {
   }
 }
 
-// This is run for it's destructor at the end of the program.
-static struct print_success_counts {
-  ~print_success_counts() {
-    if (0) {
-      printf("Success_counts=");
-      for (int i = 0; i < cpulimit; i++)
-	if (cache_for_cpu[i].attempt_count)
-	  printf(" %ld/%ld=%.0f%%", cache_for_cpu[i].success_count, cache_for_cpu[i].attempt_count,
-		 100.0*(double)cache_for_cpu[i].success_count/(double)cache_for_cpu[i].attempt_count);
-      printf("\n");
-    }
-  }
-} psc;
+#ifdef ENABLE_STATS
+void print_cache_stats() {
+  printf("Success_counts=");
+  for (int i = 0; i < cpulimit; i++)
+    if (cache_for_cpu[i].attempt_count)
+      printf(" %ld/%ld=%.0f%%", cache_for_cpu[i].success_count, cache_for_cpu[i].attempt_count,
+	     100.0*(double)cache_for_cpu[i].success_count/(double)cache_for_cpu[i].attempt_count);
+  printf("\n");
+}
+#endif

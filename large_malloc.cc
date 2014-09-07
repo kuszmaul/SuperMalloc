@@ -4,10 +4,10 @@
 
 #include <sys/mman.h>
 
-#include "atomically.h"
+#include "atomically.hpp"
 #include "bassert.h"
-#include "generated_constants.h"
-#include "malloc_internal.h"
+#include "generated_constants.hpp"
+#include "malloc_internal.hpp"
 
 struct large_object_list_cell {
   union {

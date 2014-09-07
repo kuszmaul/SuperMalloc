@@ -1,8 +1,11 @@
 # COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
+STATS = -DENABLE_STATS
 OPTFLAGS = -O3 -flto
+
 C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
+CPPFLAGS += $(STATS)
 
 default: libsupermalloc.so malloc tests_default
 .PHONY: default tests_default
@@ -15,22 +18,19 @@ libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small
 	$(CXX) $(CXXFLAGS) $^ -shared -o $@
 
 malloc.o: cpucores.h
-malloc: CPPFLAGS = -DTESTING
+malloc: CPPFLAGS += -DTESTING
 malloc: OPTFLAGS = -O0
-malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc cache_small.cc bassert.cc footprint.cc | $(wildcard *.h) generated_constants.h
+malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc cache_small.cc bassert.cc footprint.cc | $(wildcard *.h) $(wildcard *.hpp)  generated_constants.hpp
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
-objsizes: malloc_internal.h
-generated_constants.h: objsizes
+objsizes: malloc_internal.hpp
+generated_constants.hpp: objsizes
 	./$< > $@
 
 ALL_SOURCES_INCLUDING_OBJSIZES = $(patsubst %.cc, %, $(wildcard *.cc)) $(patsubst %.c, %, $(wildcard *.c))
 ALL_LIB_SOURCES = $(filter-out objsizes, $(ALL_SOURCES_INCLUDING_OBJSIZES))
 objsizes $(patsubst %, %.o, $(ALL_LIB_SOURCES)): bassert.h
 # Must name generated_constants.h specifically, since wildcard won't find it after a clean.
-$(patsubst %, %.o, $(ALL_LIB_SOURCES)): $(wildcard *.h) generated_constants.h
-
-foo:
-	echo needs generated_constants.h: $(patsubst %, %.o, $(ALL_LIB_SOURCES))
+$(patsubst %, %.o, $(ALL_LIB_SOURCES)): $(wildcard *.h) generated_constants.hpp
 
 check: malloc tests_check
 	./malloc
@@ -39,5 +39,5 @@ tests_check: libsupermalloc.so
 	cd tests;$(MAKE) check
 .PHONY: clean
 clean:
-	rm -f t malloc *.o *.so generated_constants.h objsizes *.gcda
+	rm -f t malloc *.o *.so generated_constants.hpp objsizes *.gcda
 	cd tests;$(MAKE) clean

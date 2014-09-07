@@ -68,7 +68,7 @@ extern struct chunk_info {
 void* huge_malloc(uint64_t size);
 void huge_free(void*);
 #ifdef TESTING
-void test_huge_malloc(void);
+void test_huge_malloc();
 #endif
 
 
@@ -87,28 +87,33 @@ extern chunknumber_t free_chunks[log_max_chunknumber];
 void* mmap_chunk_aligned_block(size_t n_chunks); //
 
 #ifdef TESTING
-void test_makechunk(void);
+void test_makechunk();
 #endif
 
 void *large_malloc(size_t);
 void large_free(void*);
 #ifdef TESTING
-void test_large_malloc(void);
+void test_large_malloc();
 #endif
 
 void add_to_footprint(int64_t delta);
-int64_t get_footprint(void);
+int64_t get_footprint();
 
 void *small_malloc(size_t);
 void small_free(void*);
 #ifdef TESTING
-void test_small_malloc(void);
+void test_small_malloc();
 #endif
 
 void* cached_small_malloc(size_t size);
 void cached_small_free(void *ptr, binnumber_t bin);
 
 const int cpulimit = 128;
+
+#ifdef ENABLE_STATS
+void print_cache_stats();
+#endif
+
 
 #ifdef TESTING
 #define IS_TESTING 1

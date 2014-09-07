@@ -2,9 +2,9 @@
 #include <sys/mman.h>
 #include <errno.h>
 
-#include "malloc_internal.h"
+#include "malloc_internal.hpp"
 #include "bassert.h"
-#include "generated_constants.h"
+#include "generated_constants.hpp"
 
 #ifdef TESTING
 #include <string.h>

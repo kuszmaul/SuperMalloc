@@ -11,10 +11,10 @@
 #endif
 
 
-#include "atomically.h"
+#include "atomically.hpp"
 #include "bassert.h"
 #include "cpucores.h"
-#include "generated_constants.h"
+#include "generated_constants.hpp"
 
 #ifdef TESTING
 static void test_size_2_bin(void) {
@@ -54,7 +54,17 @@ struct chunk_info *chunk_infos;
 
 uint32_t n_cores;
 
-void initialize_malloc(void) {
+#ifdef ENABLE_STATS
+static void print_stats() {
+  print_cache_stats();
+}
+#endif
+
+static void initialize_malloc() {
+#ifdef ENABLE_STATS
+  atexit(print_stats);
+#endif
+
   const size_t n_elts = 1u<<27;
   const size_t alloc_size = n_elts * sizeof(chunk_info);
   const size_t n_chunks   = ceil(alloc_size, chunksize);
