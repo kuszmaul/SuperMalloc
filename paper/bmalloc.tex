@@ -17,6 +17,8 @@ Key insights:
 
   No point in caching more than fits in L2 cache (L3 cache is shared.  Maybe L3 is worth it on a multi-socket machine), since we'll incur cache missues to use the data.  (See the rant about threadtest below: it doesn't touch the memory.)
 
+ \item Measure the cost of per-cpu (which has synchronization) vs. per-thread (no synchronization, but it turns out that you must go through the thread variable) vs. global (expensive synchronization).
+
  \item RSS is very important for long-running applications.
 
  \item Hoard's benchmarks measure the wrong thing.
@@ -43,7 +45,7 @@ Key insights:
 
   \item Jemalloc benchmarks
   \begin{enumuerate}
- \item malloc-test
+ \item malloc-test (we totally rule)
  \item super-smack
  \item cca
  \item cfrack
@@ -56,4 +58,13 @@ Key insights:
  \item jemalloc has gone for fewer spacings over time.  We went with
    similar spacing.  There's one anomaly near 4K where we are only 2x
    space competitive, otherwise we are 25\% space competetive.
+
+ \item jemalloc is going for more spacings out beyond 2MB to have less wastage in the virtual address space.
+
+ \item Need to measure each feature to justify it.
+  \begin{itemize}
+  \item small cache was helpful, but the global cache was huge (touching the global cache only once every 4MB is huge)
+  \item large cache needed to avoid too many madvise calls.  Need to measure that.
+  \item huge system calls: we just do them.
+  \end{itemize}
 \end{enumerate}

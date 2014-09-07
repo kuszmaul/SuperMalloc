@@ -157,9 +157,40 @@ extern "C" void* realloc(void *p, size_t size) {
     return NULL;
   }
   if (p == NULL) return malloc(size);
-  printf("realloc(%p, %ld)\n", p, size);
-  abort();
+  size_t oldsize = malloc_usable_size(p);
+  if (oldsize < size) {
+    void *result = malloc(size);
+    for (size_t i = 0; i < oldsize; i++) {
+      ((char*)result)[i] = ((char*)p)[i];
+    }
+    return result;
+  }
+  if (oldsize > 16 && size < oldsize/2) {
+    void *result = malloc(size);
+    for (size_t i = 0; i < size; i++) {
+      ((char*)result)[i] = ((char*)p)[i];
+    }
+    return result;
+  }
+  return p;
 }
+
+#ifdef TESTING
+static void test_realloc(void) {
+  char *a = (char*)malloc(128);
+  for (int i = 0; i < 128; i++) a[i]='a';
+  char *b = (char*)realloc(a, 129);
+  bassert(a != b);
+  for (int i = 0; i < 128; i++) bassert(b[i]=='a');
+  bassert(malloc_usable_size(b) >= 129);
+  char *c = (char*)realloc(b, 32);
+  bassert(c != b);
+  for (int i = 0; i < 32; i++) bassert(c[i]=='a');
+  char *d = (char*)realloc(c, 31);
+  bassert(c==d);
+  free(d);
+}
+#endif
 
 extern "C" void* calloc(size_t number, size_t size) {
   void *result = malloc(number*size);
@@ -340,5 +371,6 @@ int main() {
   test_huge_malloc();
   test_large_malloc();
   test_small_malloc();
+  test_realloc();
 }
 #endif
