@@ -45,10 +45,25 @@ static inline int lg_of_power_of_two(uint64_t a)
 
 static inline chunknumber_t address_2_chunknumber(const void *a) {
   // Given an address anywhere in a chunk, convert it to a chunk number from 0 to 1<<27
-  uint64_t au = (uint64_t)a;
+  uint64_t au = reinterpret_cast<uint64_t>(a);
   uint64_t am = au/chunksize;
   uint64_t result = am%(1ul<<27);
   return result;
+}
+
+static inline void* address_2_chunkaddress(const void *a) {
+  return reinterpret_cast<void*>( reinterpret_cast<uint64_t>(a) & ~ (chunksize-1));
+}
+
+static inline uint64_t offset_in_chunk(const void *a) {
+  return reinterpret_cast<uint64_t>(a) % chunksize;
+}
+
+static inline uint64_t pagenum_in_chunk(const void *a) {
+  return offset_in_chunk(a)/pagesize;
+}
+static inline uint64_t offset_in_page(const void *a) {
+  return reinterpret_cast<uint64_t>(a) % pagesize;
 }
 
 // We keep a table of all the chunks for record keeping.
@@ -66,7 +81,7 @@ extern struct chunk_info {
 
 // Functions that are separated into various files.
 void* huge_malloc(uint64_t size);
-void huge_free(void*);
+void huge_free(void* ptr);
 #ifdef TESTING
 void test_huge_malloc();
 #endif
@@ -90,8 +105,8 @@ void* mmap_chunk_aligned_block(size_t n_chunks); //
 void test_makechunk();
 #endif
 
-void *large_malloc(size_t);
-void large_free(void*);
+void *large_malloc(size_t size);
+void large_free(void* ptr);
 #ifdef TESTING
 void test_large_malloc();
 #endif
@@ -99,8 +114,8 @@ void test_large_malloc();
 void add_to_footprint(int64_t delta);
 int64_t get_footprint();
 
-void *small_malloc(size_t);
-void small_free(void*);
+void *small_malloc(size_t size);
+void small_free(void* ptr);
 #ifdef TESTING
 void test_small_malloc();
 #endif

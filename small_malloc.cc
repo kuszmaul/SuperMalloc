@@ -29,12 +29,12 @@ const uint64_t n_pages_wasted = sizeof(small_chunk_header)/pagesize;
 const uint64_t n_pages_used   = (chunksize/pagesize)-n_pages_wasted;
 
 #ifdef TESTING
-void test_small_page_header(void) {
+void test_small_page_header() {
   bassert(sizeof(small_chunk_header) == n_pages_wasted*pagesize);
 }
 #endif
 
-static inline void verify_small_invariants(void) {
+static inline void verify_small_invariants() {
   return;
   for (binnumber_t bin = 0; bin < first_large_bin_number; bin++) {
     uint16_t fullest_off = dsbi.fullest_offset[bin];
@@ -185,12 +185,12 @@ static void* do_small_malloc(binnumber_t bin,
       if (0) printf("result_pp  = %p\n", result_pp);
       if (0) printf("bit_to_set = %d\n", bit_to_set);
 
-      uint64_t chunk_address = ((int64_t)result_pp) & ~(chunksize-1);
+      uint64_t chunk_address = reinterpret_cast<uint64_t>(address_2_chunkaddress(result_pp));
       uint64_t wasted_off   = n_pages_wasted*pagesize;
-      uint64_t page_num     = (((uint64_t)result_pp)%chunksize)/sizeof(per_page);
+      uint64_t page_num     = offset_in_chunk(result_pp)/sizeof(per_page);
       uint64_t page_off     = page_num*pagesize;
       uint64_t obj_off      = (w * 64 + bit_to_set) * o_size;
-      return (void*)(chunk_address + wasted_off + page_off + obj_off);
+      return reinterpret_cast<void*>(chunk_address + wasted_off + page_off + obj_off);
     }
   }
   abort(); // It's bad if we get here, it means that there was no bit in the bitmap, but the data structure said there should be.
@@ -334,16 +334,16 @@ static bool do_small_free(binnumber_t bin,
 
 void small_free(void* p) {
   verify_small_invariants();
-  void *chunk = (void*)((uint64_t)p&~(chunksize-1));
+  void *chunk = address_2_chunkaddress(p);
   small_chunk_header *sch = (small_chunk_header*)chunk;
-  uint64_t page_num = (((uint64_t)p)%chunksize)/pagesize;
+  uint64_t page_num = pagenum_in_chunk(p);
   if (IS_TESTING) bassert(page_num >= n_pages_wasted);
   chunknumber_t chunk_num  = address_2_chunknumber(p);
   binnumber_t   bin        = chunk_infos[chunk_num].bin_number;
   uint32_t useful_page_num = page_num - n_pages_wasted;
   per_page             *pp = &sch->ll[useful_page_num];
   uint32_t o_size     = static_bin_info[bin].object_size;
-  uint64_t         objnum = (((uint64_t)p)%pagesize) / o_size;
+  uint64_t         objnum = offset_in_page(p) / o_size;
   if (IS_TESTING) bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
   uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
   uint32_t o_per_page = static_bin_info[bin].objects_per_page;

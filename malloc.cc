@@ -206,7 +206,7 @@ static void test_realloc(void) {
 extern "C" void* calloc(size_t number, size_t size) {
   void *result = malloc(number*size);
   size_t usable = malloc_usable_size(result);
-  if (((uint64_t)result % pagesize == 0) &&
+  if ((offset_in_chunk(result) == 0) &&
       (usable % pagesize == 0)) {
     madvise(result, usable, MADV_DONTNEED);
   } else {

@@ -1,5 +1,5 @@
 # COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
-STATS = -DENABLE_STATS
+# STATS = -DENABLE_STATS
 OPTFLAGS = -O3 -flto
 
 C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE)
@@ -32,7 +32,8 @@ objsizes $(patsubst %, %.o, $(ALL_LIB_SOURCES)): bassert.h
 # Must name generated_constants.h specifically, since wildcard won't find it after a clean.
 $(patsubst %, %.o, $(ALL_LIB_SOURCES)): $(wildcard *.h) generated_constants.h
 
-check: malloc tests_check
+check: check_malloc tests_check
+check_malloc:
 	./malloc
 .PHONY: tests_check
 tests_check: libsupermalloc.so

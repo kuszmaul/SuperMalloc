@@ -12,10 +12,6 @@
 
 // Nothing in this file seems to need locking.  We rely on the thread safety of mmap and munmap.
 
-static size_t addr_getoffset(void *p) {
-  return ((uintptr_t)p) % chunksize;
-}
-
 void* mmap_size(size_t size) {
   void *r = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
   bassert(r!=NULL);
@@ -39,7 +35,7 @@ static void *chunk_create_slow(size_t n_chunks) {
   size_t total_size = (1+n_chunks)*chunksize - pagesize;
   void *m = mmap_size(total_size);
   //printf("%s:%d m=%p\n", __FILE__, __LINE__, m);
-  size_t m_offset = addr_getoffset(m);
+  size_t m_offset = offset_in_chunk(m);
   //printf("%s:%d offset=%lu\n", __FILE__, __LINE__, m_offset);
   size_t leading_useless = chunksize-m_offset;
   //printf("%s:%d leading_useless=%lu\n", __FILE__, __LINE__, leading_useless);
@@ -77,7 +73,7 @@ void *mmap_chunk_aligned_block(size_t n_chunks)
      */
 
   void * r = mmap_size(n_chunks*chunksize);
-  if (addr_getoffset(r)!=0) {
+  if (offset_in_chunk(r) != 0) {
     // Do it the slow way.
     unmap(r, n_chunks*chunksize);
     return chunk_create_slow(n_chunks);
@@ -98,7 +94,7 @@ void test_makechunk(void) {
   {
     void *v = mmap_chunk_aligned_block(1);
     bassert(v);
-    bassert(((uint64_t)v) % chunksize == 0);
+    bassert(offset_in_chunk(v) == 0);
     unmap(v, 1*chunksize);
   }
 }

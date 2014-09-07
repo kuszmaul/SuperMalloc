@@ -27,7 +27,7 @@ static void pre_add_to_free_chunks(int f) {
 static void* do_add_to_free_chunks(int f) {
   chunknumber_t r = free_chunks[f];
   free_chunks[f] = chunk_infos[r].next;
-  return (void*)((uint64_t)r*chunksize);
+  return reinterpret_cast<void*>(static_cast<uint64_t>(r)*chunksize);
 }
 
 static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
@@ -106,42 +106,42 @@ void test_huge_malloc(void) {
   // So the tests below have to look at the absolute difference instead of the relative difference.
 
   void *a = huge_malloc(largest_large + 1);
-  bassert((uint64_t)a % chunksize==0);
+  bassert(reinterpret_cast<uint64_t>(a) % chunksize==0);
   chunknumber_t a_n = address_2_chunknumber(a);
   if (print) printf("a=%p c=0x%x\n", a, a_n);
   bassert(chunk_infos[a_n].bin_number == first_huge_bin_number);
   *(char*)a = 1;
 
   void *b = huge_malloc(largest_large + 2);
-  bassert((uint64_t)b % chunksize==0);
+  bassert(reinterpret_cast<uint64_t>(b) % chunksize==0);
   chunknumber_t b_n = address_2_chunknumber(b);
   if (print) printf("b=%p c=0x%x diff=%ld\n", b, b_n, (char*)a-(char*)b);
   bassert(abs((int)a_n - (int)b_n) == 1);
   bassert(chunk_infos[b_n].bin_number == first_huge_bin_number);
 
   void *c = huge_malloc(2*chunksize);
-  bassert((uint64_t)c % chunksize==0);
+  bassert(reinterpret_cast<uint64_t>(c) % chunksize==0);
   chunknumber_t c_n = address_2_chunknumber(c);
   if (print) printf("c=%p diff=%ld bin = %u b_n=%d c_n=%d\n", c, (char*)b-(char*)c, chunk_infos[c_n].bin_number, b_n, c_n);
   bassert((b_n - c_n == 2) || (c_n - b_n ==1));
   bassert(chunk_infos[c_n].bin_number == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
 
   void *d = huge_malloc(2*chunksize);
-  bassert((uint64_t)d % chunksize==0);
+  bassert(reinterpret_cast<uint64_t>(d) % chunksize==0);
   chunknumber_t d_n = address_2_chunknumber(d);
   if (print) printf("d=%p c_n=%d d_n=%d diff=%d abs=%d\n", d, c_n, d_n, c_n-d_n, (int)std::abs((int)c_n-(int)d_n));
   bassert(std::abs((int)c_n - (int)d_n) == 2);
   bassert(chunk_infos[c_n].bin_number == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
 
   {
-    chunknumber_t m1_n = address_2_chunknumber((void*)-1ul);
+    chunknumber_t m1_n = address_2_chunknumber(reinterpret_cast<void*>(-1ul));
     if (print) printf("-1 ==> 0x%x (1<<27)-1=%lx\n", m1_n, (1ul<<26)-1);
     bassert(m1_n == (1ul<<27)-1);
     if (print) printf("-1 ==> 0x%x\n", m1_n);
   }
 
   {
-    chunknumber_t zero_n = address_2_chunknumber((void*)0);
+    chunknumber_t zero_n = address_2_chunknumber(reinterpret_cast<void*>(0));
     if (print) printf("0 ==> 0x%x (1<<27)-1=%lx\n", zero_n, (1ul<<26)-1);
     bassert(zero_n == 0);
     if (print) printf("-1 ==> 0x%x\n", zero_n);

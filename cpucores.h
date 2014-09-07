@@ -36,7 +36,7 @@ cpucores(void)
 #if defined(HAVE_CPUCORES_SYSCONF)
 	const long cpus = sysconf(_SC_NPROCESSORS_ONLN);
 	if (cpus > 0)
-		ret = (uint32_t)(cpus);
+		ret = static_cast<uint32_t>(cpus);
 
 #elif defined(HAVE_CPUCORES_SYSCTL)
 	int name[2] = { CTL_HW, HW_NCPU };
@@ -44,7 +44,7 @@ cpucores(void)
 	size_t cpus_size = sizeof(cpus);
 	if (!sysctl(name, &cpus, &cpus_size, NULL, NULL)
 			&& cpus_size == sizeof(cpus) && cpus > 0)
-		ret = (uint32_t)(cpus);
+		ret = static_cast<uint32_t>(cpus);
 #endif
 
 	return ret;
