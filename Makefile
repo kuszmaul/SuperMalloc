@@ -14,13 +14,13 @@ tests_default: libsupermalloc.so
 
 
 # While compiling malloc or any of its .o files, compile with -DTESTING
-libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o cache_small.o bassert.o footprint.o
+libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o cache_small.o bassert.o footprint.o stats.o
 	$(CXX) $(CXXFLAGS) $^ -shared -o $@
 
 malloc.o: cpucores.h
 malloc: CPPFLAGS += -DTESTING
 malloc: OPTFLAGS = -O0
-malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc cache_small.cc bassert.cc footprint.cc | $(wildcard *.h) generated_constants.h
+malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc cache_small.cc bassert.cc footprint.cc stats.cc | $(wildcard *.h) generated_constants.h
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
 objsizes: malloc_internal.h
 generated_constants.h: objsizes

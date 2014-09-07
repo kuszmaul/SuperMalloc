@@ -16,11 +16,6 @@
 // The way we link pages together is that we use the empty slot as the next pointer, so we point at the empty slot.
 
 static unsigned int huge_lock = 0;
-struct atfc {
-  int f;
-  void* result;
-  chunknumber_t u;
-};
 
 chunknumber_t free_chunks[log_max_chunknumber];
 

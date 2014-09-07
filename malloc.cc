@@ -57,6 +57,7 @@ uint32_t n_cores;
 #ifdef ENABLE_STATS
 static void print_stats() {
   print_cache_stats();
+  print_bin_stats();
 }
 #endif
 

@@ -110,5 +110,13 @@ struct lock {
 #define prefetch_read(addr) __builtin_prefetch(addr, 0, 3)
 #define prefetch_write(addr) __builtin_prefetch(addr, 1, 3)
 
+static inline void fetch_and_max(uint64_t * ptr, uint64_t val) {
+  while (1) {
+    uint64_t old = atomic_load(ptr);
+    if (val <= old) return;
+    if (__sync_bool_compare_and_swap(ptr, old, val)) return;
+  }
+}
+
 
 #endif // ATOMICALLY_H

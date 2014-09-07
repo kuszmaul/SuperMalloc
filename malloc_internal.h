@@ -110,10 +110,21 @@ void cached_small_free(void *ptr, binnumber_t bin);
 
 const int cpulimit = 128;
 
+
 #ifdef ENABLE_STATS
 void print_cache_stats();
-#endif
 
+void print_bin_stats();
+void bin_stats_note_malloc(binnumber_t b);
+void bin_stats_note_free(binnumber_t b);
+
+#else
+static inline void print_cache_stats() {}
+
+static inline void print_bin_stats() {}
+static inline void bin_stats_note_malloc(binnumber_t b __attribute__((unused))) {}
+static inline void bin_stats_note_free(binnumber_t b __attribute__((unused))) {}
+#endif
 
 #ifdef TESTING
 #define IS_TESTING 1

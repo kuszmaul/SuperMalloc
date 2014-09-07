@@ -204,6 +204,7 @@ void* small_malloc(size_t size)
   if (0) printf("small_malloc(%ld)\n", size);
   verify_small_invariants();
   binnumber_t bin = size_2_bin(size);
+  bin_stats_note_malloc(bin);
   //size_t usable_size = bin_2_size(bin);
   bassert(bin < first_large_bin_number);
   uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
@@ -349,6 +350,7 @@ void small_free(void* p) {
 
   atomically(&small_lock.l, predo_small_free, do_small_free,
 	     bin, pp, objnum, dsbi_offset, o_per_page);
+  bin_stats_note_free(bin);
   verify_small_invariants();
 }
 
