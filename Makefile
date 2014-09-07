@@ -20,17 +20,17 @@ libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small
 malloc.o: cpucores.h
 malloc: CPPFLAGS += -DTESTING
 malloc: OPTFLAGS = -O0
-malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc cache_small.cc bassert.cc footprint.cc | $(wildcard *.h) $(wildcard *.hpp)  generated_constants.hpp
+malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc cache_small.cc bassert.cc footprint.cc | $(wildcard *.h) generated_constants.h
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
-objsizes: malloc_internal.hpp
-generated_constants.hpp: objsizes
+objsizes: malloc_internal.h
+generated_constants.h: objsizes
 	./$< > $@
 
 ALL_SOURCES_INCLUDING_OBJSIZES = $(patsubst %.cc, %, $(wildcard *.cc)) $(patsubst %.c, %, $(wildcard *.c))
 ALL_LIB_SOURCES = $(filter-out objsizes, $(ALL_SOURCES_INCLUDING_OBJSIZES))
 objsizes $(patsubst %, %.o, $(ALL_LIB_SOURCES)): bassert.h
 # Must name generated_constants.h specifically, since wildcard won't find it after a clean.
-$(patsubst %, %.o, $(ALL_LIB_SOURCES)): $(wildcard *.h) generated_constants.hpp
+$(patsubst %, %.o, $(ALL_LIB_SOURCES)): $(wildcard *.h) generated_constants.h
 
 check: malloc tests_check
 	./malloc
@@ -39,5 +39,5 @@ tests_check: libsupermalloc.so
 	cd tests;$(MAKE) check
 .PHONY: clean
 clean:
-	rm -f t malloc *.o *.so generated_constants.hpp objsizes *.gcda
+	rm -f t malloc *.o *.so generated_constants.h objsizes *.gcda
 	cd tests;$(MAKE) clean

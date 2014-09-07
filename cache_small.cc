@@ -1,8 +1,8 @@
 #include <stdio.h>
 
-#include "malloc_internal.hpp"
-#include "atomically.hpp"
-#include "generated_constants.hpp"
+#include "malloc_internal.h"
+#include "atomically.h"
+#include "generated_constants.h"
 #include "bassert.h"
 
 static __thread uint32_t cached_cpu, cached_cpu_count;

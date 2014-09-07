@@ -11,10 +11,10 @@
 #endif
 
 
-#include "atomically.hpp"
+#include "atomically.h"
 #include "bassert.h"
 #include "cpucores.h"
-#include "generated_constants.hpp"
+#include "generated_constants.h"
 
 #ifdef TESTING
 static void test_size_2_bin(void) {

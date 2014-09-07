@@ -1,7 +1,7 @@
-#include "atomically.hpp"
+#include "atomically.h"
 #include "bassert.h"
-#include "generated_constants.hpp"
-#include "malloc_internal.hpp"
+#include "generated_constants.h"
+#include "malloc_internal.h"
 
 static struct {
   dynamic_small_bin_info lists;
