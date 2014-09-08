@@ -15,16 +15,21 @@ $(TARGETS): | ../supermalloc.h
 
 clean:
 	rm -f $(TARGETS)
-.PHONY: check check_% check-test-malloc_test-w1
-check: $(patsubst %,check_%,$(TARGETS)) check-test-malloc_test-w1
+.PHONY: check check_% check-test-malloc_test-w1 check-test-malloc_test-w1-s4096
+check: $(patsubst %,check_%,$(TARGETS)) check-test-malloc_test-w1 check-test-malloc_test-w1-s4096
 check_%: %
 	./$<
-check-test-malloc_test-w1: test-malloc_test large-malloc_test
+check-test-malloc_test-w1: test-malloc_test Makefile
 	./$< -w1
+check-test-malloc_test-w1-s4096:  test-malloc_test Makefile
+	./$< -w1 -s 4096
 
 test-malloc_test: CFLAGS += -pthread
 
-test-malloc_test.data: test-malloc_test Makefile
+.PHONY: data
+data: test-malloc_test.data test-malloc_test4K.data
+
+test-malloc_test.data: test-malloc_test Makefile ../libsupermalloc.so
 	rm -f $@
 	echo threads supermalloc jemalloc >> $@
 	echo 1 $$(./$< -w 1) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 1) >> $@
@@ -37,5 +42,17 @@ test-malloc_test.data: test-malloc_test Makefile
 	echo 8 $$(./$< -w 8) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 8) >> $@
 
 
-large-malloc_test:  test-malloc_test Makefile
-	./$< -w1 -s 4096
+
+test-malloc_test4K.data: test-malloc_test Makefile ../libsupermalloc.so
+	rm -f $@
+	echo threads supermalloc jemalloc >> $@
+	echo 1 $$(./$< -w 1 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 1 -s 4096) >> $@
+	echo 2 $$(./$< -w 2 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 2 -s 4096) >> $@
+	echo 3 $$(./$< -w 3 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 3 -s 4096) >> $@
+	echo 4 $$(./$< -w 4 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 4 -s 4096) >> $@
+	echo 5 $$(./$< -w 5 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 5 -s 4096) >> $@
+	echo 6 $$(./$< -w 6 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 6 -s 4096) >> $@
+	echo 7 $$(./$< -w 7 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 7 -s 4096) >> $@
+	echo 8 $$(./$< -w 8 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 8 -s 4096) >> $@
+
+

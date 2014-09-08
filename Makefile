@@ -20,8 +20,8 @@ libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small
 malloc.o: cpucores.h
 malloc: CPPFLAGS += -DTESTING
 malloc: OPTFLAGS = -O0
-malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc cache_small.cc bassert.cc footprint.cc stats.cc | $(wildcard *.h) generated_constants.h
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $^ -o $@
+malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc cache_small.cc bassert.cc footprint.cc stats.cc $(wildcard *.h) generated_constants.h
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $(filter-out %.h, $^) -o $@
 objsizes: malloc_internal.h
 generated_constants.h: objsizes
 	./$< > $@
