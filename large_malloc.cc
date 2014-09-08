@@ -165,7 +165,7 @@ void large_free(void *p) {
   large_object_list_cell **h = free_large_objects+ (bin - first_large_bin_number);
   large_object_list_cell *ei = entries+objnum;
   // This part atomic. Can be done with compare_and_swap
-  if (1) {
+  if (0) {
     ei->next = *h;
     *h = ei;
   } else {
