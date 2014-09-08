@@ -29,12 +29,13 @@
 #define xfree free
 
 #define	POOL_SIZE	4096
+#define DEFAULT_OBJECT_SIZE 1024
 
 int debug_flag = 0;
 int verbose_flag = 0;
 int num_workers = 4;
 double run_time = 5.0;
-
+int object_size = DEFAULT_OBJECT_SIZE;
 /* array for thread ids */
 pthread_t *thread_ids;
 /* array for saving result of each thread */
@@ -98,7 +99,7 @@ void *mem_allocator (void *arg)
 		for (i = start; i < end; ++i) {
 		  if (NULL == atomic_load(&mem_pool[i])) {
 		        did_one = true;
-		        atomic_store(&mem_pool[i], xmalloc(1024));
+		        atomic_store(&mem_pool[i], xmalloc(object_size));
 			if (debug_flag) 
 			  printf("Allocate %i: slot %i\n", 
 				thread_id, i);
@@ -218,6 +219,7 @@ void usage(char *prog)
 	printf("%s [-w workers] [-t run_time] [-d] [-v]\n", prog);
 	printf("\t -w number of set of allocator and freer, default 2\n");
 	printf("\t -t run time in seconds, default 20.0 seconds.\n");
+	printf("\t -s size of object to allocate (default %d bytes)\n", DEFAULT_OBJECT_SIZE);
 	printf("\t -d debug mode\n");
 	printf("\t -v verbose mode (-v -v produces more verbose)\n");
 	exit(1);
@@ -226,7 +228,7 @@ void usage(char *prog)
 int main(int argc, char **argv)
 {
 	int c;
-	while ((c = getopt(argc, argv, "w:t:dv")) != -1) {
+	while ((c = getopt(argc, argv, "w:t:ds:v")) != -1) {
 		
 		switch (c) {
 
@@ -238,6 +240,9 @@ int main(int argc, char **argv)
 			break;
 		case 'd':
 			debug_flag = 1;
+			break;
+		case 's':
+			object_size = atoi(optarg);
 			break;
 		case 'v':
 			verbose_flag++;

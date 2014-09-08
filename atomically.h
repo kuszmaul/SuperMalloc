@@ -45,7 +45,7 @@ static inline void mylock_release(volatile unsigned int *mylock) {
 #ifdef COVERAGE
 #define have_rtm 0
 #else
-#define have_rtm 1
+#define have_rtm 0
 #endif
 
 template<typename ReturnType, typename... Arguments>
@@ -106,6 +106,7 @@ struct lock {
 };
 
 #define atomic_load(addr) __atomic_load_n(addr, __ATOMIC_CONSUME)
+#define atomic_store(addr, val) __atomic_store_n(addr, val, __ATOMIC_RELEASE)
 
 #define prefetch_read(addr) __builtin_prefetch(addr, 0, 3)
 #define prefetch_write(addr) __builtin_prefetch(addr, 1, 3)

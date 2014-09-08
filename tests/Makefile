@@ -19,7 +19,7 @@ clean:
 check: $(patsubst %,check_%,$(TARGETS)) check-test-malloc_test-w1
 check_%: %
 	./$<
-check-test-malloc_test-w1: test-malloc_test
+check-test-malloc_test-w1: test-malloc_test large-malloc_test
 	./$< -w1
 
 test-malloc_test: CFLAGS += -pthread
@@ -36,3 +36,6 @@ test-malloc_test.data: test-malloc_test Makefile
 	echo 7 $$(./$< -w 7) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 7) >> $@
 	echo 8 $$(./$< -w 8) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 8) >> $@
 
+
+large-malloc_test:  test-malloc_test Makefile
+	./$< -w1 -s 4096

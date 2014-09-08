@@ -22,10 +22,6 @@ static large_object_list_cell* free_large_objects[n_large_classes]; // For each 
 
 static unsigned int large_lock = 0;
 
-struct large_malloc_pop_s {
-  large_object_list_cell **free_head;
-  large_object_list_cell *result;
-};
 void predo_large_malloc_pop(large_object_list_cell **free_head) {
   // For the predo, we basically want to look at the free head (and make it writeable) and
   // read the next pointer (but only if the free-head is non-null, since the free-head could
