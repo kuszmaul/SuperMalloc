@@ -67,6 +67,9 @@ static void check_log() {
 }
 #endif
 
+bool use_transactions = true;
+
+
 static void initialize_malloc() {
 #ifdef ENABLE_STATS
   atexit(print_stats);
@@ -82,6 +85,17 @@ static void initialize_malloc() {
   bassert(chunk_infos);
 
   n_cores = cpucores();
+
+  {
+    char *v = getenv("SUPERMALLOC_TRANSACTIONS");
+    if (v) {
+      if (strcmp(v, "0")==0) {
+	use_transactions  = false;
+      } else if (strcmp(v, "1")==0) {
+	use_transactions = true;
+      }
+    }
+  }
 }
 
 void maybe_initialize_malloc(void) {

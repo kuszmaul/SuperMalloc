@@ -40,12 +40,14 @@ static inline void mylock_release(volatile unsigned int *mylock) {
   *mylock = 0;
 }
 
+extern bool use_transactions;
+
 #define XABORT_LOCK_HELD 9
 
 #ifdef COVERAGE
 #define have_rtm 0
 #else
-#define have_rtm 1
+#define have_rtm use_transactions
 #endif
 
 template<typename ReturnType, typename... Arguments>
@@ -118,6 +120,5 @@ static inline void fetch_and_max(uint64_t * ptr, uint64_t val) {
     if (__sync_bool_compare_and_swap(ptr, old, val)) return;
   }
 }
-
 
 #endif // ATOMICALLY_H

@@ -31,15 +31,15 @@ data: test-malloc_test.data test-malloc_test4K.data
 
 test-malloc_test.data: test-malloc_test Makefile ../libsupermalloc.so
 	rm -f $@
-	echo threads supermalloc jemalloc >> $@
-	echo 1 $$(./$< -w 1) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 1) >> $@
-	echo 2 $$(./$< -w 2) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 2) >> $@
-	echo 3 $$(./$< -w 3) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 3) >> $@
-	echo 4 $$(./$< -w 4) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 4) >> $@
-	echo 5 $$(./$< -w 5) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 5) >> $@
-	echo 6 $$(./$< -w 6) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 6) >> $@
-	echo 7 $$(./$< -w 7) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 7) >> $@
-	echo 8 $$(./$< -w 8) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 8) >> $@
+	echo threads supermalloc-rtm supermalloc-lock jemalloc >> $@
+	echo 1 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 1) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 1) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 1) >> $@
+	echo 2 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 2) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 2) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 2) >> $@
+	echo 3 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 3) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 3) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 3) >> $@
+	echo 4 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 4) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 4) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 4) >> $@
+	echo 5 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 5) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 5) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 5) >> $@
+	echo 6 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 6) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 6) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 6) >> $@
+	echo 7 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 7) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 7) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 7) >> $@
+	echo 8 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 8) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 8) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 8) >> $@
 
 
 

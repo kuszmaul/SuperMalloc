@@ -151,5 +151,5 @@ set fontpath
 set psdir
 set fit noerrorvariables
 GNUTERM = "wxt"
-plot 'test-malloc_test.data' using 1:2 with linespoints title "supermalloc",'test-malloc_test.data' using 1:3 with linespoints title "jemalloc"
+plot 'test-malloc_test.data' using 1:2 with linespoints title "supermalloc rtm",'test-malloc_test.data' using 1:3 with linespoints title "supermalloc locks",'test-malloc_test.data' using 1:4 with linespoints title "jemalloc"
 #    EOF
