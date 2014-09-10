@@ -85,4 +85,6 @@ MADV\_FREE is *way* nicer than MADV\_DONTNEED in the context of malloc.  jemallo
  \item Mallocators want the kernel to notify them when memory is short.
 
  \item measure the value of the cache for purging
+
+ \item turned off turboboost to measure (question: does this unfairly benefit jemalloc?)
 \end{enumerate}

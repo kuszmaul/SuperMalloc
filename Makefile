@@ -1,7 +1,7 @@
 # COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
 # STATS = -DENABLE_STATS
 # LOGCHECK = -DENABLE_LOG_CHECKING
-# OPTFLAGS = -O3 -flto
+OPTFLAGS = -O3 -flto
 
 C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11

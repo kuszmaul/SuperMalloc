@@ -1,8 +1,12 @@
+#!/bin/sh
+# Exit status is not zero if turboboost is enabled anyware
 let P=$(cat /proc/cpuinfo|fgrep processor|wc -l)
 for x in $(seq 0 $(($P -1))); do
   if test 0 == $(($(echo -n ``0x'';rdmsr -p$x 0x1a0) & 0x4000000000)); then
-    echo Turboboost enabled on processor $x
+    echo Turboboost enabled on processor $x and maybe others;
+    exit 1
   else
     echo Turboboost disabled on processor $x
   fi
 done
+echo ok

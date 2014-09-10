@@ -29,6 +29,12 @@ test-malloc_test: CFLAGS += -pthread
 .PHONY: data
 data: test-malloc_test.data test-malloc_test4K.data
 
+test-malloc_test-1K.data: test-malloc_test Makefile ../libsupermalloc.so
+	echo threads supermalloc-rtm supermalloc-lock jemalloc > $@
+	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
+	  echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w $$thread) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w $$thread) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w $$thread) | tee -a $@ \
+        ;done ;done
+
 test-malloc_test.data: test-malloc_test Makefile ../libsupermalloc.so
 	rm -f $@
 	echo threads supermalloc-rtm supermalloc-lock jemalloc >> $@
@@ -56,3 +62,6 @@ test-malloc_test4K.data: test-malloc_test Makefile ../libsupermalloc.so
 	echo 8 $$(./$< -w 8 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 8 -s 4096) >> $@
 
 
+# You may need to have done "sudo modprobe msr"
+disable_turboboost:
+	rdmsr -pi 0x1a0 -f 38:38
