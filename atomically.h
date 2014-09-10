@@ -45,7 +45,7 @@ static inline void mylock_release(volatile unsigned int *mylock) {
 #ifdef COVERAGE
 #define have_rtm 0
 #else
-#define have_rtm 0
+#define have_rtm 1
 #endif
 
 template<typename ReturnType, typename... Arguments>
