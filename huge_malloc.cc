@@ -50,9 +50,9 @@ void* huge_malloc(size_t size) {
   void *c = get_power_of_two_n_chunks(n_chunks);
   size_t n_pages  = ceil(size, pagesize);
   size_t usable_size = n_pages * pagesize;
-  size_t n_to_demap = n_chunks*chunksize - usable_size;
+  size_t n_to_purge = n_chunks*chunksize - usable_size;
   binnumber_t bin;
-  if (n_to_demap < chunksize/8) {
+  if (n_to_purge < chunksize/8) {
     // The unused part at the end is insubstantial, so just treat it as a malloc of a full chunk.
     // The whole region is be eligible for huge pages.
     madvise(c, n_chunks*chunksize, MADV_HUGEPAGE); // ignore any error code.  In future skip this call if we always get an error?  Also if we are in madvise=always we shouldn't bother.

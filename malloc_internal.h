@@ -91,7 +91,7 @@ const unsigned int log_max_chunknumber = 27;
 const chunknumber_t null_chunknumber = 0;
 
 // We allocate chunks using only powers of two.  We don't bother with
-// a buddy system to coalesce chunks, instead we just demap chunks
+// a buddy system to coalesce chunks, instead we just purge chunks
 // that are no longer in use.  Each power of two, K, gets a linked
 // list starting with free_chunks[K], which is a chunk number (we use
 // 0 for the null chunk number).  The linked list employs the

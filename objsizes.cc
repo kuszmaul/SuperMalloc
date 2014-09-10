@@ -71,7 +71,7 @@ class2:
   printf("// large objects (page allocated):\n");
   printf("//  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].\n");
   uint32_t largest_waste_at_end = log_chunksize - 5;
-  printf("//  This introduces fragmentation.  This fragmentation doesn't matter much since it will be demapped. For sizes up to 1<<%d we waste the last potential object.\n", largest_waste_at_end);
+  printf("//  This introduces fragmentation.  This fragmentation doesn't matter much since it will be purged. For sizes up to 1<<%d we waste the last potential object.\n", largest_waste_at_end);
   printf("//   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation\n");
   int first_large_bin = bin;
   for (uint64_t log_allocsize = 12; log_allocsize < log_chunksize; log_allocsize++) {

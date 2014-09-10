@@ -51,7 +51,7 @@ static void *chunk_create_slow(size_t n_chunks) {
 
 void *mmap_chunk_aligned_block(size_t n_chunks)
 // Effect: Return a pointer to a chunk.
-//   The chunk is demapped zero-fill-on-demand.
+//   The chunk is in a purged-stated (not in memory, zero-fill-on-demand).
 //   The chunk might map as either a huge page or a lot of little
 //    pages: the exact behavior isn't specified.  Use
 //    madvise(MADV_HUGEPAGE) or MADV_NOHUGEPAGE to force the behavior you want.

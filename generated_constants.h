@@ -60,7 +60,7 @@ static const struct { uint32_t object_size; uint32_t objects_per_page; } static_
  {2048,   2},  //    30         0
 // large objects (page allocated):
 //  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].
-//  This introduces fragmentation.  This fragmentation doesn't matter much since it will be demapped. For sizes up to 1<<16 we waste the last potential object.
+//  This introduces fragmentation.  This fragmentation doesn't matter much since it will be purged. For sizes up to 1<<16 we waste the last potential object.
 //   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation
  {4096, 1}, //    31 
  {8192, 1}, //    32 

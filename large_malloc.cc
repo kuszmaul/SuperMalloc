@@ -24,7 +24,7 @@ struct large_object_list_cell {
 
 static const binnumber_t n_large_classes = first_huge_bin_number - first_large_bin_number;
 static large_object_list_cell* free_large_objects[n_large_classes]; // For each large size, a list (threaded through the chunk headers) of all the free objects of that size.
-// Later we'll be a little careful about demapping those large objects (and we'll need to remember which are which, but we may also want thread-specific parts).  For now, just demap them all.
+// Later we'll be a little careful about purging those large objects (and we'll need to remember which are which, but we may also want thread-specific parts).  For now, just purge them all.
 
 static unsigned int large_lock = 0;
 

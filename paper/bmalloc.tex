@@ -77,7 +77,7 @@ Key insights:
  \item Why do we need the caches?
   For small objects, we need the caches because they can be allocated and deallocated so fast, and we don't want all the thread contention.
 
-  For large objects, we the cache is really of objects that are not demapped.  (\url{http://lists.freebsd.org/pipermail/freebsd-arch/2012-October/013287.html} says 
+  For large objects, we the cache is really of objects that are not purged.  (\url{http://lists.freebsd.org/pipermail/freebsd-arch/2012-October/013287.html} says 
 \begin{quote}
 MADV\_FREE is *way* nicer than MADV\_DONTNEED in the context of malloc.  jemalloc has a really discouraging amount of complexity that is directly a result of working around the performance overhead of MADV\_DONTNEED.
 \end{quote}
