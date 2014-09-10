@@ -104,25 +104,27 @@ void test_huge_malloc(void) {
 
   // Sometimes mmap works its way down (e.g., under linux 3.15.8).  Sometimes it works its way up (e.g., under valgrind under linux 3.15.8)
   // So the tests below have to look at the absolute difference instead of the relative difference.
+  void *temp = huge_malloc(chunksize); // reset the strangeness that may have happened when testing the chunk allocator.
+  if (print) printf("temp=%p\n", temp);
 
   void *a = huge_malloc(largest_large + 1);
   bassert(reinterpret_cast<uint64_t>(a) % chunksize==0);
   chunknumber_t a_n = address_2_chunknumber(a);
-  if (print) printf("a=%p c=0x%x\n", a, a_n);
+  if (print) printf("a=%p a_n=0x%x\n", a, a_n);
   bassert(chunk_infos[a_n].bin_number == first_huge_bin_number);
   *(char*)a = 1;
 
   void *b = huge_malloc(largest_large + 2);
-  bassert(reinterpret_cast<uint64_t>(b) % chunksize==0);
+  bassert(offset_in_chunk(b) == 0);
   chunknumber_t b_n = address_2_chunknumber(b);
-  if (print) printf("b=%p c=0x%x diff=%ld\n", b, b_n, (char*)a-(char*)b);
+  if (print) printf("b=%p diff=0x%lx\n", b, (char*)a-(char*)b);
   bassert(abs((int)a_n - (int)b_n) == 1);
   bassert(chunk_infos[b_n].bin_number == first_huge_bin_number);
 
   void *c = huge_malloc(2*chunksize);
-  bassert(reinterpret_cast<uint64_t>(c) % chunksize==0);
+  bassert(offset_in_chunk(c) == 0);
   chunknumber_t c_n = address_2_chunknumber(c);
-  if (print) printf("c=%p diff=%ld bin = %u b_n=%d c_n=%d\n", c, (char*)b-(char*)c, chunk_infos[c_n].bin_number, b_n, c_n);
+  if (print) printf("c=%p diff=0x%lx bin = %u b_n=%d c_n=%d\n", c, (char*)b-(char*)c, chunk_infos[c_n].bin_number, b_n, c_n);
   bassert((b_n - c_n == 2) || (c_n - b_n ==1));
   bassert(chunk_infos[c_n].bin_number == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
 

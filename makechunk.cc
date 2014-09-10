@@ -32,21 +32,19 @@ static void unmap(void *p, size_t size) {
 
 
 static void *chunk_create_slow(size_t n_chunks) {
-  size_t total_size = (1+n_chunks)*chunksize - pagesize;
+  size_t total_size = (1+n_chunks)*chunksize; // The original code mapped one page less than this, but it seemed to cause misalignment 
   void *m = mmap_size(total_size);
-  //printf("%s:%d m=%p\n", __FILE__, __LINE__, m);
   size_t m_offset = offset_in_chunk(m);
-  //printf("%s:%d offset=%lu\n", __FILE__, __LINE__, m_offset);
-  size_t leading_useless = chunksize-m_offset;
-  //printf("%s:%d leading_useless=%lu\n", __FILE__, __LINE__, leading_useless);
-  unmap(m, leading_useless);
-  void *final_m = ((char*)m) + leading_useless;
-  //printf("%s:%d unmapping %p + %lu\n", __FILE__, __LINE__, (char*)final_m + chunksize, m_offset-pagesize);
-  unmap((char*)final_m + n_chunks*chunksize, m_offset - pagesize);
-  //printf("%s:%d returning %p\n", __FILE__, __LINE__, final_m);
-  //((char*)final_m)[0] = '0';
-  //((char*)final_m)[chunksize-1] = '0';
-  return final_m;
+  if (m_offset == 0) {
+    unmap(reinterpret_cast<char*>(m) + n_chunks*chunksize, chunksize);
+    return m;
+  } else {
+    size_t leading_useless = chunksize-m_offset; // guaranteed to be non-negative
+    unmap(m, leading_useless);
+    void *final_m = reinterpret_cast<char*>(m) + leading_useless;
+    unmap(reinterpret_cast<char*>(final_m) + n_chunks*chunksize, m_offset);
+    return final_m;
+  }
 }
 
 void *mmap_chunk_aligned_block(size_t n_chunks)
@@ -90,11 +88,36 @@ void test_makechunk(void) {
     unmap(v, 4096);
     unmap(NULL, 0);
   }
-
   {
     void *v = mmap_chunk_aligned_block(1);
     bassert(v);
     bassert(offset_in_chunk(v) == 0);
     unmap(v, 1*chunksize);
+  }
+
+  // Test chunk_create_slow
+  {
+    void *v = chunk_create_slow(3);
+    bassert(v);
+    bassert(offset_in_chunk(v) == 0);
+    void *w = chunk_create_slow(3);
+    bassert(w);
+    bassert(offset_in_chunk(w) == 0);
+    unmap(v, 3*chunksize);
+    unmap(w, 3*chunksize);
+  }
+  {
+    void *p = mmap_size(4096);
+    void *w = chunk_create_slow(3);
+    bassert(p);
+    bassert(w);
+    bassert(offset_in_chunk(w) == 0);
+  }
+  {
+    void *p = mmap_size(chunksize-4096);
+    void *w = chunk_create_slow(3);
+    bassert(p);
+    bassert(w);
+    bassert(offset_in_chunk(w) == 0);
   }
 }

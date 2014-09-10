@@ -1,0 +1,5 @@
+let P=$(cat /proc/cpuinfo|fgrep processor|wc -l)
+echo $P
+for x in $(seq 0 $(($P -1))); do
+  wrmsr -p$x 0x1a0 $(($(echo -n ``0x'';rdmsr -p$x 0x1a0) | 0x4000000000));
+done
