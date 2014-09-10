@@ -5,6 +5,13 @@
 #include "generated_constants.h"
 #include "bassert.h"
 
+#ifdef ENABLE_LOG_CHECKING
+static void clog_command(char command, const void *ptr, size_t size);
+#else
+#define clog_command(a,b,c) ((void)0)
+#endif
+
+
 static __thread uint32_t cached_cpu, cached_cpu_count;
 static uint32_t getcpu(void) {
   if ((cached_cpu_count++)%2048  ==0) { cached_cpu = sched_getcpu(); if (0) printf("cpu=%d\n", cached_cpu); }
@@ -26,7 +33,7 @@ struct CacheForBin {
 
 struct CacheForCpu {
   uint64_t attempt_count, success_count;
-  CacheForBin cb[first_large_bin_number];
+  CacheForBin cb[first_huge_bin_number];
 } __attribute__((aligned(64)));
 
 CacheForCpu cache_for_cpu[cpulimit];
@@ -39,7 +46,7 @@ struct GlobalCacheForBin {
 };
 
 struct GlobalCache {
-  GlobalCacheForBin gb[first_large_bin_number];
+  GlobalCacheForBin gb[first_huge_bin_number];
 };
 
 static GlobalCache global_cache;
@@ -105,31 +112,40 @@ static inline void* do_get_cached(CacheForBin *cb,
   return NULL;
 }
 
-void* cached_small_malloc(size_t size)
-// Effect: try the cache first, then try small_malloc
+void* cached_malloc(size_t size)
+// Effect: try the cache first, then try real small_malloc or large
 {
   binnumber_t bin = size_2_bin(size);
-  bassert(bin < first_large_bin_number);
+  bassert(bin < first_huge_bin_number);
   // Still must access the cache atomically even though it's per processor.
   int p = getcpu() % cpulimit;
   __sync_fetch_and_add(&cache_for_cpu[p].attempt_count, 1);
-  if (   (atomic_load(&cache_for_cpu[p].cb[bin].co[0].head) ==NULL)
-      && (atomic_load(&cache_for_cpu[p].cb[bin].co[1].head) ==NULL)
-      && (atomic_load(&global_cache.gb[bin].n_nonempty_caches) == 0)) {
-    // Don't bother doing a transaction if there's nothing in the caches.
-    return small_malloc(size);
+  // Don't bother doing a transaction if there's nothing in the caches.
+  if (   !(atomic_load(&cache_for_cpu[p].cb[bin].co[0].head) ==NULL)
+      || !(atomic_load(&cache_for_cpu[p].cb[bin].co[1].head) ==NULL)
+      || !(atomic_load(&global_cache.gb[bin].n_nonempty_caches) == 0)) {
+    void *result = atomically(&cache_lock,
+			      predo_get_cached,
+			      do_get_cached,
+			      &cache_for_cpu[p].cb[bin],
+			      &global_cache.gb[bin],
+			      bin_2_size(bin));
+    if (result) {
+      bassert(chunk_infos[address_2_chunknumber(result)].bin_number == bin);
+      __sync_fetch_and_add(&cache_for_cpu[p].success_count, 1);
+      clog_command('a', result, size);
+      return result;
+    }
   }
-  void *result = atomically(&cache_lock,
-			    predo_get_cached,
-			    do_get_cached,
-			    &cache_for_cpu[p].cb[bin],
-			    &global_cache.gb[bin],
-			    bin_2_size(bin));
-  if (result) {
-    __sync_fetch_and_add(&cache_for_cpu[p].success_count, 1);
+  // Didn't get a result.  Use the underlying alloc
+  if (bin < first_large_bin_number) {
+    void *result = small_malloc(size);
+    clog_command('b', result, size);
     return result;
   } else {
-    return small_malloc(size);
+    void *result = large_malloc(size);
+    clog_command('c', result, size);
+    return result;
   }
 }
 
@@ -197,7 +213,8 @@ static inline bool do_put_cached(linked_list *obj,
   return false;
 }
 
-void cached_small_free(void *ptr, binnumber_t bin) {
+void cached_free(void *ptr, binnumber_t bin) {
+  clog_command('f', ptr, bin);
   int p = getcpu() % cpulimit;
   bool did_put = atomically(&cache_lock,
 			    predo_put_cached,
@@ -207,7 +224,11 @@ void cached_small_free(void *ptr, binnumber_t bin) {
 			    &global_cache.gb[bin],
 			    bin_2_size(bin));
   if (!did_put) {
-    small_free(ptr);
+    if (bin < first_large_bin_number) {
+      small_free(ptr);
+    } else {
+      large_free(ptr);
+    }
   }
 }
 
@@ -219,5 +240,33 @@ void print_cache_stats() {
       printf(" %ld/%ld=%.0f%%", cache_for_cpu[i].success_count, cache_for_cpu[i].attempt_count,
 	     100.0*(double)cache_for_cpu[i].success_count/(double)cache_for_cpu[i].attempt_count);
   printf("\n");
+}
+#endif
+
+#ifdef ENABLE_LOG_CHECKING
+static const int clog_count_limit = 10000000;
+static int clog_count=0;
+static struct logentry {
+  char command;
+  const void* ptr;
+  size_t size;
+} clog[clog_count_limit];
+
+static void clog_command(char command, const void *ptr, size_t size) {
+  int i = __sync_fetch_and_add(&clog_count, 1);
+  if (i < clog_count_limit) {
+    clog[i].command = command;
+    clog[i].ptr     = ptr;
+    clog[i].size    = size;
+  } if (i == clog_count_limit) {
+    printf("Log overflowed, I dealt with that by truncating the log\n");
+  }
+}
+
+void check_log_cache() {
+  printf("clog\n");
+  for (int i = 0; i < clog_count; i++) {
+    printf("%c %p %ld\n", clog[i].command, clog[i].ptr, clog[i].size);
+  }
 }
 #endif

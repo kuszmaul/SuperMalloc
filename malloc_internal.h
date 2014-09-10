@@ -120,8 +120,8 @@ void small_free(void* ptr);
 void test_small_malloc();
 #endif
 
-void* cached_small_malloc(size_t size);
-void cached_small_free(void *ptr, binnumber_t bin);
+void* cached_malloc(size_t size);
+void cached_free(void *ptr, binnumber_t bin);
 
 const int cpulimit = 128;
 
@@ -145,6 +145,10 @@ static inline void bin_stats_note_free(binnumber_t b __attribute__((unused))) {}
 #define IS_TESTING 1
 #else
 #define IS_TESTING 0
+#endif
+
+#ifdef ENABLE_LOG_CHECKING
+void check_log_large();
 #endif
 
 #endif

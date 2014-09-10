@@ -61,9 +61,18 @@ static void print_stats() {
 }
 #endif
 
+#ifdef ENABLE_LOG_CHECKING
+static void check_log() {
+  check_log_large();
+}
+#endif
+
 static void initialize_malloc() {
 #ifdef ENABLE_STATS
   atexit(print_stats);
+#endif
+#ifdef ENABLE_LOG_CHECKING
+  atexit(check_log);
 #endif
 
   const size_t n_elts = 1u<<27;
@@ -130,10 +139,8 @@ extern "C" void *malloc(size_t size) {
     return NULL;
   }
   void *result;
-  if (size <= largest_small) {
-    result = cached_small_malloc(size);
-  } else if (size <= largest_large) {
-    result = large_malloc(size);
+  if (size <= largest_large) {
+    result = cached_malloc(size);
   } else {
     result = huge_malloc(size);
   }
@@ -145,10 +152,8 @@ extern "C" void free(void *p) {
   if (p == NULL) return;
   chunknumber_t cn = address_2_chunknumber(p);
   binnumber_t bin = chunk_infos[cn].bin_number;
-  if (bin < first_large_bin_number) {
-    cached_small_free(p, bin);
-  } else if (bin < first_huge_bin_number) {
-    large_free(p);
+  if (bin < first_huge_bin_number) {
+    cached_free(p, bin);
   } else {
     huge_free(p);
   }

@@ -9,6 +9,12 @@
 #include "generated_constants.h"
 #include "malloc_internal.h"
 
+#ifdef ENABLE_LOG_CHECKING
+static void log_command(char command, const void *ptr);
+#else
+#define log_command(a,b) ((void)0)
+#endif
+
 struct large_object_list_cell {
   union {
     large_object_list_cell *next;
@@ -90,13 +96,14 @@ void* large_malloc(size_t size)
       if (0) printf("returning the page corresponding to %p\n", h);
       void* chunk = address_2_chunkaddress(h);
       if (0) printf("chunk=%p\n", chunk);
-      large_object_list_cell *chunk_as_list_cell = (large_object_list_cell*)chunk;
+      large_object_list_cell *chunk_as_list_cell = reinterpret_cast<large_object_list_cell*>(chunk);
       size_t offset = h-chunk_as_list_cell;
       if (0) printf("offset=%ld\n", offset);
       void* address = reinterpret_cast<void*>(reinterpret_cast<char*>(chunk) + 2*pagesize + offset * usable_size);
       bassert(address_2_chunknumber(address)==address_2_chunknumber(chunk));
       if (0) printf("result=%p\n", address);
       bassert(chunk_infos[address_2_chunknumber(address)].bin_number == b);
+      log_command('a', address);
       return address;
     } else {
       // No already free objects.  Get a chunk
@@ -154,7 +161,9 @@ size_t large_footprint(void *p) {
 }
 
 void large_free(void *p) {
+  log_command('f', p);
   binnumber_t bin = chunk_infos[address_2_chunknumber(p)].bin_number;
+  bassert(first_large_bin_number <= bin  && bin < first_huge_bin_number);
   uint64_t usable_size = bin_2_size(bin);
   madvise(p, usable_size, MADV_DONTNEED);
   uint64_t offset = offset_in_chunk(p);
@@ -162,7 +171,7 @@ void large_free(void *p) {
   large_object_list_cell *entries = reinterpret_cast<large_object_list_cell*>(address_2_chunkaddress(p));
   uint32_t footprint = entries[objnum].footprint;
   add_to_footprint(-static_cast<int64_t>(footprint));
-  large_object_list_cell **h = free_large_objects+ (bin - first_large_bin_number);
+  large_object_list_cell **h = &free_large_objects[bin - first_large_bin_number];
   large_object_list_cell *ei = entries+objnum;
   // This part atomic. Can be done with compare_and_swap
   if (0) {
@@ -170,7 +179,7 @@ void large_free(void *p) {
     *h = ei;
   } else {
     while (1) {
-      large_object_list_cell *first = *h;
+      large_object_list_cell *first = atomic_load(h);
       ei->next = first;
       if (__sync_bool_compare_and_swap(h, first, ei)) break;
     }
@@ -265,3 +274,29 @@ void test_large_malloc(void) {
   }
   bassert(get_footprint() - fp == 0);
 }
+
+#ifdef ENABLE_LOG_CHECKING
+static const int log_count_limit = 10000000;
+static int log_count=0;
+static struct logentry {
+  char command;
+  const void* ptr;
+} log[log_count_limit];
+
+static void log_command(char command, const void *ptr) {
+  int i = __sync_fetch_and_add(&log_count, 1);
+  if (i < log_count_limit) {
+    log[i].command = command;
+    log[i].ptr     = ptr;
+  } if (i == log_count_limit) {
+    printf("Log overflowed, I dealt with that by truncating the log\n");
+  }
+}
+
+void check_log_large() {
+  printf("llog\n");
+  for (int i = 0; i < log_count; i++) {
+    printf("%c %p\n", log[i].command, log[i].ptr);
+  }
+}
+#endif

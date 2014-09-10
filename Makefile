@@ -1,11 +1,12 @@
 # COVERAGE = -fprofile-arcs -ftest-coverage -DCOVERAGE
 # STATS = -DENABLE_STATS
+# LOGCHECK = -DENABLE_LOG_CHECKING
 # OPTFLAGS = -O3 -flto
 
 C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
-CPPFLAGS += $(STATS)
+CPPFLAGS += $(STATS) $(LOGCHECK)
 
 default: libsupermalloc.so malloc tests_default
 .PHONY: default tests_default
@@ -14,13 +15,13 @@ tests_default: libsupermalloc.so
 
 
 # While compiling malloc or any of its .o files, compile with -DTESTING
-libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o cache_small.o bassert.o footprint.o stats.o
+libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o cache.o bassert.o footprint.o stats.o
 	$(CXX) $(CXXFLAGS) $^ -shared -o $@
 
 malloc.o: cpucores.h
 malloc: CPPFLAGS += -DTESTING
 malloc: OPTFLAGS = -O0
-malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc cache_small.cc bassert.cc footprint.cc stats.cc $(wildcard *.h) generated_constants.h
+malloc: malloc.cc makechunk.cc rng.c huge_malloc.cc large_malloc.cc small_malloc.cc cache.cc bassert.cc footprint.cc stats.cc $(wildcard *.h) generated_constants.h
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $(filter-out %.h, $^) -o $@
 objsizes: malloc_internal.h
 generated_constants.h: objsizes
@@ -33,7 +34,7 @@ objsizes $(patsubst %, %.o, $(ALL_LIB_SOURCES)): bassert.h
 $(patsubst %, %.o, $(ALL_LIB_SOURCES)): $(wildcard *.h) generated_constants.h
 
 check: check_malloc tests_check
-check_malloc:
+check_malloc: malloc
 	./malloc
 .PHONY: tests_check
 tests_check: libsupermalloc.so
