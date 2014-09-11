@@ -15,12 +15,20 @@ $(TARGETS): | ../supermalloc.h
 
 clean:
 	rm -f $(TARGETS)
-.PHONY: check check_% check-test-malloc_test-w1 check-test-malloc_test-w1-s4096
-check: $(patsubst %,check_%,$(TARGETS)) check-test-malloc_test-w1 check-test-malloc_test-w1-s4096
+.PHONY: check check_% \
+ check-test-malloc_test-w1 \
+ check-test-malloc_test-w2 \
+ check-test-malloc_test-w1-s4096
+check: $(patsubst %,check_%,$(TARGETS)) \
+ check-test-malloc_test-w1 \
+ check-test-malloc_test-w2 \
+ check-test-malloc_test-w1-s4096
 check_%: %
 	./$<
 check-test-malloc_test-w1: test-malloc_test Makefile
 	./$< -w1
+check-test-malloc_test-w2: test-malloc_test Makefile
+	./$< -w2
 check-test-malloc_test-w1-s4096:  test-malloc_test Makefile
 	./$< -w1 -s 4096
 

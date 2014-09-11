@@ -29,7 +29,7 @@ struct linked_list {
 struct cached_objects {
   uint64_t bytecount;
   linked_list *head;
-  linked_list *tail;
+  //linked_list *tail;
 };
 struct CacheForBin {
   cached_objects co[2];
@@ -205,7 +205,7 @@ static inline bool try_put_cached(linked_list *obj, cached_objects *co, uint64_t
     if (h == NULL) {
       co->bytecount = size;
       co->head = obj;
-      co->tail = obj;
+      //co->tail = obj;
     } else {
       co->bytecount = bc+size;
       co->head = obj;
@@ -220,24 +220,30 @@ static inline bool do_put_cached(linked_list *obj,
 				 CacheForBin *cb,
 				 GlobalCacheForBin *gb,
 				 uint64_t size) {
+#ifdef THREADCACHE
+  //mylock_raii mr(&cache_lock);
+#endif
   if (try_put_cached(obj, &cb->co[0], size)) return true;
   if (try_put_cached(obj, &cb->co[1], size)) return true;
+  {
 #ifdef THREADCACHE
-  mylock_raii mr(&cache_lock);
+    mylock_raii mr(&cache_lock);
 #endif
-  uint8_t gnum = gb->n_nonempty_caches;
-  if (gnum < global_cache_depth) {
-    gb->co[gnum] = cb->co[0];
-    gb->n_nonempty_caches = gnum+1;
-    cb->co[0].head = NULL;
-    cb->co[0].bytecount = 0;
-    return true;
+    uint8_t gnum = gb->n_nonempty_caches;
+    if (gnum < global_cache_depth) {
+      gb->co[gnum] = cb->co[0];
+      gb->n_nonempty_caches = gnum+1;
+      cb->co[0].head = NULL;
+      cb->co[0].bytecount = 0;
+      return true;
+    }
   }
   return false;
 }
 
 void cached_free(void *ptr, binnumber_t bin) {
   clog_command('f', ptr, bin);
+  bassert(bin < first_huge_bin_number);
 #ifdef THREADCACHE
   bool did_put = do_put_cached(reinterpret_cast<linked_list*>(ptr),
 			       &cache_for_thread.cb[bin],
