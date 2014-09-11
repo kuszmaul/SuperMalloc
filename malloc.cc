@@ -190,13 +190,16 @@ extern "C" void* realloc(void *p, size_t size) {
   size_t oldsize = malloc_usable_size(p);
   if (oldsize < size) {
     void *result = malloc(size);
+    if (!result) return NULL; // without disrupting the contents of p.
     for (size_t i = 0; i < oldsize; i++) {
       ((char*)result)[i] = ((char*)p)[i];
     }
+    free(p);
     return result;
   }
   if (oldsize > 16 && size < oldsize/2) {
     void *result = malloc(size);
+    if (!result) return NULL; // without disrupting the contents of p.
     for (size_t i = 0; i < size; i++) {
       ((char*)result)[i] = ((char*)p)[i];
     }
