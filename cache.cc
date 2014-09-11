@@ -5,6 +5,8 @@
 #include "generated_constants.h"
 #include "bassert.h"
 
+#define THREADCACHE
+
 #ifdef ENABLE_LOG_CHECKING
 static void clog_command(char command, const void *ptr, size_t size);
 #else
@@ -12,11 +14,13 @@ static void clog_command(char command, const void *ptr, size_t size);
 #endif
 
 
+#ifndef THREADCACHE
 static __thread uint32_t cached_cpu, cached_cpu_count;
 static uint32_t getcpu(void) {
   if ((cached_cpu_count++)%2048  ==0) { cached_cpu = sched_getcpu(); if (0) printf("cpu=%d\n", cached_cpu); }
   return cached_cpu;
 }
+#endif
 
 struct linked_list {
   linked_list *next;
@@ -36,7 +40,11 @@ struct CacheForCpu {
   CacheForBin cb[first_huge_bin_number];
 } __attribute__((aligned(64)));
 
-CacheForCpu cache_for_cpu[cpulimit];
+#ifdef THREADCACHE
+static __thread CacheForCpu cache_for_thread ;
+#else
+static CacheForCpu cache_for_cpu[cpulimit];
+#endif
 
 static const int global_cache_depth = 8;
 
@@ -101,6 +109,9 @@ static inline void* do_get_cached(CacheForBin *cb,
     linked_list *h = try_pop_from_cached_objects(&cb->co[1], size);
     if (h) return h;
   }
+#ifdef THREADCACHE
+  mylock_raii mr(&cache_lock);
+#endif
   {
     int n = gb->n_nonempty_caches;
     if (n > 0) {
@@ -117,6 +128,14 @@ void* cached_malloc(size_t size)
 {
   binnumber_t bin = size_2_bin(size);
   bassert(bin < first_huge_bin_number);
+#ifdef THREADCACHE
+  {
+    void * result = do_get_cached(&cache_for_thread.cb[bin],
+				  &global_cache.gb[bin],
+				  bin_2_size(bin));
+    if (result) return result;
+  }
+#else
   // Still must access the cache atomically even though it's per processor.
   int p = getcpu() % cpulimit;
   __sync_fetch_and_add(&cache_for_cpu[p].attempt_count, 1);
@@ -137,6 +156,7 @@ void* cached_malloc(size_t size)
       return result;
     }
   }
+#endif
   // Didn't get a result.  Use the underlying alloc
   if (bin < first_large_bin_number) {
     void *result = small_malloc(size);
@@ -202,6 +222,9 @@ static inline bool do_put_cached(linked_list *obj,
 				 uint64_t size) {
   if (try_put_cached(obj, &cb->co[0], size)) return true;
   if (try_put_cached(obj, &cb->co[1], size)) return true;
+#ifdef THREADCACHE
+  mylock_raii mr(&cache_lock);
+#endif
   uint8_t gnum = gb->n_nonempty_caches;
   if (gnum < global_cache_depth) {
     gb->co[gnum] = cb->co[0];
@@ -215,14 +238,21 @@ static inline bool do_put_cached(linked_list *obj,
 
 void cached_free(void *ptr, binnumber_t bin) {
   clog_command('f', ptr, bin);
+#ifdef THREADCACHE
+  bool did_put = do_put_cached(reinterpret_cast<linked_list*>(ptr),
+			       &cache_for_thread.cb[bin],
+			       &global_cache.gb[bin],
+			       bin_2_size(bin));
+#else
   int p = getcpu() % cpulimit;
   bool did_put = atomically(&cache_lock,
 			    predo_put_cached,
 			    do_put_cached,
-			    (linked_list*)ptr,
+			    reinterpret_cast<linked_list*>(ptr),
 			    &cache_for_cpu[p].cb[bin],
 			    &global_cache.gb[bin],
 			    bin_2_size(bin));
+#endif
   if (!did_put) {
     if (bin < first_large_bin_number) {
       small_free(ptr);
