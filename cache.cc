@@ -61,56 +61,6 @@ static const uint64_t thread_cache_bytecount_limit = 2*4096;
 
 volatile unsigned int cache_lock;
 
-static linked_list* try_pop_from_cached_objects(cached_objects *co, uint64_t size) {
-  linked_list *h = co->head;
-  if (h) {
-    co->head = h->next;
-    co->bytecount -= size;
-    return h;
-  }
-  return NULL;
-}
-
-static void* do_get_cached(CacheForBin *cb,
-				  uint64_t size) {
-  {
-    linked_list *h = try_pop_from_cached_objects(&cb->co[0], size);
-    if (h) return h;
-  }
-  {
-    linked_list *h = try_pop_from_cached_objects(&cb->co[1], size);
-    if (h) return h;
-  }
-  return NULL;
-}
-
-static void predo_get_from_global_cache(CacheForBin *cb,
-					       GlobalCacheForBin *gb,
-					       uint64_t size __attribute__((unused))) {
-  int n = gb->n_nonempty_caches;
-  if (n > 0) {
-    prefetch_read(&gb->co[n-1]);
-    prefetch_write(&cb->co[0]);
-    prefetch_write(&gb->n_nonempty_caches);
-  }
-}
-
-static void* do_get_from_global_cache(CacheForBin *cb,
-					     GlobalCacheForBin *gb,
-					     uint64_t size) {
-  int n = gb->n_nonempty_caches;
-  if (n > 0 && cb->co[0].head==NULL) {
-    cb->co[0] = gb->co[n-1]; // fills in tail.
-    gb->n_nonempty_caches = n-1;
-    linked_list *h = cb->co[0].head;;
-    bassert(h != NULL);
-    cb->co[0].head = h->next;
-    cb->co[0].bytecount -= size;
-    return h;
-  }
-  return NULL;
-}
-
 static void* try_get_cached(cached_objects *co, uint64_t siz) {
   linked_list *result = co->head;
   if (result) {
@@ -245,7 +195,59 @@ static void* try_get_cpu_cached(int processor,
   }
   return result;
 }
-	       
+
+static void predo_get_global_cached(CacheForBin *cb,
+				    GlobalCacheForBin *gb,
+				    uint64_t siz __attribute__((unused))) {
+  int n = atomic_load(&gb->n_nonempty_caches);
+  if (n > 0) {
+    prefetch_read(&gb->co[n-1]);
+    prefetch_write(gb);
+    prefetch_write(cb);
+    // That's probably enough.  Prefetrching allthe other details looks tricky.
+  }
+}
+
+
+static void* do_get_global_cached(CacheForBin *cb,
+				  GlobalCacheForBin *gb,
+				  uint64_t siz) {
+  int n = gb->n_nonempty_caches;
+  if (n > 0) {
+    linked_list *result = gb->co[n-1].head;
+    linked_list *result_next = result->next;
+    if (result_next) {
+      // if there was only one result in the list, then don't modify the cpu cache.
+      cached_objects *co0 = &cb->co[0];
+      cached_objects *co1 = &cb->co[1];
+      cached_objects *co  = co0->bytecount < co1->bytecount ? co0 : co1;
+
+      if (co->head == NULL) {
+	co->tail = gb->co[n-1].tail;
+      } else {
+	gb->co[n-1].tail->next = co->head;
+      }
+      co->head = result_next;
+      co->bytecount = gb->co[n-1].bytecount - siz;
+    }
+    gb->n_nonempty_caches = n-1;
+    return result;
+  } else {
+    return 0;
+  }
+}
+
+static void* try_get_global_cached(int processor,
+				   binnumber_t bin,
+				   uint64_t siz) {
+  // Try moving stuff from a global cache to a cpu cache.  Grab one of the objects while we are there.
+  return atomically(&cache_lock,
+		    predo_get_global_cached,
+		    do_get_global_cached,
+		    &cache_for_cpu[processor].cb[bin],
+		    &global_cache.gb[bin],
+		    siz);
+}
 
 uint64_t global_cache_attempt_count = 0;
 uint64_t global_cache_success_count = 0;
@@ -294,17 +296,6 @@ void* cached_malloc(size_t size)
     }
   }
     
-  // if (atomic_load(&global_cache.gb[bin].n_nonempty_caches) != 0) {
-  //   void *result = atomically(&cache_lock, // we'd really like a finer grained lock and a course lock for the global cache.
-  // 			      predo_get_from_global_cache,
-  // 			      do_get_from_global_cache,
-  // 			      &cache_for_cpu[p].cb[bin],
-  // 			      &global_cache.gb[bin],
-  // 			      bin_2_size(bin));
-  //   if (result) return result;
-  // }
-
-
   // Didn't get a result.  Use the underlying alloc
   if (bin < first_large_bin_number) {
     void *result = small_malloc(size);
@@ -317,35 +308,7 @@ void* cached_malloc(size_t size)
   }
 }
 
-static bool predo_try_put_cached(cached_objects *co) {
-  linked_list *h = co->head;
-  if (h) {
-    prefetch_write(co);
-    prefetch_read(h);
-    return true;
-  } else {
-    return false;
-  }
-}
-
-static void predo_put_cached(linked_list *obj,
-				    CacheForBin *cb,
-				    GlobalCacheForBin *gb,
-				    uint64_t size __attribute__((unused)),
-				    uint64_t cache_size __attribute__((unused))) {
-  prefetch_write(obj);
-  if (predo_try_put_cached(&cb->co[0])) return;
-  if (predo_try_put_cached(&cb->co[1])) return;
-  if (gb) {
-    uint8_t gnum = gb->n_nonempty_caches;
-    if (gnum < global_cache_depth) {
-      prefetch_write(&gb->co[gnum]);
-      prefetch_write(&cb->co[0]);
-    }
-  }
-}
-
-
+// This is not called atomically, it's only operating on thread cache
 static bool try_put_cached(linked_list *obj, cached_objects *co, uint64_t size, uint64_t cache_size) {
   uint64_t bc = co->bytecount;
   if (bc < cache_size) {
@@ -366,6 +329,7 @@ static bool try_put_cached(linked_list *obj, cached_objects *co, uint64_t size, 
   }
 }
 
+// This is not called atomically, it's only operating on thread cache
 static bool try_put_cached_both(linked_list *obj,
 				CacheForBin *cb,
 				uint64_t size,
