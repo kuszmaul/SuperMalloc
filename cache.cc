@@ -5,8 +5,6 @@
 #include "generated_constants.h"
 #include "bassert.h"
 
-#define THREADCACHE
-
 #ifdef ENABLE_LOG_CHECKING
 static void clog_command(char command, const void *ptr, size_t size);
 #else
@@ -14,13 +12,11 @@ static void clog_command(char command, const void *ptr, size_t size);
 #endif
 
 
-#ifndef THREADCACHE
 static __thread uint32_t cached_cpu, cached_cpu_count;
 static uint32_t getcpu(void) {
   if ((cached_cpu_count++)%2048  ==0) { cached_cpu = sched_getcpu(); if (0) printf("cpu=%d\n", cached_cpu); }
   return cached_cpu;
 }
-#endif
 
 struct linked_list {
   linked_list *next;
@@ -40,11 +36,9 @@ struct CacheForCpu {
   CacheForBin cb[first_huge_bin_number];
 } __attribute__((aligned(64)));
 
-#ifdef THREADCACHE
 static __thread CacheForCpu cache_for_thread ;
-#else
+
 static CacheForCpu cache_for_cpu[cpulimit];
-#endif
 
 static const int global_cache_depth = 8;
 
@@ -72,8 +66,7 @@ static inline linked_list* try_pop_from_cached_objects(cached_objects *co, uint6
 }
 
 static inline void predo_get_cached(CacheForBin *cb,
-				     GlobalCacheForBin *gb,
-				     uint64_t size __attribute__((unused))) {
+				    uint64_t size __attribute__((unused))) {
   {
     linked_list *h = atomic_load(&cb->co[0].head);
     if (h) {
@@ -90,16 +83,9 @@ static inline void predo_get_cached(CacheForBin *cb,
       return;
     }
   }
-  int n = gb->n_nonempty_caches;
-  if (n > 0) {
-    prefetch_read(&gb->co[n-1]);
-    prefetch_write(&cb->co[0]);
-    prefetch_write(&gb->n_nonempty_caches);
-  }
 }
 
 static inline void* do_get_cached(CacheForBin *cb,
-				  GlobalCacheForBin *gb,
 				  uint64_t size) {
   {
     linked_list *h = try_pop_from_cached_objects(&cb->co[0], size);
@@ -109,16 +95,32 @@ static inline void* do_get_cached(CacheForBin *cb,
     linked_list *h = try_pop_from_cached_objects(&cb->co[1], size);
     if (h) return h;
   }
-#ifdef THREADCACHE
-  mylock_raii mr(&cache_lock);
-#endif
-  {
-    int n = gb->n_nonempty_caches;
-    if (n > 0) {
-      cb->co[0] = gb->co[n-1];
-      gb->n_nonempty_caches = n-1;
-      return try_pop_from_cached_objects(&cb->co[1], size);
-    }
+  return NULL;
+}
+
+static inline void predo_get_from_global_cache(CacheForBin *cb,
+					       GlobalCacheForBin *gb,
+					       uint64_t size __attribute__((unused))) {
+  int n = gb->n_nonempty_caches;
+  if (n > 0) {
+    prefetch_read(&gb->co[n-1]);
+    prefetch_write(&cb->co[0]);
+    prefetch_write(&gb->n_nonempty_caches);
+  }
+}
+
+static inline void* do_get_from_global_cache(CacheForBin *cb,
+					     GlobalCacheForBin *gb,
+					     uint64_t size) {
+  int n = gb->n_nonempty_caches;
+  if (n > 0 && cb->co[0].head==NULL) {
+    cb->co[0] = gb->co[n-1];
+    gb->n_nonempty_caches = n-1;
+    linked_list *h = cb->co[0].head;;
+    bassert(h != NULL);
+    cb->co[0].head = h->next;
+    cb->co[0].bytecount -= size;
+    return h;
   }
   return NULL;
 }
@@ -128,26 +130,24 @@ void* cached_malloc(size_t size)
 {
   binnumber_t bin = size_2_bin(size);
   bassert(bin < first_huge_bin_number);
-#ifdef THREADCACHE
-  {
-    void * result = do_get_cached(&cache_for_thread.cb[bin],
-				  &global_cache.gb[bin],
-				  bin_2_size(bin));
+
+  if (   cache_for_thread.cb[bin].co[0].head != NULL
+      || cache_for_thread.cb[bin].co[1].head != NULL) {
+    void *result = do_get_cached(&cache_for_thread.cb[bin],
+				 bin_2_size(bin));
     if (result) return result;
   }
-#else
+
   // Still must access the cache atomically even though it's per processor.
   int p = getcpu() % cpulimit;
   __sync_fetch_and_add(&cache_for_cpu[p].attempt_count, 1);
   // Don't bother doing a transaction if there's nothing in the caches.
   if (   !(atomic_load(&cache_for_cpu[p].cb[bin].co[0].head) ==NULL)
-      || !(atomic_load(&cache_for_cpu[p].cb[bin].co[1].head) ==NULL)
-      || !(atomic_load(&global_cache.gb[bin].n_nonempty_caches) == 0)) {
+      || !(atomic_load(&cache_for_cpu[p].cb[bin].co[1].head) ==NULL)) {
     void *result = atomically(&cache_lock,
 			      predo_get_cached,
 			      do_get_cached,
 			      &cache_for_cpu[p].cb[bin],
-			      &global_cache.gb[bin],
 			      bin_2_size(bin));
     if (result) {
       bassert(chunk_infos[address_2_chunknumber(result)].bin_number == bin);
@@ -156,7 +156,18 @@ void* cached_malloc(size_t size)
       return result;
     }
   }
-#endif
+
+  if (atomic_load(&global_cache.gb[bin].n_nonempty_caches) != 0) {
+    void *result = atomically(&cache_lock, // we'd really like a finer grained lock and a course lock for the global cache.
+			      predo_get_from_global_cache,
+			      do_get_from_global_cache,
+			      &cache_for_cpu[p].cb[bin],
+			      &global_cache.gb[bin],
+			      bin_2_size(bin));
+    if (result) return result;
+  }
+
+
   // Didn't get a result.  Use the underlying alloc
   if (bin < first_large_bin_number) {
     void *result = small_malloc(size);
@@ -189,10 +200,12 @@ static inline void predo_put_cached(linked_list *obj,
   prefetch_write(obj);
   if (predo_try_put_cached(&cb->co[0])) return;
   if (predo_try_put_cached(&cb->co[1])) return;
-  uint8_t gnum = gb->n_nonempty_caches;
-  if (gnum < global_cache_depth) {
-    prefetch_write(&gb->co[gnum]);
-    prefetch_write(&cb->co[0]);
+  if (gb) {
+    uint8_t gnum = gb->n_nonempty_caches;
+    if (gnum < global_cache_depth) {
+      prefetch_write(&gb->co[gnum]);
+      prefetch_write(&cb->co[0]);
+    }
   }
 }
 
@@ -220,15 +233,9 @@ static inline bool do_put_cached(linked_list *obj,
 				 CacheForBin *cb,
 				 GlobalCacheForBin *gb,
 				 uint64_t size) {
-#ifdef THREADCACHE
-  //mylock_raii mr(&cache_lock);
-#endif
   if (try_put_cached(obj, &cb->co[0], size)) return true;
   if (try_put_cached(obj, &cb->co[1], size)) return true;
-  {
-#ifdef THREADCACHE
-    mylock_raii mr(&cache_lock);
-#endif
+  if (gb) {
     uint8_t gnum = gb->n_nonempty_caches;
     if (gnum < global_cache_depth) {
       gb->co[gnum] = cb->co[0];
@@ -244,27 +251,43 @@ static inline bool do_put_cached(linked_list *obj,
 void cached_free(void *ptr, binnumber_t bin) {
   clog_command('f', ptr, bin);
   bassert(bin < first_huge_bin_number);
-#ifdef THREADCACHE
-  bool did_put = do_put_cached(reinterpret_cast<linked_list*>(ptr),
-			       &cache_for_thread.cb[bin],
-			       &global_cache.gb[bin],
-			       bin_2_size(bin));
-#else
+  uint64_t siz = bin_2_size(bin);
+  {
+    // No lock needed for this.
+    bool did_put = do_put_cached(reinterpret_cast<linked_list*>(ptr),
+				 &cache_for_thread.cb[bin],
+				 NULL,
+				 siz);
+    if (did_put) return;
+  }
+
   int p = getcpu() % cpulimit;
-  bool did_put = atomically(&cache_lock,
-			    predo_put_cached,
-			    do_put_cached,
-			    reinterpret_cast<linked_list*>(ptr),
-			    &cache_for_cpu[p].cb[bin],
-			    &global_cache.gb[bin],
-			    bin_2_size(bin));
-#endif
-  if (!did_put) {
-    if (bin < first_large_bin_number) {
-      small_free(ptr);
-    } else {
-      large_free(ptr);
-    }
+  {
+    bool did_put = atomically(&cache_lock,
+			      predo_put_cached,
+			      do_put_cached,
+			      reinterpret_cast<linked_list*>(ptr),
+			      &cache_for_cpu[p].cb[bin],
+			      reinterpret_cast<GlobalCacheForBin*>(NULL),
+			      siz);
+    if (did_put) return;
+  }
+  {
+    bool did_put = atomically(&cache_lock,
+			      predo_put_cached,
+			      do_put_cached,
+			      reinterpret_cast<linked_list*>(ptr),
+			      &cache_for_cpu[p].cb[bin],
+			      &global_cache.gb[bin],
+			      siz);
+    if (did_put) return;
+  }
+  
+
+  if (bin < first_large_bin_number) {
+    small_free(ptr);
+  } else {
+    large_free(ptr);
   }
 }
 
