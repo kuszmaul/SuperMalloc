@@ -68,7 +68,7 @@ static void check_log() {
 #endif
 
 bool use_transactions = true;
-
+bool do_predo = true;
 
 static void initialize_malloc() {
 #ifdef ENABLE_STATS
@@ -93,6 +93,16 @@ static void initialize_malloc() {
 	use_transactions  = false;
       } else if (strcmp(v, "1")==0) {
 	use_transactions = true;
+      }
+    }
+  }
+  {
+    char *v = getenv("SUPERMALLOC_PREDO");
+    if (v) {
+      if (strcmp(v, "0")==0) {
+	do_predo  = false;
+      } else if (strcmp(v, "1")==0) {
+	do_predo = true;
       }
     }
   }

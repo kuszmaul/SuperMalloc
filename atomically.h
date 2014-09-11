@@ -41,6 +41,7 @@ static inline void mylock_release(volatile unsigned int *mylock) {
 }
 
 extern bool use_transactions;
+extern bool do_predo;
 
 #define XABORT_LOCK_HELD 9
 
@@ -71,10 +72,10 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
     int count = 0;
     while (count < 20) {
       mylock_wait(mylock);
-      predo(args...);
+      if (do_predo) predo(args...);
       while (mylock_wait(mylock)) {
 	// If the lock was held for a long time, then do the predo code again.
-	predo(args...);
+	if (do_predo) predo(args...);
       }
       unsigned int xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
@@ -98,7 +99,7 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
     }
   }
   // We finally give up and acquire the lock.
-  predo(args...);
+  if (do_predo) predo(args...);
   mylock_acquire(mylock);
   ReturnType r = fun(args...);
   mylock_release(mylock);
