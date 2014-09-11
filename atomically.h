@@ -56,41 +56,43 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
 				    ReturnType (*fun)(Arguments... args),
 				    Arguments... args) {
 
-  // Be a little optimistic: try to run the function without the predo if we the lock looks good
-  if (*mylock == 0) {
-    unsigned int xr = _xbegin();
-    if (xr == _XBEGIN_STARTED) {
-      ReturnType r = fun(args...);
-      if (*mylock) _xabort(XABORT_LOCK_HELD);
-      _xend();
-      return r;
+  if (have_rtm) {
+    // Be a little optimistic: try to run the function without the predo if we the lock looks good
+    if (*mylock == 0) {
+      unsigned int xr = _xbegin();
+      if (xr == _XBEGIN_STARTED) {
+	ReturnType r = fun(args...);
+	if (*mylock) _xabort(XABORT_LOCK_HELD);
+	_xend();
+	return r;
+      }
     }
-  }
 
-  int count = 0;
-  while (have_rtm && count < 20) {
-    mylock_wait(mylock);
-    predo(args...);
-    while (mylock_wait(mylock)) {
-      // If the lock was held for a long time, then do the predo code again.
+    int count = 0;
+    while (count < 20) {
+      mylock_wait(mylock);
       predo(args...);
-    }
-    unsigned int xr = _xbegin();
-    if (xr == _XBEGIN_STARTED) {
-      ReturnType r = fun(args...);
-      if (*mylock) _xabort(XABORT_LOCK_HELD);
-      _xend();
-      return r;
-    } else if ((xr & _XABORT_EXPLICIT) && (_XABORT_CODE(xr) == XABORT_LOCK_HELD)) {
-      count = 0; // reset the counter if we had an explicit lock contention abort.
-      continue;
-    } else {
-      count++;
-      for (int i = 1; i < count; i++) {
-	if (0 == (prandnum()&1023)) {
-	  sched_yield();
-	} else {
-	  __asm__ volatile("pause");
+      while (mylock_wait(mylock)) {
+	// If the lock was held for a long time, then do the predo code again.
+	predo(args...);
+      }
+      unsigned int xr = _xbegin();
+      if (xr == _XBEGIN_STARTED) {
+	ReturnType r = fun(args...);
+	if (*mylock) _xabort(XABORT_LOCK_HELD);
+	_xend();
+	return r;
+      } else if ((xr & _XABORT_EXPLICIT) && (_XABORT_CODE(xr) == XABORT_LOCK_HELD)) {
+	count = 0; // reset the counter if we had an explicit lock contention abort.
+	continue;
+      } else {
+	count++;
+	for (int i = 1; i < count; i++) {
+	  if (0 == (prandnum()&1023)) {
+	    sched_yield();
+	  } else {
+	    __asm__ volatile("pause");
+	  }
 	}
       }
     }
