@@ -40,6 +40,17 @@ static inline void mylock_release(volatile unsigned int *mylock) {
   *mylock = 0;
 }
 
+class mylock_raii {
+  volatile unsigned int *mylock;
+public:
+  mylock_raii(volatile unsigned int *mylock) : mylock(mylock) {
+    mylock_acquire(mylock);
+  }
+  ~mylock_raii() {
+    mylock_release(mylock);
+  }
+};
+
 extern bool use_transactions;
 extern bool do_predo;
 
@@ -100,9 +111,8 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
   }
   // We finally give up and acquire the lock.
   if (do_predo) predo(args...);
-  mylock_acquire(mylock);
+  mylock_raii mr(mylock);
   ReturnType r = fun(args...);
-  mylock_release(mylock);
   return r;
 }
 
