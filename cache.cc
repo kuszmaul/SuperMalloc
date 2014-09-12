@@ -287,6 +287,7 @@ static void collect_objects_for_thread_cache(cached_objects *objects,
   }
 }
 
+__attribute__((optimize("unroll-loops")))
 static void predo_fetch_one_from_cpu(CacheForBin *cc, size_t siz __attribute__((unused))) {
   for (int i = 0; i < 2 ; i++) {
     linked_list *result = cc->co[i].head;
@@ -297,6 +298,8 @@ static void predo_fetch_one_from_cpu(CacheForBin *cc, size_t siz __attribute__((
     }
   }
 }
+
+__attribute__((optimize("unroll-loops")))
 static void* do_fetch_one_from_cpu(CacheForBin *cc, size_t siz) {
   for (int i = 0; i < 2; i++) {
     linked_list *result = cc->co[i].head;
@@ -584,6 +587,7 @@ static void predo_put_one_into_cpu_cache(linked_list *obj,
   prefetch_write(cc);
 }
 
+__attribute__((optimize("unroll-loops")))
 static bool do_put_one_into_cpu_cache(linked_list *obj,
 				      CacheForBin *cc,
 				      uint64_t siz) {
