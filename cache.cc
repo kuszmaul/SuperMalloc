@@ -506,6 +506,7 @@ static bool try_put_into_cpu_cache_part(linked_list *obj,
     tco->head = NULL;
     tco->tail = NULL;                                  // The tail can be left undefined if the head is NULL.
     
+    return true;
   }
   return false;
 }
