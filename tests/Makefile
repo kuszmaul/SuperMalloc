@@ -42,7 +42,7 @@ test-malloc_test: CFLAGS += -pthread
 data: test-malloc_test.data test-malloc_test4K.data
 
 test-malloc_test-1K.data: test-malloc_test Makefile ../libsupermalloc.so
-	echo threads supermalloc-rtm-threadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo jemalloc > $@
+	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo jemalloc > $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
 	  echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -w $$thread) \
                         $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
