@@ -120,6 +120,7 @@ void small_free(void* ptr);
 void test_small_malloc();
 #endif
 
+extern bool use_threadcache;
 void* cached_malloc(size_t size);
 void cached_free(void *ptr, binnumber_t bin);
 

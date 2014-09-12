@@ -69,6 +69,7 @@ static void check_log() {
 
 bool use_transactions = true;
 bool do_predo = true;
+bool use_threadcache = true;
 
 static void initialize_malloc() {
 #ifdef ENABLE_STATS
@@ -103,6 +104,16 @@ static void initialize_malloc() {
 	do_predo  = false;
       } else if (strcmp(v, "1")==0) {
 	do_predo = true;
+      }
+    }
+  }
+  {
+    char *v = getenv("SUPERMALLOC_THREADCACHE");
+    if (v) {
+      if (strcmp(v, "0")==0) {
+	use_threadcache = false;
+      } else if (strcmp(v, "1")==0) {
+	use_threadcache = true;
       }
     }
   }

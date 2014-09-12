@@ -287,57 +287,93 @@ static void collect_objects_for_thread_cache(cached_objects *objects,
   }
 }
 
+static void predo_fetch_one_from_cpu(CacheForBin *cc, size_t siz __attribute__((unused))) {
+  for (int i = 0; i < 2 ; i++) {
+    linked_list *result = cc->co[i].head;
+    if (result) {
+      prefetch_write(&cc->co[i]);
+      prefetch_read(result);
+      return;
+    }
+  }
+}
+static void* do_fetch_one_from_cpu(CacheForBin *cc, size_t siz) {
+  for (int i = 0; i < 2; i++) {
+    linked_list *result = cc->co[i].head;
+    if (result) {
+      cc->co[i].bytecount -= siz;
+      linked_list *next = result->next;
+      cc->co[i].head = next;
+      if (next == NULL) {
+	cc->co[i].tail = NULL;
+      }
+      return result;
+    }
+  }
+  return NULL;
+}
+
 static void* try_get_cpu_cached(int processor,
 				binnumber_t bin,
 				uint64_t siz) {
-  // Implementation notes:
-  // 1) Atomically remove stuff from the cpu cache.
-  // 2) Grab thread_cache_bytecount_limit worth of items of that list (which can be done without holding a lock, see we will have exclusive ownership of that list)
-  // 3) Atomically put everything else back into the cpu cache (this requires maintaining tail in the cpu cache after all)
-  // 4) Return the one object.
 
-  CacheForBin *tc = &cache_for_thread.cb[bin];
-  CacheForBin *cc = &cache_for_cpu[processor].cb[bin];
+  if (use_threadcache) {
+    // Implementation notes:
+    // 1) Atomically remove stuff from the cpu cache.
+    // 2) Grab thread_cache_bytecount_limit worth of items of that list (which can be done without holding a lock, see we will have exclusive ownership of that list)
+    // 3) Atomically put everything else back into the cpu cache (this requires maintaining tail in the cpu cache after all)
+    // 4) Return the one object.
 
-  // Step 1
-  cached_objects my_co;
-  atomically(&cache_lock,
-	     predo_remove_a_cache_from_cpu,
-	     do_remove_a_cache_from_cpu,
-	     cc,
-	     &my_co);
+    CacheForBin *tc = &cache_for_thread.cb[bin];
+    CacheForBin *cc = &cache_for_cpu[processor].cb[bin];
 
-  linked_list *result = my_co.head;
-  if (!result) return NULL;
-  my_co.head = result->next;
-  my_co.bytecount -= siz;
-
-  // Step 2 (this doesn't need to be atomic)
-  {
-    cached_objects first_n_objects;
-    collect_objects_for_thread_cache(&my_co, &first_n_objects, siz);
-    
-    if (tc->co[0].head == NULL) {
-      tc->co[0] = first_n_objects;
-    } else {
-      bassert(tc->co[1].head == NULL);
-      tc->co[1] = first_n_objects;
-    }
-  }
-    
-  if (my_co.head != NULL) {
-    // This one doesn't have the option of failing.  It's possible that
-    // the CPU cache got really big while we were doing that stuff, but
-    // there's no point of trying to put stuff into the global cache (it
-    // might be full too) and the prospect of freeing all those objects
-    // sounds unappetizingly slow.  Just let the cpu cache get too big.
+    // Step 1
+    cached_objects my_co;
     atomically(&cache_lock,
-	       predo_add_a_cache_to_cpu,
-	       do_add_a_cache_to_cpu,
+	       predo_remove_a_cache_from_cpu,
+	       do_remove_a_cache_from_cpu,
 	       cc,
 	       &my_co);
+
+    linked_list *result = my_co.head;
+    if (!result) return NULL;
+    my_co.head = result->next;
+    my_co.bytecount -= siz;
+
+    // Step 2 (this doesn't need to be atomic)
+    {
+      cached_objects first_n_objects;
+      collect_objects_for_thread_cache(&my_co, &first_n_objects, siz);
+    
+      if (tc->co[0].head == NULL) {
+	tc->co[0] = first_n_objects;
+      } else {
+	bassert(tc->co[1].head == NULL);
+	tc->co[1] = first_n_objects;
+      }
+    }
+    
+    if (my_co.head != NULL) {
+      // This one doesn't have the option of failing.  It's possible that
+      // the CPU cache got really big while we were doing that stuff, but
+      // there's no point of trying to put stuff into the global cache (it
+      // might be full too) and the prospect of freeing all those objects
+      // sounds unappetizingly slow.  Just let the cpu cache get too big.
+      atomically(&cache_lock,
+		 predo_add_a_cache_to_cpu,
+		 do_add_a_cache_to_cpu,
+		 cc,
+		 &my_co);
+    }
+    return result;
+  } else {
+    // no threadcache.  Just try to get one thing out of the cpu cache and return it.
+    return atomically(&cache_lock,
+		      predo_fetch_one_from_cpu,
+		      do_fetch_one_from_cpu,
+		      &cache_for_cpu[processor].cb[bin],
+		      siz);
   }
-  return result;
 }
 
 static void predo_get_global_cached(CacheForBin *cb,
@@ -406,7 +442,7 @@ void* cached_malloc(size_t size)
   bassert(bin < first_huge_bin_number);
   uint64_t siz = bin_2_size(bin);
 
-  {
+  if (use_threadcache) {
     cache_for_thread.attempt_count++;
     void *result = try_get_cached_both(&cache_for_thread.cb[bin],
 				       siz);
@@ -530,6 +566,7 @@ static bool try_put_into_cpu_cache_part(linked_list *obj,
   }
   return false;
 }
+
 static bool do_put_into_cpu_cache(linked_list *obj,
 				  cached_objects *tco,
 				  CacheForBin *cc,
@@ -540,6 +577,32 @@ static bool do_put_into_cpu_cache(linked_list *obj,
   return false;
 }
 
+static void predo_put_one_into_cpu_cache(linked_list *obj,
+					 CacheForBin *cc,
+					 uint64_t siz __attribute__((unused))) {
+  prefetch_write(obj);
+  prefetch_write(cc);
+}
+
+static bool do_put_one_into_cpu_cache(linked_list *obj,
+				      CacheForBin *cc,
+				      uint64_t siz) {
+  for (int i = 0; i < 2; i++) {
+    uint64_t old_bytecount = cc->co[i].bytecount;
+    if (old_bytecount < per_cpu_cache_bytecount_limit) {
+      linked_list *old_head = cc->co[i].head;
+      if (old_head == NULL) {
+	cc->co[i].tail = obj;
+      }
+      cc->co[i].head = obj;
+      cc->co[i].bytecount = old_bytecount + siz;
+      obj->next = old_head;
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool try_put_into_cpu_cache(linked_list *obj,
 				   int processor,
 				   binnumber_t bin,
@@ -547,13 +610,22 @@ static bool try_put_into_cpu_cache(linked_list *obj,
 // Effect: Move obj and stuff from a threadcache into a cpu cache, if the cpu has space.
 // Requires: the threadcache has stuff in it.
 {
-  return atomically(&cache_lock,
-		    predo_put_into_cpu_cache,
-		    do_put_into_cpu_cache,
-		    obj,
-		    &cache_for_thread.cb[bin].co[0], // always move from bin 0
-		    &cache_for_cpu[processor].cb[bin],
-		    siz);
+  if (use_threadcache) {
+    return atomically(&cache_lock,
+		      predo_put_into_cpu_cache,
+		      do_put_into_cpu_cache,
+		      obj,
+		      &cache_for_thread.cb[bin].co[0], // always move from bin 0
+		      &cache_for_cpu[processor].cb[bin],
+		      siz);
+  } else {
+    return atomically(&cache_lock,
+		      predo_put_one_into_cpu_cache,
+		      do_put_one_into_cpu_cache,
+		      obj,
+		      &cache_for_cpu[processor].cb[bin],
+		      siz);
+  }
 }
 
 static void predo_put_into_global_cache(linked_list *obj,
@@ -620,11 +692,13 @@ void cached_free(void *ptr, binnumber_t bin) {
   uint64_t siz = bin_2_size(bin);
   
   // No lock needed for this.
-  if (try_put_cached_both(reinterpret_cast<linked_list*>(ptr),
-			  &cache_for_thread.cb[bin],
-			  siz,
-			  thread_cache_bytecount_limit)) {
-    return;
+  if (use_threadcache) {
+    if (try_put_cached_both(reinterpret_cast<linked_list*>(ptr),
+			    &cache_for_thread.cb[bin],
+			    siz,
+			    thread_cache_bytecount_limit)) {
+      return;
+    }
   }
 
   int p = getcpu() % cpulimit;

@@ -24,13 +24,17 @@ check: $(patsubst %,check_%,$(TARGETS)) \
  check-test-malloc_test-w2 \
  check-test-malloc_test-w1-s4096
 check_%: %
-	./$<
+	SUPERMALLOC_THREADCACHE=1 ./$<
+	SUPERMALLOC_THREADCACHE=0 ./$<
 check-test-malloc_test-w1: test-malloc_test Makefile
-	./$< -w1
+	SUPERMALLOC_THREADCACHE=0 ./$< -w1
+	SUPERMALLOC_THREADCACHE=1 ./$< -w1
 check-test-malloc_test-w2: test-malloc_test Makefile
-	./$< -w2
+	SUPERMALLOC_THREADCACHE=0 ./$< -w2
+	SUPERMALLOC_THREADCACHE=1 ./$< -w2
 check-test-malloc_test-w1-s4096:  test-malloc_test Makefile
-	./$< -w1 -s 4096
+	SUPERMALLOC_THREADCACHE=0 ./$< -w1 -s 4096
+	SUPERMALLOC_THREADCACHE=0 ./$< -w1 -s 4096
 
 test-malloc_test: CFLAGS += -pthread
 
@@ -38,12 +42,13 @@ test-malloc_test: CFLAGS += -pthread
 data: test-malloc_test.data test-malloc_test4K.data
 
 test-malloc_test-1K.data: test-malloc_test Makefile ../libsupermalloc.so
-	echo threads supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo jemalloc > $@
+	echo threads supermalloc-rtm-threadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo jemalloc > $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
-	  echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 ./$< -w $$thread) \
-                        $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=1 ./$< -w $$thread) \
-                        $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=0 ./$< -w $$thread) \
-                        $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=0 ./$< -w $$thread) \
+	  echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -w $$thread) \
+                        $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
+                        $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
+                        $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=0 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
+                        $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=0 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
                         $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w $$thread) \
               | tee -a $@ \
         ;done ;done

@@ -35,7 +35,8 @@ $(patsubst %, %.o, $(ALL_LIB_SOURCES)): $(wildcard *.h) generated_constants.h
 
 check: check_malloc tests_check
 check_malloc: malloc
-	./malloc
+	SUPERMALLOC_THREADCACHE=1 ./malloc
+	SUPERMALLOC_THREADCACHE=0 ./malloc
 .PHONY: tests_check
 tests_check: libsupermalloc.so
 	cd tests;$(MAKE) check
