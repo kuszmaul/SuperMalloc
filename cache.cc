@@ -262,6 +262,31 @@ static void test_add_a_cache_to_cpu() {
 }
 #endif
 
+static void collect_objects_for_thread_cache(cached_objects *objects,
+					     cached_objects *first_n_objects,
+					     uint64_t siz) {
+  if (objects->bytecount < thread_cache_bytecount_limit) {
+    *first_n_objects = *objects;
+    *objects = empty_cached_objects;
+  } else {
+    first_n_objects->head = objects->head;
+    linked_list *ptr =      objects->head;
+    uint64_t bytecount = siz;
+    while (bytecount < thread_cache_bytecount_limit) {
+      bytecount += siz;
+      bassert(ptr);
+      ptr = ptr->next;
+    }
+    bassert(ptr);
+    first_n_objects->tail = ptr;
+    first_n_objects->bytecount = bytecount;
+    objects->head = ptr->next;
+    if (objects->head == NULL) objects->tail = NULL;
+    objects->bytecount -= bytecount;
+    ptr->next = NULL;
+  }
+}
+
 static void* try_get_cpu_cached(int processor,
 				binnumber_t bin,
 				uint64_t siz) {
@@ -282,35 +307,30 @@ static void* try_get_cpu_cached(int processor,
 	     cc,
 	     &my_co);
 
-  // Step 2 (this doesn't need to be atomic)
   linked_list *result = my_co.head;
   if (!result) return NULL;
-  my_co.bytecount -= siz;
   my_co.head = result->next;
+  my_co.bytecount -= siz;
 
-  bool h0 = tc->co[0].head ;
-  cached_objects *to_co = h0 ? &tc->co[1] : &tc->co[0];
-  bassert(to_co->head == NULL);
-  if (my_co.bytecount < thread_cache_bytecount_limit) {
-    *to_co = my_co;
-    // No need to put anything back.
-  } else {
-    to_co->head = my_co.head;
-    uint64_t bytecount = siz;
-    linked_list *ptr = my_co.head;
-    while (bytecount < thread_cache_bytecount_limit) { // I don't really care if it goes one over, and I want to make sure *something* gets moved.
-      bytecount += siz;
-      bassert(ptr);
-      ptr       = ptr->next;
+  // Step 2 (this doesn't need to be atomic)
+  {
+    cached_objects first_n_objects;
+    collect_objects_for_thread_cache(&my_co, &first_n_objects, siz);
+    
+    if (tc->co[0].head == NULL) {
+      tc->co[0] = first_n_objects;
+    } else {
+      bassert(tc->co[1].head == NULL);
+      tc->co[1] = first_n_objects;
     }
-    bassert(ptr);
-    to_co->tail = ptr;
-    to_co->bytecount = bytecount;
-    my_co.head       = ptr->next;
-    my_co.bytecount -= bytecount;
-    // This one doesn't have the option of failing.  It's possible that the CPU cache got really big while we were doing that stuff, but there's no point of trying to
-    // put stuff into the global cache (it might be full too) and the prospect of freeing all those objects sounds unappetizingly slow.  Just let the cpu cache get too
-    // big.
+  }
+    
+  if (my_co.head != NULL) {
+    // This one doesn't have the option of failing.  It's possible that
+    // the CPU cache got really big while we were doing that stuff, but
+    // there's no point of trying to put stuff into the global cache (it
+    // might be full too) and the prospect of freeing all those objects
+    // sounds unappetizingly slow.  Just let the cpu cache get too big.
     atomically(&cache_lock,
 	       predo_add_a_cache_to_cpu,
 	       do_add_a_cache_to_cpu,
