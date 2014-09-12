@@ -123,6 +123,10 @@ void test_small_malloc();
 void* cached_malloc(size_t size);
 void cached_free(void *ptr, binnumber_t bin);
 
+#ifdef TESTING
+void test_cache_early();
+#endif
+
 const int cpulimit = 128;
 
 

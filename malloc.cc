@@ -407,6 +407,7 @@ extern "C" size_t malloc_usable_size(const void *ptr) {
 
 #ifdef TESTING
 int main() {
+  test_cache_early(); // this test should be done before any mallocs are done
   initialize_malloc();
   test_hyperceil();
   test_size_2_bin();

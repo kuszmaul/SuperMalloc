@@ -11,6 +11,7 @@ static void clog_command(char command, const void *ptr, size_t size);
 #define clog_command(a,b,c) ((void)0)
 #endif
 
+typedef bool ignore;
 
 static __thread uint32_t cached_cpu, cached_cpu_count;
 static uint32_t getcpu(void) {
@@ -77,18 +78,63 @@ static void* try_get_cached_both(CacheForBin *cb,
   return try_get_cached(&cb->co[1], siz);
 }
 
+#ifdef TESTING
+static void assert_equal(const cached_objects *co, uint64_t bytecount, linked_list *h, linked_list *t) {
+  bassert(co->bytecount == bytecount);
+  bassert(co->head == h);
+  if (co->head) {
+    bassert(co->tail == t);
+  }
+}
+
+static void test_try_get_cached_both()
+{
+  {
+    CacheForBin c = {{{0,NULL,NULL},{0,NULL,NULL}}};
+    void *r = try_get_cached_both(&c, 1024);
+    bassert(r==NULL);
+  }
+  {
+    linked_list item1 = {NULL};
+    linked_list item2 = {&item1};
+    CacheForBin c = {{{2048, &item2, &item1},{0,NULL,NULL}}};
+    void *r = try_get_cached_both(&c, 1024);
+    bassert(r = reinterpret_cast<void*>(&item2));
+    assert_equal(&c.co[0], 1024, &item1, &item1);
+    assert_equal(&c.co[1], 0, NULL, NULL);
+    void *r2 = try_get_cached_both(&c, 1024);
+    bassert(r2 = reinterpret_cast<void*>(&item1));
+    assert_equal(&c.co[0], 0, NULL, NULL);
+    assert_equal(&c.co[1], 0, NULL, NULL);
+  }
+  {
+    linked_list item1 = {NULL};
+    linked_list item2 = {&item1};
+    CacheForBin c = {{{0,NULL,NULL},{2048, &item2, &item1}}};
+    void *r = try_get_cached_both(&c, 1024);
+    bassert(r = reinterpret_cast<void*>(&item2));
+    assert_equal(&c.co[1], 1024, &item1, &item1);
+    assert_equal(&c.co[0], 0, NULL, NULL);
+    void *r2 = try_get_cached_both(&c, 1024);
+    bassert(r2 = reinterpret_cast<void*>(&item1));
+    assert_equal(&c.co[1], 0, NULL, NULL);
+    assert_equal(&c.co[0], 0, NULL, NULL);
+  }
+}
+#endif
+
 static void predo_remove_a_cache_from_cpu(CacheForBin *cc,
 					  cached_objects *co) {
   prefetch_write(cc);
   prefetch_write(co);
 }
 
-static bool do_remove_a_cache_from_cpu(CacheForBin *cc,
+static ignore do_remove_a_cache_from_cpu(CacheForBin *cc,
 				       cached_objects *co) {
   if (cc->co[0].head) {
     *co = cc->co[0];
     cc->co[0] = empty_cached_objects;
-  } if (cc->co[1].head) {
+  } else if (cc->co[1].head) {
     *co = cc->co[1];
     cc->co[1] = empty_cached_objects;
   } else {
@@ -96,6 +142,36 @@ static bool do_remove_a_cache_from_cpu(CacheForBin *cc,
   }
   return true;
 }
+
+#ifdef TESTING
+static void test_remove_a_cache_from_cpu() {
+  linked_list item1= {NULL};
+  linked_list item2= {NULL};
+  CacheForBin c = {{{1024, &item1, &item1}, {1024, &item2, &item2}}};
+  cached_objects co = {0,NULL,NULL};
+  {
+    predo_remove_a_cache_from_cpu(&c, &co);
+    do_remove_a_cache_from_cpu(&c, &co);
+    assert_equal(&co, 1024, &item1, &item1);
+    assert_equal(&c.co[0],  0, NULL, NULL);
+    assert_equal(&c.co[1], 1024, &item2, &item2);
+  }
+  {
+    predo_remove_a_cache_from_cpu(&c, &co);
+    do_remove_a_cache_from_cpu(&c, &co);
+    assert_equal(&co, 1024, &item2, &item2);
+    assert_equal(&c.co[0],  0, NULL, NULL);
+    assert_equal(&c.co[1],  0, NULL, NULL);
+  }
+  {
+    predo_remove_a_cache_from_cpu(&c, &co);
+    do_remove_a_cache_from_cpu(&c, &co);
+    assert_equal(&co,       0, NULL, NULL);
+    assert_equal(&c.co[0],  0, NULL, NULL);
+    assert_equal(&c.co[1],  0, NULL, NULL);
+  }
+}
+#endif
 
 static void predo_add_a_cache_to_cpu(CacheForBin *cc,
 				     /*const*/ cached_objects *co) // I wanted that to be "const cached_objects &co", but I couldn't make the type system happy.
@@ -114,8 +190,8 @@ static void predo_add_a_cache_to_cpu(CacheForBin *cc,
   }
 }
 
-static bool do_add_a_cache_to_cpu(CacheForBin *cc,
-				  /*const*/ cached_objects *co)  // I wanted that to be "const cached_objects &co", but I couldn't make the type system happy.
+static ignore do_add_a_cache_to_cpu(CacheForBin *cc,
+				    /*const*/ cached_objects *co)  // I wanted that to be "const cached_objects &co", but I couldn't make the type system happy.
 {
   // bassert(co->head != NULL);  This assert was done in the predo, and it won't have changd.
   uint64_t bc0 = cc->co[0].bytecount;
@@ -137,6 +213,54 @@ static bool do_add_a_cache_to_cpu(CacheForBin *cc,
   return true;
 }
 
+#ifdef TESTING
+static void test_add_a_cache_to_cpu() {
+  {
+    CacheForBin cc = {{{0,0,0},{0,0,0}}};
+    linked_list item={0};
+    cached_objects co = {1024, &item, &item};
+    do_add_a_cache_to_cpu(&cc, &co);
+    assert_equal(&cc.co[0], 1024, &item, &item);
+    assert_equal(&cc.co[1],0,0,0);
+    bassert(item.next == 0);
+  }
+  {
+    linked_list item2;
+    CacheForBin cc = {{{2048, &item2, &item2},{0,0,0}}};
+    linked_list item;
+    cached_objects co = {1024,&item,&item};
+    do_add_a_cache_to_cpu(&cc, &co);
+    assert_equal(&cc.co[0], 2048, &item2, &item2);
+    assert_equal(&cc.co[1], 1024, &item,  &item);
+  }
+  {
+    linked_list item3={0};
+    linked_list item2={0};
+    CacheForBin cc = {{{1024, &item2, &item2},{2048,&item3,&item3}}};
+    linked_list item={0};
+    cached_objects co = {1024,&item,&item};
+    do_add_a_cache_to_cpu(&cc, &co);
+    assert_equal(&cc.co[0], 2048, &item2, &item);
+    bassert(item2.next  == &item);
+    bassert(item.next == NULL);
+    assert_equal(&cc.co[1], 2048, &item3,  &item3);
+    bassert(item3.next == NULL);
+  }
+  {
+    linked_list item3={0};
+    linked_list item2={0};
+    CacheForBin cc = {{{2048,&item3,&item3},{1024, &item2, &item2}}};
+    linked_list item={0};
+    cached_objects co = {1024,&item,&item};
+    do_add_a_cache_to_cpu(&cc, &co);
+    assert_equal(&cc.co[1], 2048, &item2, &item);
+    bassert(item2.next  == &item);
+    bassert(item.next == NULL);
+    assert_equal(&cc.co[0], 2048, &item3,  &item3);
+    bassert(item3.next == NULL);
+  }
+}
+#endif
 
 static void* try_get_cpu_cached(int processor,
 				binnumber_t bin,
@@ -538,5 +662,13 @@ void check_log_cache() {
   for (int i = 0; i < clog_count; i++) {
     printf("%c %p %ld\n", clog[i].command, clog[i].ptr, clog[i].size);
   }
+}
+#endif
+
+#ifdef TESTING
+void test_cache_early() {
+  test_try_get_cached_both();
+  test_remove_a_cache_from_cpu();
+  test_add_a_cache_to_cpu();
 }
 #endif
