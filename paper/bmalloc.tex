@@ -92,4 +92,18 @@ MADV\_FREE is *way* nicer than MADV\_DONTNEED in the context of malloc.  jemallo
 \item Measure the value of the predo.  (Turn it off and see)
 
 \item try it on a bigger machine (it won't be haswell though...)
+
+\item analysis of the 1k-aggregate data (measured on a haswell)
+
+ jemalloc is slower.
+
+ threadcache is slower (but not by a lot).  Maybe the complexity of the threadcache isn't worth it.
+
+ Not really that much difference between predo and no-predo
+
+ Not really that much difference between lock and rtm.
+
+\item Need to measure it on a non-haswell type machine (and maybe a higher-core-count haswell machine)
+
+
 \end{enumerate}
