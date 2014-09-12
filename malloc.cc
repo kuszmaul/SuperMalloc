@@ -191,6 +191,35 @@ extern "C" void free_known_size(void *p, size_t size) {
   free(p);
 }
 
+#if 0
+// We could try to make a smart version of copy that notices that the mincore values are zero, and doesn't fill that memory, but I don't think that's an important realloc() use case.
+void smart_copy(const void *from_v, size_t len, void* into_v) {
+  const char *from = reinterpret_cast<const char *>(from_v);
+  char       *into = reinterpret_cast<      char *>(into_v);
+  size_t from_size, to_size;
+  if (len < 4096 ||
+      offset_in_page(from_v)!=0 ||
+      offset_in_page(into_v)!=0 ||
+      (from_size = malloc_usable_size(from_v))%page_size != 0 ||
+      (to_size   = malloc_usable_size(into_v))%page_size != 0) {
+    for (size_t i = 0; i < size; i++) {
+      into[i] = from[i];
+    }
+  } else {
+    bassert(len <= from_size && len <= to_size);
+    unsigned char *vec = malloc(ceil(len,page_size));
+    int r = mincore(from, len, vec);
+    for (int p = 0; p <= ceil(len, page_size); p++) {
+      if (
+    }
+    free(vec);
+  }
+}
+#endif
+static void smart_copy(const void *from_v, size_t len, void* into_v) {
+  memcpy(into_v, from_v, len);
+}
+
 extern "C" void* realloc(void *p, size_t size) {
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
@@ -201,18 +230,14 @@ extern "C" void* realloc(void *p, size_t size) {
   if (oldsize < size) {
     void *result = malloc(size);
     if (!result) return NULL; // without disrupting the contents of p.
-    for (size_t i = 0; i < oldsize; i++) {
-      ((char*)result)[i] = ((char*)p)[i];
-    }
+    smart_copy(p, oldsize, result);
     free(p);
     return result;
   }
   if (oldsize > 16 && size < oldsize/2) {
     void *result = malloc(size);
     if (!result) return NULL; // without disrupting the contents of p.
-    for (size_t i = 0; i < size; i++) {
-      ((char*)result)[i] = ((char*)p)[i];
-    }
+    smart_copy(p, size, result);
     return result;
   }
   return p;
