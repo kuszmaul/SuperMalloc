@@ -23,6 +23,8 @@
 //#include "xmalloc-config.h"
 //#include "xmalloc.h"
 
+#include "../benchmarks/random.h"
+
 #define CACHE_ALIGNED 1
 
 #define xmalloc malloc
@@ -80,12 +82,18 @@ double elapsed_time(struct timeval *time0)
 	return( et );
 }
 
+static const long possible_sizes[] = {8,12,16,24,32,48,64,96,128,192,256,(256*3)/2,512, (512*3)/2, 1024, (1024*3)/2, 2048};
+static const int n_sizes = sizeof(possible_sizes)/sizeof(long);
+
 void *mem_allocator (void *arg)
 {
 	int i;	
 	int thread_id = *(int *)arg;
 	int start = POOL_SIZE * thread_id;
 	int end = POOL_SIZE * (thread_id + 1);
+
+        struct lran2_st lr;
+	lran2_init(&lr, thread_id);
 
 	if(verbose_flag>2) {
 	  printf("Releaser %i works on memory pool %i to %i\n",
@@ -99,7 +107,9 @@ void *mem_allocator (void *arg)
 		for (i = start; i < end; ++i) {
 		  if (NULL == atomic_load(&mem_pool[i])) {
 		        did_one = true;
-		        atomic_store(&mem_pool[i], xmalloc(object_size));
+			size_t rand_size = possible_sizes[lran2(&lr)%n_sizes];
+			size_t siz = object_size > 0 ? (size_t)object_size : rand_size;
+		        atomic_store(&mem_pool[i], xmalloc(siz));
 			if (debug_flag) 
 			  printf("Allocate %i: slot %i\n", 
 				thread_id, i);
@@ -219,7 +229,7 @@ void usage(char *prog)
 	printf("%s [-w workers] [-t run_time] [-d] [-v]\n", prog);
 	printf("\t -w number of set of allocator and freer, default 2\n");
 	printf("\t -t run time in seconds, default 20.0 seconds.\n");
-	printf("\t -s size of object to allocate (default %d bytes)\n", DEFAULT_OBJECT_SIZE);
+	printf("\t -s size of object to allocate (default %d bytes) (specify -1 to get many different object sizes)\n", DEFAULT_OBJECT_SIZE);
 	printf("\t -d debug mode\n");
 	printf("\t -v verbose mode (-v -v produces more verbose)\n");
 	exit(1);

@@ -42,7 +42,7 @@ test-malloc_test: CFLAGS += -pthread
 data: test-malloc_test.data test-malloc_test4K.data
 
 test-malloc_test-1K.data: test-malloc_test Makefile ../libsupermalloc.so
-	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo jemalloc > $@
+	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo jemalloc | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
 	  echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -w $$thread) \
                         $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
@@ -55,29 +55,29 @@ test-malloc_test-1K.data: test-malloc_test Makefile ../libsupermalloc.so
 
 test-malloc_test.data: test-malloc_test Makefile ../libsupermalloc.so
 	rm -f $@
-	echo threads supermalloc-rtm supermalloc-lock jemalloc >> $@
-	echo 1 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 1) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 1) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 1) >> $@
-	echo 2 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 2) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 2) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 2) >> $@
-	echo 3 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 3) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 3) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 3) >> $@
-	echo 4 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 4) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 4) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 4) >> $@
-	echo 5 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 5) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 5) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 5) >> $@
-	echo 6 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 6) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 6) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 6) >> $@
-	echo 7 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 7) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 7) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 7) >> $@
-	echo 8 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 8) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 8) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 8) >> $@
+	echo threads supermalloc-rtm supermalloc-lock jemalloc | tee $@
+	echo 1 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 1) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 1) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 1) | tee -a $@
+	echo 2 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 2) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 2) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 2) | tee -a $@
+	echo 3 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 3) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 3) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 3) | tee -a $@
+	echo 4 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 4) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 4) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 4) | tee -a $@
+	echo 5 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 5) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 5) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 5) | tee -a $@
+	echo 6 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 6) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 6) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 6) | tee -a $@
+	echo 7 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 7) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 7) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 7) | tee -a $@
+	echo 8 $$(SUPERMALLOC_TRANSACTIONS=1 ./$< -w 8) $$(SUPERMALLOC_TRANSACTIONS=0 ./$< -w 8) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 8) | tee -a $@
 
 
 
 test-malloc_test4K.data: test-malloc_test Makefile ../libsupermalloc.so
 	rm -f $@
-	echo threads supermalloc jemalloc >> $@
-	echo 1 $$(./$< -w 1 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 1 -s 4096) >> $@
-	echo 2 $$(./$< -w 2 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 2 -s 4096) >> $@
-	echo 3 $$(./$< -w 3 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 3 -s 4096) >> $@
-	echo 4 $$(./$< -w 4 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 4 -s 4096) >> $@
-	echo 5 $$(./$< -w 5 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 5 -s 4096) >> $@
-	echo 6 $$(./$< -w 6 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 6 -s 4096) >> $@
-	echo 7 $$(./$< -w 7 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 7 -s 4096) >> $@
-	echo 8 $$(./$< -w 8 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 8 -s 4096) >> $@
+	echo threads supermalloc jemalloc | tee $@
+	echo 1 $$(./$< -w 1 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 1 -s 4096) | tee -a $@
+	echo 2 $$(./$< -w 2 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 2 -s 4096) | tee -a $@
+	echo 3 $$(./$< -w 3 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 3 -s 4096) | tee -a $@
+	echo 4 $$(./$< -w 4 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 4 -s 4096) | tee -a $@
+	echo 5 $$(./$< -w 5 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 5 -s 4096) | tee -a $@
+	echo 6 $$(./$< -w 6 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 6 -s 4096) | tee -a $@
+	echo 7 $$(./$< -w 7 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 7 -s 4096) | tee -a $@
+	echo 8 $$(./$< -w 8 -s 4096) $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w 8 -s 4096) | tee -a $@
 
 
 # You may need to have done "sudo modprobe msr"

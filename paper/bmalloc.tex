@@ -1,7 +1,7 @@
 Key insights:
 \begin{enumerate}
  \item Often benchmarks are not good.  For example test-malloc\_test.c spins, and for large numbers of threads behavs badly.  Adding a sched\_yield can help (we add it if it spins for a long time.  Also mm\_pause can help, but we didn't do it here.)
- \item  Why does jemalloc sometimes stall for a long time?  
+ \item  Why does jemalloc sometimes stall for a long time?   Can I observe it?
  \item why do transactions fail (too big, conflicts with another thread, time slice interupts, page faults)?  We can avoid almost all of that for malloc.
 
 
@@ -59,12 +59,14 @@ Key insights:
    similar spacing.  There's one anomaly near 4K where we are only 2x
    space competitive, otherwise we are 25\% space competetive.
 
- \item jemalloc is going for more spacings out beyond 2MB to have less wastage in the virtual address space.
+ \item jemalloc is going for more spacings out beyond 2MB to have less wastage in the virtual address space.  We stick to 2MB, but could do more.
+
+ \item Explain how we keep track of the requested size (so we can estimate the footprint), but we still use 2^k sizes for huge.
 
  \item Need to measure each feature to justify it.
   \begin{itemize}
-  \item small cache was helpful, but the global cache was huge (touching the global cache only once every 4MB is huge)
-  \item large cache needed to avoid too many madvise calls.  Need to measure that.
+  \item small cache was helpful, but the global cache was a huge win (touching the global cache only once every 4MB is huge)
+  \item large cache needed to avoid too many madvise calls.  (See the test-malloc\_test4K.data for the case with the cache).  Need to measure without any cache (that's the impact of all those system calls on madvise().
   \item huge system calls: we just do them.
   \end{itemize}
 
@@ -72,7 +74,7 @@ Key insights:
 
  \item where should the paper go?  SPAA (due in Jan?), OSDI (due May?), Usenix ATC (July, due
 
- \item What is the value of a small thread-local cache?
+ \item What is the value of a small thread-local cache? (We have data for that)
 
  \item Why do we need the caches?
   For small objects, we need the caches because they can be allocated and deallocated so fast, and we don't want all the thread contention.
@@ -89,7 +91,7 @@ MADV\_FREE is *way* nicer than MADV\_DONTNEED in the context of malloc.  jemallo
  \item turned off turboboost to measure (question: does this unfairly benefit jemalloc?)
    conclusion: no it affects jemalloc and supermalloc in about the same way.
 
-\item Measure the value of the predo.  (Turn it off and see)
+\item Measure the value of the predo.  (Turn it off and see) (not much value)
 
 \item try it on a bigger machine (it won't be haswell though...)
 
