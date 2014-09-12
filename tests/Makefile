@@ -53,6 +53,19 @@ test-malloc_test-1K.data: test-malloc_test Makefile ../libsupermalloc.so
               | tee -a $@ \
         ;done ;done
 
+test-malloc_test-nK.data: test-malloc_test Makefile ../libsupermalloc.so
+	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo jemalloc | tee $@
+	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
+	  echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -w $$thread -s -1) \
+                        $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread -s -1) \
+                        $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread -s -1) \
+                        $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=0 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread -s -1) \
+                        $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=0 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread -s -1) \
+                        $$(LD_PRELOAD=../jemalloc/lib/libjemalloc.so ./$< -w $$thread) \
+              | tee -a $@ \
+        ;done ;done
+
+
 test-malloc_test.data: test-malloc_test Makefile ../libsupermalloc.so
 	rm -f $@
 	echo threads supermalloc-rtm supermalloc-lock jemalloc | tee $@
