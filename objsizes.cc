@@ -154,6 +154,16 @@ class2:
   printf("  return (bin-%d)*pagesize + %lu;\n", first_huge_bin-1, largest_large);
   printf("}\n");
 
+  printf("static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin)  __attribute((unused)) __attribute((const));\n");
+  printf("static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin) {\n");
+  printf("  switch (bin) {\n");
+  for (binnumber_t b = 0; b < first_huge_bin; b++) {
+    printf("    case %u: return n/ud\n", b, static_bins[b].object_size);
+  }
+  printf("    default: abort();\n");
+  printf("  }\n");
+  printf("}\n");
+
   printf("#endif\n");
   return 0;
 }

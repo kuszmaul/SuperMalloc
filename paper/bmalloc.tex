@@ -107,5 +107,78 @@ MADV\_FREE is *way* nicer than MADV\_DONTNEED in the context of malloc.  jemallo
 
 \item Need to measure it on a non-haswell type machine (and maybe a higher-core-count haswell machine)
 
+\item can we really get away with lazy lock subscription?  Must review the code to be convinced.  Maybe have to do something else.
+
+\item What about cache-index awarenes? 
+
+ If the user asks for 1K aligned 1K, we should give it to them.
+
+ Otherwise, we should give them 1K+64 bytes in a 16KB ``metapage'' (15 1K+64 objects just fit into 16K)
+ 
+ When does it start?  Clearly there's no point until 128 bytes (which is 2 cache lines, but for objets of that size we aren't really worry about cache alignment.  192 is OK since things will appear variously.  At 256 maybe we should jump straight to 320?  Probalby not. 
+   Let's start at the other end.  
+
+   For huge objects, maybe we should and a random number of a page worth of cache lines (add 0 to 63 cache lines to the size, and return it aligned appropriately).
+
+   For large objects, we keep the current large sizes, but unless the use asks for aligned data, we do the same thing: add 0 to 63 cache lines.
+
+   Maybe add a new class of ``medium'' objects which are medium-page allocated (not within a page). 
+    For example: add
+      1024+64 bytes allocated in a 16KB metapage.
+      2048+64 bytes allocated in a 16KB metapage (wastes 1600 bytes per metapage, or 10\%.  Cuuld make the metapage 64KB and with 31 objects per metapage waste 64 bytes at the end.
+       (do we keep 1344, which wastes little but has fragmentation when the user asks for 1025 bytes?  Or do we got for 1280 (5/4 * 1024) and go to a metaage
+          (or do we got to 5-page metapages, which wastes 2 pages at the end of each chunk since it's 512 pages per hugepage. Or we could allocate 5 hugepages and do the bookkeeping to avoid any wastage.  But we've already wasted 25\% because of our chunking so a few more doesn't matter, making the choice of a 64KB metapage with a waste of 256 bytes at the end.
+
+     So here's a proposal, in addition to the current power-of-two sizes 256,512,1024,2048,4096,8192 (which are reserved for aligned allocations)
+       * add 288 (if they ask for 225 to 288) (14 objects/page yielding 23.1\% internal fragmentation page-wide, 20.7\% for 8-byte data) (they get 256 only for alignment)
+       * if they ask for 449-512 they get 576 (7 objects/page yielding 23.3\% internal fragmentation page wide, 22.1\% for 8-byte data)   (They get 512 only if they ask for aligne data)
+       * add 960 (if they ask for 769-960) (4 objects/page isn't enough even though it yields only 24.9\% internal fragmentation page wide, because there aren't enough offsets
+           so that's a problem
+       * add 1088 with 16KB metapage (12\% fragmentation (1024 only for aligned, otherwise 961-1088 gets this.)
+       * (1344 which we have incurs 20.2\% fragmentation on 1089-byte objects)
+       
+     Another proposal: Reserve the power-of-two bins for aligned requests.
+       objects < 64 are done the way we do them now (within 4K pages)
+       objects from 57 to 112 are done on 8K pages (using the bins for 72(new),80,96,112, (there will be lots of alignments))
+       objects for 113 to 224 are done on 16K pages (using the bins for 144(new),160,192,224 (there will be be lots of alignments))
+       objects for 225 to 448 are done on 32K pages (using the bins for 288(new),352,416,448,480 (all odd numbersa of 32)
+       objects from 449 to 960 are done on 64K pages (is 32K enough) (using bins for 576,704 (instead of 768), 832(new), 960 (new) (all  odd number of 64s from now on)
+       objects from 961 to 1088 are done on 64K pages
+
+     So here's a proposal
+        starting at 320-byte objects, all the objects will be a odd multiple of 64, and the number of objects per metapage will be <= 64 for speed of access
+        320 on 16K pages (kind of a big gap to the next one)
+        448 on 16K pages
+        576 on 32K pages
+        704 on 32K pages   (start skipping by 256)
+        960 on 32K pages
+        1216 on 64K pages 
+        1472 on 64K pages  (start skipping by 512)
+        1984 on 64K pages
+        2496 on 128K pages
+        3008 on 128K pages (start skipping by 1024)
+        4032 on 128K pages
+        5056 on 256K pages
+        6080 on 256K pages (start skipping by 2048)
+        8128 on 256K pages
+        10176 on 512K pages
+        12224 on 512K pages
+        after that it's page aligned: and a random number of cache lines to an object, allocate pages to fit, and return the offseat
+         e.g., ask for 12225, add up to 63 cache lines.  If you actually add 63, you need 16257 which fits in 4 pages (16384), so allocate 4 pages.
+          If you happened to add 0 you can do it with 3 pages.  So usually you are using 4 pages to represent 3 pages.  
+        
+      then after that it's page aligned but with a random 
+
+        1728 on 64K pages (start skipping by 512)
+        2240 on 128K pages
+
+        832 on 32K pages   (start skipping by 256)
+        1088 on 64K pages
+        1344 on 64K pages
+        1600 on 64K pages  (start skipping by 512) 
+        1856 on 64K pages 
+        2368
+
+\item What about NUMA friendly?  Should I care?
 
 \end{enumerate}
