@@ -18,11 +18,13 @@ clean:
 .PHONY: check check_% \
  check-test-malloc_test-w1 \
  check-test-malloc_test-w2 \
- check-test-malloc_test-w1-s4096
+ check-test-malloc_test-w1-s4096 \
+ check-test-malloc_test-w1-s-1
 check: $(patsubst %,check_%,$(TARGETS)) \
  check-test-malloc_test-w1 \
  check-test-malloc_test-w2 \
- check-test-malloc_test-w1-s4096
+ check-test-malloc_test-w1-s4096 \
+ check-test-malloc_test-w1-s-1
 check_%: %
 	SUPERMALLOC_THREADCACHE=1 ./$<
 	SUPERMALLOC_THREADCACHE=0 ./$<
@@ -32,9 +34,12 @@ check-test-malloc_test-w1: test-malloc_test Makefile
 check-test-malloc_test-w2: test-malloc_test Makefile
 	SUPERMALLOC_THREADCACHE=0 ./$< -w2
 	SUPERMALLOC_THREADCACHE=1 ./$< -w2
-check-test-malloc_test-w1-s4096:  test-malloc_test Makefile
+check-test-malloc_test-w1-s4096: test-malloc_test Makefile
 	SUPERMALLOC_THREADCACHE=0 ./$< -w1 -s 4096
 	SUPERMALLOC_THREADCACHE=0 ./$< -w1 -s 4096
+check-test-malloc_test-w1-s-1: test-malloc_test Makefile
+	SUPERMALLOC_THREADCACHE=0 ./$< -w1 -s -1
+	SUPERMALLOC_THREADCACHE=0 ./$< -w1 -s -1
 
 test-malloc_test: CFLAGS += -pthread
 

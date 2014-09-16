@@ -167,7 +167,11 @@ void large_free(void *p) {
   uint64_t usable_size = bin_2_size(bin);
   madvise(p, usable_size, MADV_DONTNEED);
   uint64_t offset = offset_in_chunk(p);
-  uint64_t objnum = (offset-2*pagesize)/usable_size;
+  uint64_t        objnum = divide_offset_by_objsize(offset-2*pagesize, bin);
+  if (IS_TESTING) {
+    uint64_t objnum2 = (offset-2*pagesize)/usable_size;
+    bassert(objnum == objnum2);
+  }
   large_object_list_cell *entries = reinterpret_cast<large_object_list_cell*>(address_2_chunkaddress(p));
   uint32_t footprint = entries[objnum].footprint;
   add_to_footprint(-static_cast<int64_t>(footprint));

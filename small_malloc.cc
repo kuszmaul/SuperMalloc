@@ -343,7 +343,11 @@ void small_free(void* p) {
   uint32_t useful_page_num = page_num - n_pages_wasted;
   per_page             *pp = &sch->ll[useful_page_num];
   uint32_t o_size     = static_bin_info[bin].object_size;
-  uint64_t         objnum = offset_in_page(p) / o_size;
+  uint64_t        objnum = divide_offset_by_objsize(offset_in_page(p), bin);
+  if (IS_TESTING) {
+    uint64_t       objnum2 = offset_in_page(p) / o_size;
+    bassert(objnum == objnum2);
+  }
   if (IS_TESTING) bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
   uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
   uint32_t o_per_page = static_bin_info[bin].objects_per_page;

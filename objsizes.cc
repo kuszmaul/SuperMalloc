@@ -5,6 +5,45 @@
 
 #include "malloc_internal.h"
 
+uint32_t ceil_log_2(uint64_t d) {
+  uint32_t result = (__builtin_popcountl(d) == 1) ? 0 : 1;
+  while (d>1) {
+    result++;
+    d = d>>1;
+  }
+  return result;
+}
+
+static uint32_t calculate_shift_magic(uint32_t d) {
+  if (__builtin_popcount(d)==1) {
+    return ceil_log_2(d);
+  } else {
+    return 32+ceil_log_2(d);
+  }
+}
+
+static uint64_t calculate_multiply_magic(uint32_t d) {
+  if (__builtin_popcount(d)==1)
+    return 1;
+  else
+    return (d-1+(1ul << calculate_shift_magic(d)))/d;
+}
+
+class static_bin_t {
+ public:
+  uint32_t object_size;
+  uint32_t objects_per_page;
+  uint64_t division_multiply_magic;
+  uint32_t division_shift_magic;
+  static_bin_t(uint32_t object_size, uint32_t objects_per_page) :
+      object_size(object_size),
+      objects_per_page(objects_per_page),
+      division_multiply_magic(calculate_multiply_magic(object_size)),
+      division_shift_magic(calculate_shift_magic(object_size))
+  {}
+};
+
+
 int main () {
   const char *name = "GENERATED_CONSTANTS_H";
   printf("#ifndef %s\n", name);
@@ -33,10 +72,9 @@ int main () {
   printf("//  Larger bin numbers B indicate the object size, coded as\n");
   printf("//     malloc_usable_size(object) = page_size*(bin_of(object)-first_huge_bin_number;\n");
 
-  struct static_bin_t { uint32_t object_size; uint32_t objects_per_page; };
   std::vector<static_bin_t> static_bins;
 
-  printf("static const struct { uint32_t object_size; uint32_t objects_per_page; } static_bin_info[] __attribute__((unused)) = {\n");
+  printf("static const struct { uint32_t object_size; uint32_t objects_per_page; uint64_t division_multiply_magic; uint32_t division_shift_magic;} static_bin_info[] __attribute__((unused)) = {\n");
   printf("// The first class of small objects have sizes of the form c<<k where c is 4, 5, 6 or 7.\n");
   printf("//   objsize objects_per_page   bin   wastage\n");
   int bin = 0;
@@ -49,8 +87,8 @@ int main () {
       if (n_objects_per_page <= 12) goto class2;
       prev_size = objsize;
       uint64_t wasted = pagesize - overhead - n_objects_per_page * objsize;
-      printf(" {%4u, %3u},  //   %3d     %3ld\n", objsize, n_objects_per_page,  bin++, wasted);
-      struct static_bin_t b = {objsize, n_objects_per_page};
+      struct static_bin_t b(objsize, n_objects_per_page);
+      printf(" {%8u, %3u, %10lulu, %2u},  //   %3d     %3ld\n", objsize, n_objects_per_page, b.division_multiply_magic, b.division_shift_magic, bin++, wasted);
       static_bins.push_back(b);
     }
   }
@@ -64,9 +102,9 @@ class2:
     prev_size = objsize;
     uint64_t wasted  = pagesize - overhead - n_objects_per_page * objsize;
     largest_small = objsize;
-    printf(" {%4u, %3u},  //   %3d       %3ld\n", objsize, n_objects_per_page, bin++, wasted);
-    struct static_bin_t b = {objsize, n_objects_per_page};
+    struct static_bin_t b(objsize, n_objects_per_page);
     static_bins.push_back(b);
+    printf(" {%8u, %3u, %10lulu, %2u},  //   %3d     %3ld\n", objsize, n_objects_per_page, b.division_multiply_magic, b.division_shift_magic, bin++, wasted);
   }
   printf("// large objects (page allocated):\n");
   printf("//  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].\n");
@@ -75,18 +113,19 @@ class2:
   printf("//   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation\n");
   int first_large_bin = bin;
   for (uint64_t log_allocsize = 12; log_allocsize < log_chunksize; log_allocsize++) {
-    struct static_bin_t b = {1u<<log_allocsize, 1};
+    uint64_t objsize = 1u<<log_allocsize;
     const char *comment = "";
     if (log_allocsize > largest_waste_at_end) {
-      b.object_size -= pagesize; 
+      objsize -= pagesize; 
       comment = " (reserve a page for the list of sizes)";
     }
-    printf(" {%u, 1}, //   %3d %s\n", b.object_size, bin++, comment);
+    struct static_bin_t b(objsize, 1);
+    printf(" {%8u,   1, %10lulu, %2u}, //   %3d %s\n", b.object_size, b.division_multiply_magic, b.division_shift_magic, bin++, comment);
     static_bins.push_back(b);
   }
   binnumber_t first_huge_bin = bin;
   printf("// huge objects (chunk allocated) start  at this size.\n");
-  printf(" {%ld, 1}};// %3d\n", chunksize, bin++);
+  printf(" {%8ld,   1, %10lulu, %ld}};//   %3d\n", chunksize, 1ul, log_chunksize, bin++);
   printf("static const size_t largest_small         = %lu;\n", largest_small);
   const size_t largest_large = (1ul<<(log_chunksize-1))-pagesize;
   printf("static const size_t largest_large         = %lu;\n", largest_large);
@@ -152,17 +191,23 @@ class2:
     printf("  if (bin == %d) return %u;\n", b, static_bins[b].object_size);
   }
   printf("  return (bin-%d)*pagesize + %lu;\n", first_huge_bin-1, largest_large);
-  printf("}\n");
+  printf("}\n\n");
 
-  printf("static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin)  __attribute((unused)) __attribute((const));\n");
-  printf("static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin) {\n");
-  printf("  switch (bin) {\n");
-  for (binnumber_t b = 0; b < first_huge_bin; b++) {
-    printf("    case %u: return n/%u;\n", b, static_bins[b].object_size);
+  if (0) {
+    printf("static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin)  __attribute((unused)) __attribute((const));\n");
+    printf("static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin) {\n");
+    printf("  switch (bin) {\n");
+    for (binnumber_t b = 0; b < first_huge_bin; b++) {
+      printf("    case %u: return n/%u;\n", b, static_bins[b].object_size);
+    }
+    printf("    default: abort();\n");
+    printf("  }\n");
+    printf("}\n");
   }
-  printf("    default: abort();\n");
-  printf("  }\n");
-  printf("}\n");
+
+  printf("static inline uint32_t divide_offset_by_objsize(uint32_t offset, binnumber_t bin) {\n");
+  printf("  return (offset * static_bin_info[bin].division_multiply_magic) >> static_bin_info[bin].division_shift_magic;\n");
+  printf("}\n\n");
 
   printf("#endif\n");
   return 0;

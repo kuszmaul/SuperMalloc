@@ -3,6 +3,7 @@
 *~
 malloc
 objsizes
+TAGS
 
 # ignore the gcov output
 *.gcov

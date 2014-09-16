@@ -27,7 +27,7 @@ objsizes: malloc_internal.h
 generated_constants.h: objsizes
 	./$< > $@
 
-ALL_SOURCES_INCLUDING_OBJSIZES = $(patsubst %.cc, %, $(wildcard *.cc)) $(patsubst %.c, %, $(wildcard *.c))
+ALL_SOURCES_INCLUDING_OBJSIZES = $(patsubst %.cc, %, $(wildcard *.cc))
 ALL_LIB_SOURCES = $(filter-out objsizes, $(ALL_SOURCES_INCLUDING_OBJSIZES))
 objsizes $(patsubst %, %.o, $(ALL_LIB_SOURCES)): bassert.h
 # Must name generated_constants.h specifically, since wildcard won't find it after a clean.
@@ -44,3 +44,6 @@ tests_check: libsupermalloc.so
 clean:
 	rm -f t malloc *.o *.so generated_constants.h objsizes *.gcda
 	cd tests;$(MAKE) clean
+
+TAGS: $(wildcard *.cc) $(wildcard *.h) $(wildcard */*.cc) $(wildcard */*.c)  $(wildcard */*.h)
+	etags $^

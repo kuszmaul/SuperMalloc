@@ -22,57 +22,57 @@
 //  Bins [0..first_huge_bin_number) give the size of an object.
 //  Larger bin numbers B indicate the object size, coded as
 //     malloc_usable_size(object) = page_size*(bin_of(object)-first_huge_bin_number;
-static const struct { uint32_t object_size; uint32_t objects_per_page; } static_bin_info[] __attribute__((unused)) = {
+static const struct { uint32_t object_size; uint32_t objects_per_page; uint64_t division_multiply_magic; uint32_t division_shift_magic;} static_bin_info[] __attribute__((unused)) = {
 // The first class of small objects have sizes of the form c<<k where c is 4, 5, 6 or 7.
 //   objsize objects_per_page   bin   wastage
- {   8, 512},  //     0       0
- {  10, 409},  //     1       6
- {  12, 341},  //     2       4
- {  14, 292},  //     3       8
- {  16, 256},  //     4       0
- {  20, 204},  //     5      16
- {  24, 170},  //     6      16
- {  28, 146},  //     7       8
- {  32, 128},  //     8       0
- {  40, 102},  //     9      16
- {  48,  85},  //    10      16
- {  56,  73},  //    11       8
- {  64,  64},  //    12       0
- {  80,  51},  //    13      16
- {  96,  42},  //    14      64
- { 112,  36},  //    15      64
- { 128,  32},  //    16       0
- { 160,  25},  //    17      96
- { 192,  21},  //    18      64
- { 224,  18},  //    19      64
- { 256,  16},  //    20       0
+ {       8, 512,          1lu,  3},  //     0       0
+ {      10, 409, 6871947674lu, 36},  //     1       6
+ {      12, 341, 5726623062lu, 36},  //     2       4
+ {      14, 292, 4908534053lu, 36},  //     3       8
+ {      16, 256,          1lu,  4},  //     4       0
+ {      20, 204, 6871947674lu, 37},  //     5      16
+ {      24, 170, 5726623062lu, 37},  //     6      16
+ {      28, 146, 4908534053lu, 37},  //     7       8
+ {      32, 128,          1lu,  5},  //     8       0
+ {      40, 102, 6871947674lu, 38},  //     9      16
+ {      48,  85, 5726623062lu, 38},  //    10      16
+ {      56,  73, 4908534053lu, 38},  //    11       8
+ {      64,  64,          1lu,  6},  //    12       0
+ {      80,  51, 6871947674lu, 39},  //    13      16
+ {      96,  42, 5726623062lu, 39},  //    14      64
+ {     112,  36, 4908534053lu, 39},  //    15      64
+ {     128,  32,          1lu,  7},  //    16       0
+ {     160,  25, 6871947674lu, 40},  //    17      96
+ {     192,  21, 5726623062lu, 40},  //    18      64
+ {     224,  18, 4908534053lu, 40},  //    19      64
+ {     256,  16,          1lu,  8},  //    20       0
 // Class 2 small objects are chosen to fit as many in a page as can fit.
 // Class 2 objects are always a multiple of a cache line.
- { 320,  12},  //    21       256
- { 384,  10},  //    22       256
- { 448,   9},  //    23        64
- { 512,   8},  //    24         0
- { 576,   7},  //    25        64
- { 640,   6},  //    26       256
- { 768,   5},  //    27       256
- {1024,   4},  //    28         0
- {1344,   3},  //    29        64
- {2048,   2},  //    30         0
+ {     320,  12, 6871947674lu, 41},  //    21     256
+ {     384,  10, 5726623062lu, 41},  //    22     256
+ {     448,   9, 4908534053lu, 41},  //    23      64
+ {     512,   8,          1lu,  9},  //    24       0
+ {     576,   7, 7635497416lu, 42},  //    25      64
+ {     640,   6, 6871947674lu, 42},  //    26     256
+ {     768,   5, 5726623062lu, 42},  //    27     256
+ {    1024,   4,          1lu, 10},  //    28       0
+ {    1344,   3, 6544712071lu, 43},  //    29      64
+ {    2048,   2,          1lu, 11},  //    30       0
 // large objects (page allocated):
 //  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].
 //  This introduces fragmentation.  This fragmentation doesn't matter much since it will be purged. For sizes up to 1<<16 we waste the last potential object.
 //   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation
- {4096, 1}, //    31 
- {8192, 1}, //    32 
- {16384, 1}, //    33 
- {32768, 1}, //    34 
- {65536, 1}, //    35 
- {126976, 1}, //    36  (reserve a page for the list of sizes)
- {258048, 1}, //    37  (reserve a page for the list of sizes)
- {520192, 1}, //    38  (reserve a page for the list of sizes)
- {1044480, 1}, //    39  (reserve a page for the list of sizes)
+ {    4096,   1,          1lu, 12}, //    31 
+ {    8192,   1,          1lu, 13}, //    32 
+ {   16384,   1,          1lu, 14}, //    33 
+ {   32768,   1,          1lu, 15}, //    34 
+ {   65536,   1,          1lu, 16}, //    35 
+ {  126976,   1, 4433514629lu, 49}, //    36  (reserve a page for the list of sizes)
+ {  258048,   1, 4363141381lu, 50}, //    37  (reserve a page for the list of sizes)
+ {  520192,   1, 4328785937lu, 51}, //    38  (reserve a page for the list of sizes)
+ { 1044480,   1, 4311810306lu, 52}, //    39  (reserve a page for the list of sizes)
 // huge objects (chunk allocated) start  at this size.
- {2097152, 1}};//  40
+ { 2097152,   1,          1lu, 21}};//    40
 static const size_t largest_small         = 2048;
 static const size_t largest_large         = 1044480;
 static const binnumber_t first_large_bin_number = 31;
@@ -247,50 +247,9 @@ static size_t bin_2_size(binnumber_t bin) {
   if (bin == 39) return 1044480;
   return (bin-39)*pagesize + 1044480;
 }
-static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin)  __attribute((unused)) __attribute((const));
-static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin) {
-  switch (bin) {
-    case 0: return n/8;
-    case 1: return n/10;
-    case 2: return n/12;
-    case 3: return n/14;
-    case 4: return n/16;
-    case 5: return n/20;
-    case 6: return n/24;
-    case 7: return n/28;
-    case 8: return n/32;
-    case 9: return n/40;
-    case 10: return n/48;
-    case 11: return n/56;
-    case 12: return n/64;
-    case 13: return n/80;
-    case 14: return n/96;
-    case 15: return n/112;
-    case 16: return n/128;
-    case 17: return n/160;
-    case 18: return n/192;
-    case 19: return n/224;
-    case 20: return n/256;
-    case 21: return n/320;
-    case 22: return n/384;
-    case 23: return n/448;
-    case 24: return n/512;
-    case 25: return n/576;
-    case 26: return n/640;
-    case 27: return n/768;
-    case 28: return n/1024;
-    case 29: return n/1344;
-    case 30: return n/2048;
-    case 31: return n/4096;
-    case 32: return n/8192;
-    case 33: return n/16384;
-    case 34: return n/32768;
-    case 35: return n/65536;
-    case 36: return n/126976;
-    case 37: return n/258048;
-    case 38: return n/520192;
-    case 39: return n/1044480;
-    default: abort();
-  }
+
+static inline uint32_t divide_offset_by_objsize(uint32_t offset, binnumber_t bin) {
+  return (offset * static_bin_info[bin].division_multiply_magic) >> static_bin_info[bin].division_shift_magic;
 }
+
 #endif
