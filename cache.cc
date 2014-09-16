@@ -39,7 +39,7 @@ int getcpu(void) {
 #elif 1
 static __thread uint32_t cached_cpu, cached_cpu_count;
 static uint32_t getcpu(void) {
-  if ((cached_cpu_count++)%2048  ==0) { cached_cpu = sched_getcpu(); if (0) printf("cpu=%d\n", cached_cpu); }
+  if ((cached_cpu_count++)%16  ==0) { cached_cpu = sched_getcpu(); if (0) printf("cpu=%d\n", cached_cpu); }
   return cached_cpu;
 }
 #elif 0
