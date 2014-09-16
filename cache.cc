@@ -13,11 +13,40 @@ static void clog_command(char command, const void *ptr, size_t size);
 
 typedef bool ignore;
 
+// Cached sched_getcpu costs about 3ns
+// sched_getcpu costs about 23ns
+// CPUID costs about 3ns
+//   (Linux 3.15.10 on i7-4600U with turboboost disabled)
+// In spite of all that, the cpuid instruction makes the code run far slower (possibly it disrupts the caches).
+
+#if 0
+static void cpuid(unsigned info, unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx)
+{
+    __asm__(
+        "cpuid;"                                            /* assembly code */
+        :"=a" (*eax), "=b" (*ebx), "=c" (*ecx), "=d" (*edx) /* outputs */
+        :"a" (info), "c"(0)                                 /* input: info into eax */
+                                                            /* clobbers: none */
+    );
+}
+
+int getcpu(void) {
+  unsigned int a, b, c, d;
+  cpuid(0xb, &a, &b, &c, &d);
+  return d;
+}
+
+#elif 1
 static __thread uint32_t cached_cpu, cached_cpu_count;
 static uint32_t getcpu(void) {
   if ((cached_cpu_count++)%2048  ==0) { cached_cpu = sched_getcpu(); if (0) printf("cpu=%d\n", cached_cpu); }
   return cached_cpu;
 }
+#elif 0
+static uint32_t getcpu(void) {
+  return sched_getcpu();
+}
+#endif
 
 struct linked_list {
   linked_list *next;

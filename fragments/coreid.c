@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 #include <assert.h>
 #include <sched.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <time.h>
  
@@ -44,6 +45,13 @@ int coreid(void) {
   cpuid(0xb, &a, &b, &c, &d);
   return d;
 }
+
+static __thread uint32_t cached_cpu, cached_cpu_count;
+static uint32_t cached_getcpu(void) {
+  if ((cached_cpu_count++)%2048  ==0) { cached_cpu = sched_getcpu(); if (0) printf("cpu=%d\n", cached_cpu); }
+  return cached_cpu;
+}
+
 
 int main()
 {
@@ -104,6 +112,24 @@ int main()
 
     double diff = end.tv_sec - start.tv_sec + 1e-9*(end.tv_nsec - start.tv_nsec);
     printf("%.3fns/sched_getcpu()\n", 1e9*diff/COUNT);
+  }
+  {
+    static int corecount[C];
+    struct timespec start,end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+    for (int i = 0; i < COUNT; i++) {
+      int x = cached_getcpu();
+      assert(x>=0 && x<C);
+      corecount[x]++;
+    }
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    for (int i = 0; i < C; i++) {
+      printf(" %d", corecount[i]);
+    }
+    printf("\n");
+
+    double diff = end.tv_sec - start.tv_sec + 1e-9*(end.tv_nsec - start.tv_nsec);
+    printf("%.3fns/cached sched_getcpu()\n", 1e9*diff/COUNT);
   }
 
   return 0;

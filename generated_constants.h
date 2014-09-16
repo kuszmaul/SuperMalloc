@@ -247,4 +247,50 @@ static size_t bin_2_size(binnumber_t bin) {
   if (bin == 39) return 1044480;
   return (bin-39)*pagesize + 1044480;
 }
+static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin)  __attribute((unused)) __attribute((const));
+static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin) {
+  switch (bin) {
+    case 0: return n/8;
+    case 1: return n/10;
+    case 2: return n/12;
+    case 3: return n/14;
+    case 4: return n/16;
+    case 5: return n/20;
+    case 6: return n/24;
+    case 7: return n/28;
+    case 8: return n/32;
+    case 9: return n/40;
+    case 10: return n/48;
+    case 11: return n/56;
+    case 12: return n/64;
+    case 13: return n/80;
+    case 14: return n/96;
+    case 15: return n/112;
+    case 16: return n/128;
+    case 17: return n/160;
+    case 18: return n/192;
+    case 19: return n/224;
+    case 20: return n/256;
+    case 21: return n/320;
+    case 22: return n/384;
+    case 23: return n/448;
+    case 24: return n/512;
+    case 25: return n/576;
+    case 26: return n/640;
+    case 27: return n/768;
+    case 28: return n/1024;
+    case 29: return n/1344;
+    case 30: return n/2048;
+    case 31: return n/4096;
+    case 32: return n/8192;
+    case 33: return n/16384;
+    case 34: return n/32768;
+    case 35: return n/65536;
+    case 36: return n/126976;
+    case 37: return n/258048;
+    case 38: return n/520192;
+    case 39: return n/1044480;
+    default: abort();
+  }
+}
 #endif

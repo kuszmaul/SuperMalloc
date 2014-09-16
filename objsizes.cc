@@ -158,7 +158,7 @@ class2:
   printf("static uint32_t divide_by_o_size(uint32_t n, binnumber_t bin) {\n");
   printf("  switch (bin) {\n");
   for (binnumber_t b = 0; b < first_huge_bin; b++) {
-    printf("    case %u: return n/ud\n", b, static_bins[b].object_size);
+    printf("    case %u: return n/%u;\n", b, static_bins[b].object_size);
   }
   printf("    default: abort();\n");
   printf("  }\n");
