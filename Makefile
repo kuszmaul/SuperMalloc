@@ -23,6 +23,7 @@ malloc: CPPFLAGS += -DTESTING
 malloc: OPTFLAGS = -O0
 malloc: malloc.cc makechunk.cc rng.cc huge_malloc.cc large_malloc.cc small_malloc.cc cache.cc bassert.cc footprint.cc stats.cc $(wildcard *.h) generated_constants.h
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $(filter-out %.h, $^) -o $@
+objsizes: OPTFLAGS=-O0
 objsizes: malloc_internal.h
 generated_constants.h: objsizes
 	./$< > $@

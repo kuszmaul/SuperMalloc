@@ -1,3 +1,4 @@
+#include <assert.h> 
 #include <stdint.h>
 #include <stdio.h>
 
@@ -29,20 +30,47 @@ static uint64_t calculate_multiply_magic(uint32_t d) {
     return (d-1+(1ul << calculate_shift_magic(d)))/d;
 }
 
+uint32_t calculate_foliosize(uint32_t objsize) {
+  if (objsize > 256) {
+    return (objsize/cacheline_size)*pagesize;
+  }
+  if (objsize > pagesize) return objsize;
+  if (__builtin_popcount(objsize)==1) return pagesize;
+  if (objsize / cacheline_size != 0)  return pagesize;
+  return std::min(pagesize,
+		  ceil(cachelines_per_page*objsize, pagesize)*pagesize);
+}
+
 class static_bin_t {
  public:
   uint32_t object_size;
-  uint32_t objects_per_page;
+  uint32_t foliosize;
+  uint32_t objects_per_folio; // a folio is like a pagesize: we try to find the folio with the fewest free slots on it, when allocating storage.
   uint64_t division_multiply_magic;
   uint32_t division_shift_magic;
-  static_bin_t(uint32_t object_size, uint32_t objects_per_page) :
+  static_bin_t(uint32_t object_size) :
       object_size(object_size),
-      objects_per_page(objects_per_page),
+      foliosize(calculate_foliosize(object_size)),
+      objects_per_folio(foliosize/object_size),
       division_multiply_magic(calculate_multiply_magic(object_size)),
       division_shift_magic(calculate_shift_magic(object_size))
   {}
 };
 
+bool is_prime(uint32_t x) {
+  for (uint32_t y = 2; y*y <= x; y++) {
+    if (x%y == 0) return false;
+  }
+  return true;
+}
+
+uint32_t next_prime(uint32_t x) {
+  assert(x%2 == 1);
+  while (1) {
+    x+=2;
+    if (is_prime(x)) return x;
+  }
+}
 
 int main () {
   const char *name = "GENERATED_CONSTANTS_H";
@@ -55,7 +83,6 @@ int main () {
   printf("#include <stdint.h>\n");
   printf("#include <sys/types.h>\n");
   const uint64_t linesize = 64;
-  const uint64_t overhead = 0;
   printf("// For chunks containing small objects, we reserve the first\n");
   printf("// several pages for bitmaps and linked lists.\n");
   printf("//   There's a per_page struct containing 2 pointers and a\n");
@@ -74,37 +101,74 @@ int main () {
 
   std::vector<static_bin_t> static_bins;
 
-  printf("static const struct { uint32_t object_size; uint32_t objects_per_page; uint64_t division_multiply_magic; uint32_t division_shift_magic;} static_bin_info[] __attribute__((unused)) = {\n");
-  printf("// The first class of small objects have sizes of the form c<<k where c is 4, 5, 6 or 7.\n");
-  printf("//   objsize objects_per_page   bin   wastage\n");
+  printf("static const struct { uint32_t object_size; uint32_t folio_size; uint32_t objects_per_folio; uint64_t division_multiply_magic; uint32_t division_shift_magic;} static_bin_info[] __attribute__((unused)) = {\n");
+  printf("// The first class of small objects try to get a maximum of 25%% internal fragmentation by having sizes of the form c<<k where c is 4, 5, 6 or 7.\n");
+  printf("// We stop at when we have 4 cachelines, so that the ones that happen to be multiples of cache lines are either a power of two or odd.\n");
+  printf("//   objsize foliosize objects_per_folio  multiply_division_magic shift_division_magic   bin   wastage\n");
   int bin = 0;
 
   uint64_t prev_size = 0;
   for (uint64_t k = 8; 1; k*=2) {
     for (uint64_t c = 4; c <= 7; c++) {
       uint32_t objsize = (c*k)/4;
-      uint32_t n_objects_per_page = (pagesize-overhead)/objsize;
-      if (n_objects_per_page <= 12) goto class2;
+      if (objsize > 4*cacheline_size) goto done_small;
       prev_size = objsize;
-      uint64_t wasted = pagesize - overhead - n_objects_per_page * objsize;
-      struct static_bin_t b(objsize, n_objects_per_page);
-      printf(" {%8u, %3u, %10lulu, %2u},  //   %3d     %3ld\n", objsize, n_objects_per_page, b.division_multiply_magic, b.division_shift_magic, bin++, wasted);
+      static_bin_t b(objsize);
+      uint64_t wasted = b.foliosize - b.objects_per_folio * objsize;
+      printf(" {%8u, %5u, %3u, %10lulu, %2u},  //   %3d     %3ld\n", objsize, b.foliosize, b.objects_per_folio, b.division_multiply_magic, b.division_shift_magic, bin++, wasted);
       static_bins.push_back(b);
     }
   }
-class2:
+done_small:
+
   uint64_t largest_small = 0;
-  printf("// Class 2 small objects are chosen to fit as many in a page as can fit.\n");
-  printf("// Class 2 objects are always a multiple of a cache line.\n");
-  for(uint32_t n_objects_per_page = 12; n_objects_per_page > 1; n_objects_per_page--) {
-    uint32_t objsize = ((pagesize-overhead)/n_objects_per_page) & ~(linesize-1);
-    if (objsize <= prev_size) continue;
-    prev_size = objsize;
-    uint64_t wasted  = pagesize - overhead - n_objects_per_page * objsize;
-    largest_small = objsize;
-    struct static_bin_t b(objsize, n_objects_per_page);
-    static_bins.push_back(b);
-    printf(" {%8u, %3u, %10lulu, %2u},  //   %3d     %3ld\n", objsize, n_objects_per_page, b.division_multiply_magic, b.division_shift_magic, bin++, wasted);
+  printf("// Class 2 small objects are prime multiples of a cache line.\n");
+  printf("// The folio size is such that the number of 4K pages equals the\n");
+  printf("// number of cache lines in the object.  Namely, the folio size is 64 times\n");
+  printf("// the object size.  The small_chunk_header fits into 8 pages.\n");
+
+  uint32_t prev_objsize_in_cachelines = 4;
+  for (uint32_t objsize_in_cachelines = 5; objsize_in_cachelines < 64*4; objsize_in_cachelines = next_prime(objsize_in_cachelines)) {
+    // Must trade off two kinds of internal fragmentation and external
+    // fragmentation.
+    //
+    // The external fragmentation is caused by having
+    // too many bins, and I don't know how to quantify that except
+    // that it seems reasonable to restrict us to having a O(log
+    // chunksize) bins.
+    //
+    // The internal fragmentation comes from two sources: (a) the
+    // waste at the end of a chunk when the pages don't fit (which we
+    // could mitigate by using many 2MB blocks together for a single
+    // chunk, but it could grow out of hand), and (b) the fact that we
+    // must round up to the next chunk when allocating memory.
+    if (prev_objsize_in_cachelines  < .7 * next_prime(objsize_in_cachelines)) {
+      uint32_t objsize = objsize_in_cachelines * cacheline_size;
+      static_bin_t b(objsize);
+      // Don't like this magic numbers (8*pagesize?  Really?)
+      uint32_t folios_per_chunk = (chunksize-8*pagesize)/b.foliosize;
+      uint32_t minimum_used_per_folio = (prev_objsize_in_cachelines*cacheline_size+1)*b.objects_per_folio;
+      double fragmentation = (folios_per_chunk*minimum_used_per_folio) / static_cast<double>(chunksize);
+      printf(" {%8u, %5u, %3u, %10lulu, %2u}, //   %3d     %0.3f (%2d cache lines, %d folios/chunk, at least %d bytes used/folio)\n",
+	     objsize, b.foliosize, b.objects_per_folio, b.division_multiply_magic, b.division_shift_magic, bin++, fragmentation, objsize_in_cachelines, folios_per_chunk, minimum_used_per_folio);
+      static_bins.push_back(b);
+      prev_objsize_in_cachelines = objsize_in_cachelines;
+    }
+  }
+  
+  if (0) {
+    printf("// Class 2 small objects are chosen to fit as many in a page as can fit.\n");
+    printf("// Class 2 objects are always a multiple of a cache line.\n");
+    for(uint32_t n_objects_per_page = 12; n_objects_per_page > 1; n_objects_per_page--) {
+      uint32_t objsize = (pagesize/n_objects_per_page) & ~(linesize-1);
+      if (objsize <= prev_size) continue;
+      prev_size = objsize;
+      uint64_t wasted  = pagesize - n_objects_per_page * objsize;
+      largest_small = objsize;
+      struct static_bin_t b(objsize);
+      static_bins.push_back(b);
+      printf(" {%8u, %3u, %10lulu, %2u},  //   %3d     %3ld\n", objsize, n_objects_per_page, b.division_multiply_magic, b.division_shift_magic, bin++, wasted);
+    }
   }
   printf("// large objects (page allocated):\n");
   printf("//  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].\n");
@@ -119,7 +183,7 @@ class2:
       objsize -= pagesize; 
       comment = " (reserve a page for the list of sizes)";
     }
-    struct static_bin_t b(objsize, 1);
+    struct static_bin_t b(objsize);
     printf(" {%8u,   1, %10lulu, %2u}, //   %3d %s\n", b.object_size, b.division_multiply_magic, b.division_shift_magic, bin++, comment);
     static_bins.push_back(b);
   }
@@ -140,8 +204,8 @@ class2:
   {
     int count = 0;
     for (int b = 0; b < first_large_bin;  b++ ) {
-      printf("      per_page *b%d[%d];\n", b, static_bins[b].objects_per_page+1);
-      count += static_bins[b].objects_per_page+1;
+      printf("      per_page *b%d[%d];\n", b, static_bins[b].objects_per_folio+1);
+      count += static_bins[b].objects_per_folio+1;
     }
     printf("    };\n");
     printf("    per_page *b[%d];\n", count);
@@ -157,7 +221,7 @@ class2:
     int count = 0;
     for (int b = 0; b < first_large_bin;  b++ ) {
       printf("      case %d: return %d;\n", b, count);
-      count += static_bins[b].objects_per_page+1;
+      count += static_bins[b].objects_per_folio+1;
     }
   }
   printf("    }\n");
@@ -169,7 +233,7 @@ class2:
     for (int b = 0; b < first_large_bin;  b++ ) {
       if (b>0) printf(", ");
       printf("%d", count);
-      count += static_bins[b].objects_per_page+1;
+      count += static_bins[b].objects_per_folio+1;
     }
   }
   printf("};\n");
