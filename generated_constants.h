@@ -22,67 +22,71 @@
 //  Bins [0..first_huge_bin_number) give the size of an object.
 //  Larger bin numbers B indicate the object size, coded as
 //     malloc_usable_size(object) = page_size*(bin_of(object)-first_huge_bin_number;
-static const struct { uint32_t object_size; uint32_t folio_size; uint32_t objects_per_folio; uint64_t division_multiply_magic; uint32_t division_shift_magic;} static_bin_info[] __attribute__((unused)) = {
+static const struct { uint32_t object_size, folio_size, objects_per_folio, folios_per_chunk; uint64_t object_division_multiply_magic, folio_division_multiply_magic; uint32_t object_division_shift_magic, folio_division_shift_magic;} static_bin_info[] __attribute__((unused)) = {
 // The first class of small objects try to get a maximum of 25% internal fragmentation by having sizes of the form c<<k where c is 4, 5, 6 or 7.
 // We stop at when we have 4 cachelines, so that the ones that happen to be multiples of cache lines are either a power of two or odd.
 //   objsize foliosize objects_per_folio  multiply_division_magic shift_division_magic   bin   wastage
- {       8,  4096, 512,          1lu,  3},  //     0       0
- {      10,  4096, 409, 6871947674lu, 36},  //     1       6
- {      12,  4096, 341, 5726623062lu, 36},  //     2       4
- {      14,  4096, 292, 4908534053lu, 36},  //     3       8
- {      16,  4096, 256,          1lu,  4},  //     4       0
- {      20,  4096, 204, 6871947674lu, 37},  //     5      16
- {      24,  4096, 170, 5726623062lu, 37},  //     6      16
- {      28,  4096, 146, 4908534053lu, 37},  //     7       8
- {      32,  4096, 128,          1lu,  5},  //     8       0
- {      40,  4096, 102, 6871947674lu, 38},  //     9      16
- {      48,  4096,  85, 5726623062lu, 38},  //    10      16
- {      56,  4096,  73, 4908534053lu, 38},  //    11       8
- {      64,  4096,  64,          1lu,  6},  //    12       0
- {      80,  4096,  51, 6871947674lu, 39},  //    13      16
- {      96,  4096,  42, 5726623062lu, 39},  //    14      64
- {     112,  4096,  36, 4908534053lu, 39},  //    15      64
- {     128,  4096,  32,          1lu,  7},  //    16       0
- {     160,  4096,  25, 6871947674lu, 40},  //    17      96
- {     192,  4096,  21, 5726623062lu, 40},  //    18      64
- {     224,  4096,  18, 4908534053lu, 40},  //    19      64
- {     256,  4096,  16,          1lu,  8},  //    20       0
+ {       8,    4096, 512, 512,          1lu,          1lu,  3, 12},  //   0      0
+ {      10,    4096, 409, 512, 6871947674lu,          1lu, 36, 12},  //   1      6
+ {      12,    4096, 341, 512, 5726623062lu,          1lu, 36, 12},  //   2      4
+ {      14,    4096, 292, 512, 4908534053lu,          1lu, 36, 12},  //   3      8
+ {      16,    4096, 256, 512,          1lu,          1lu,  4, 12},  //   4      0
+ {      20,    4096, 204, 512, 6871947674lu,          1lu, 37, 12},  //   5     16
+ {      24,    4096, 170, 512, 5726623062lu,          1lu, 37, 12},  //   6     16
+ {      28,    4096, 146, 512, 4908534053lu,          1lu, 37, 12},  //   7      8
+ {      32,    4096, 128, 512,          1lu,          1lu,  5, 12},  //   8      0
+ {      40,    4096, 102, 512, 6871947674lu,          1lu, 38, 12},  //   9     16
+ {      48,    4096,  85, 512, 5726623062lu,          1lu, 38, 12},  //  10     16
+ {      56,    4096,  73, 512, 4908534053lu,          1lu, 38, 12},  //  11      8
+ {      64,    4096,  64, 512,          1lu,          1lu,  6, 12},  //  12      0
+ {      80,    4096,  51, 512, 6871947674lu,          1lu, 39, 12},  //  13     16
+ {      96,    4096,  42, 512, 5726623062lu,          1lu, 39, 12},  //  14     64
+ {     112,    4096,  36, 512, 4908534053lu,          1lu, 39, 12},  //  15     64
+ {     128,    4096,  32, 512,          1lu,          1lu,  7, 12},  //  16      0
+ {     160,    4096,  25, 512, 6871947674lu,          1lu, 40, 12},  //  17     96
+ {     192,    4096,  21, 512, 5726623062lu,          1lu, 40, 12},  //  18     64
+ {     224,    4096,  18, 512, 4908534053lu,          1lu, 40, 12},  //  19     64
+ {     256,    4096,  16, 512,          1lu,          1lu,  8, 12},  //  20      0
 // Class 2 small objects are prime multiples of a cache line.
 // The folio size is such that the number of 4K pages equals the
 // number of cache lines in the object.  Namely, the folio size is 64 times
 // the object size.  The small_chunk_header fits into 8 pages.
- {     320, 20480,  64, 6871947674lu, 41}, //    21     0.784 ( 5 cache lines, 100 folios/chunk, at least 16448 bytes used/folio)
- {     448, 28672,  64, 4908534053lu, 41}, //    22     0.705 ( 7 cache lines, 72 folios/chunk, at least 20544 bytes used/folio)
- {     704, 45056,  64, 6247225158lu, 42}, //    23     0.617 (11 cache lines, 45 folios/chunk, at least 28736 bytes used/folio)
- {     832, 53248,  64, 5286113596lu, 42}, //    24     0.818 (13 cache lines, 38 folios/chunk, at least 45120 bytes used/folio)
- {    1088, 69632,  64, 8084644322lu, 43}, //    25     0.737 (17 cache lines, 29 folios/chunk, at least 53312 bytes used/folio)
- {    1472, 94208,  64, 5975606673lu, 43}, //    26     0.698 (23 cache lines, 21 folios/chunk, at least 69696 bytes used/folio)
- {    1984, 126976,  64, 4433514629lu, 43}, //    27     0.719 (31 cache lines, 16 folios/chunk, at least 94272 bytes used/folio)
- {    2752, 176128,  64, 6392509464lu, 44}, //    28     0.666 (43 cache lines, 11 folios/chunk, at least 127040 bytes used/folio)
- {    3904, 249856,  64, 4506195196lu, 44}, //    29     0.672 (61 cache lines, 8 folios/chunk, at least 176192 bytes used/folio)
- {    5312, 339968,  64, 6623564023lu, 45}, //    30     0.715 (83 cache lines, 6 folios/chunk, at least 249920 bytes used/folio)
- {    7232, 462848,  64, 4865095699lu, 45}, //    31     0.649 (113 cache lines, 4 folios/chunk, at least 340032 bytes used/folio)
- {   10048, 643072,  64, 7003258776lu, 46}, //    32     0.662 (157 cache lines, 3 folios/chunk, at least 462912 bytes used/folio)
- {   14272, 913408,  64, 4930545417lu, 46}, //    33     0.613 (223 cache lines, 2 folios/chunk, at least 643136 bytes used/folio)
+ {     320,   20480,  64, 102, 6871947674lu, 6871947674lu, 41, 47},  //  21     0.784 ( 5 cache lines, 100 folios/chunk, at least 16448 bytes used/folio)
+ {     448,   28672,  64,  73, 4908534053lu, 4908534053lu, 41, 47},  //  22     0.705 ( 7 cache lines, 72 folios/chunk, at least 20544 bytes used/folio)
+ {     512,    4096,   8, 512,          1lu,          1lu,  9, 12},  //  23     0.863 ( 8 cache lines, 504 folios/chunk, at least 3592 bytes used/folio)
+ {     704,   45056,  64,  46, 6247225158lu, 6247225158lu, 42, 48},  //  24     0.617 (11 cache lines, 45 folios/chunk, at least 28736 bytes used/folio)
+ {     832,   53248,  64,  39, 5286113596lu, 5286113596lu, 42, 48},  //  25     0.818 (13 cache lines, 38 folios/chunk, at least 45120 bytes used/folio)
+ {    1024,    4096,   4, 512,          1lu,          1lu, 10, 12},  //  26     0.801 (16 cache lines, 504 folios/chunk, at least 3332 bytes used/folio)
+ {    1088,   69632,  64,  30, 8084644322lu, 8084644322lu, 43, 49},  //  27     0.737 (17 cache lines, 29 folios/chunk, at least 53312 bytes used/folio)
+ {    1472,   94208,  64,  22, 5975606673lu, 5975606673lu, 43, 49},  //  28     0.698 (23 cache lines, 21 folios/chunk, at least 69696 bytes used/folio)
+ {    1984,  126976,  64,  16, 4433514629lu, 4433514629lu, 43, 49},  //  29     0.719 (31 cache lines, 16 folios/chunk, at least 94272 bytes used/folio)
+ {    2048,    4096,   2, 512,          1lu,          1lu, 11, 12},  //  30     0.954 (32 cache lines, 504 folios/chunk, at least 3970 bytes used/folio)
+ {    2752,  176128,  64,  11, 6392509464lu, 6392509464lu, 44, 50},  //  31     0.666 (43 cache lines, 11 folios/chunk, at least 127040 bytes used/folio)
+ {    3904,  249856,  64,   8, 4506195196lu, 4506195196lu, 44, 50},  //  32     0.672 (61 cache lines, 8 folios/chunk, at least 176192 bytes used/folio)
+ {    4096,    4096,   1, 512,          1lu,          1lu, 12, 12},  //  33     0.938 (64 cache lines, 504 folios/chunk, at least 3905 bytes used/folio)
+ {    5312,  339968,  64,   6, 6623564023lu, 6623564023lu, 45, 51},  //  34     0.715 (83 cache lines, 6 folios/chunk, at least 249920 bytes used/folio)
+ {    7232,  462848,  64,   4, 4865095699lu, 4865095699lu, 45, 51},  //  35     0.649 (113 cache lines, 4 folios/chunk, at least 340032 bytes used/folio)
+ {    8192,    8192,   1, 256,          1lu,          1lu, 13, 13},  //  36     0.869 (128 cache lines, 252 folios/chunk, at least 7233 bytes used/folio)
+ {   10048,  643072,  64,   3, 7003258776lu, 7003258776lu, 46, 52},  //  37     0.662 (157 cache lines, 3 folios/chunk, at least 462912 bytes used/folio)
+ {   14272,  913408,  64,   2, 4930545417lu, 4930545417lu, 46, 52},  //  38     0.613 (223 cache lines, 2 folios/chunk, at least 643136 bytes used/folio)
 // large objects (page allocated):
 //  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].
-//  This introduces fragmentation.  This fragmentation doesn't matter much since it will be purged. For sizes up to 1<<16 we waste the last potential object.
+//  This introduces fragmentation.  This fragmentation doesn't matter much since it will be purged. For sizes up to 1<<17 we waste the last potential object.
 //   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation
- {    4096,   1,          1lu, 12}, //    34 
- {    8192,   1,          1lu, 13}, //    35 
- {   16384,   1,          1lu, 14}, //    36 
- {   32768,   1,          1lu, 15}, //    37 
- {   65536,   1,          1lu, 16}, //    38 
- {  126976,   1, 4433514629lu, 49}, //    39  (reserve a page for the list of sizes)
- {  258048,   1, 4363141381lu, 50}, //    40  (reserve a page for the list of sizes)
- {  520192,   1, 4328785937lu, 51}, //    41  (reserve a page for the list of sizes)
- { 1044480,   1, 4311810306lu, 52}, //    42  (reserve a page for the list of sizes)
+ {   16384,   16384,   1, 128,          1lu,          1lu, 14, 14},  //  39 
+ {   32768,   32768,   1,  64,          1lu,          1lu, 15, 15},  //  40 
+ {   65536,   65536,   1,  32,          1lu,          1lu, 16, 16},  //  41 
+ {  131072,  131072,   1,  16,          1lu,          1lu, 17, 17},  //  42 
+ {  258048,  258048,   1,   8, 4363141381lu, 4363141381lu, 50, 50},  //  43  (reserve a page for the list of sizes)
+ {  520192,  520192,   1,   4, 4328785937lu, 4328785937lu, 51, 51},  //  44  (reserve a page for the list of sizes)
+ { 1044480, 1044480,   1,   2, 4311810306lu, 4311810306lu, 52, 52},  //  45  (reserve a page for the list of sizes)
 // huge objects (chunk allocated) start  at this size.
- { 2097152,   1,          1lu, 21}};//    43
+ { 2097152, 2097152,   1,   1,          1lu,          1lu, 21, 21},  //  46
+};
 static const size_t largest_small         = 0;
 static const size_t largest_large         = 1044480;
-static const binnumber_t first_large_bin_number = 34;
-static const binnumber_t first_huge_bin_number   = 43;
+static const binnumber_t first_large_bin_number = 39;
+static const binnumber_t first_huge_bin_number   = 46;
 struct per_page; // Forward decl needed here.
 struct dynamic_small_bin_info {
   union {
@@ -110,19 +114,24 @@ struct dynamic_small_bin_info {
       per_page *b20[17];
       per_page *b21[65];
       per_page *b22[65];
-      per_page *b23[65];
+      per_page *b23[9];
       per_page *b24[65];
       per_page *b25[65];
-      per_page *b26[65];
+      per_page *b26[5];
       per_page *b27[65];
       per_page *b28[65];
       per_page *b29[65];
-      per_page *b30[65];
+      per_page *b30[3];
       per_page *b31[65];
       per_page *b32[65];
-      per_page *b33[65];
+      per_page *b33[2];
+      per_page *b34[65];
+      per_page *b35[65];
+      per_page *b36[2];
+      per_page *b37[65];
+      per_page *b38[65];
     };
-    per_page *b[3889];
+    per_page *b[3910];
   };
 };
 // dynamic_small_bin_offset is declared const even though one implementation looks in an array.  The array is a const
@@ -154,20 +163,25 @@ static uint32_t dynamic_small_bin_offset(binnumber_t bin) {
       case 21: return 3044;
       case 22: return 3109;
       case 23: return 3174;
-      case 24: return 3239;
-      case 25: return 3304;
-      case 26: return 3369;
-      case 27: return 3434;
-      case 28: return 3499;
-      case 29: return 3564;
-      case 30: return 3629;
-      case 31: return 3694;
-      case 32: return 3759;
-      case 33: return 3824;
+      case 24: return 3183;
+      case 25: return 3248;
+      case 26: return 3313;
+      case 27: return 3318;
+      case 28: return 3383;
+      case 29: return 3448;
+      case 30: return 3513;
+      case 31: return 3516;
+      case 32: return 3581;
+      case 33: return 3646;
+      case 34: return 3648;
+      case 35: return 3713;
+      case 36: return 3778;
+      case 37: return 3780;
+      case 38: return 3845;
     }
     abort(); // cannot get here.
   } else {
-    const static int offs[]={0, 513, 923, 1265, 1558, 1815, 2020, 2191, 2338, 2467, 2570, 2656, 2730, 2795, 2847, 2890, 2927, 2960, 2986, 3008, 3027, 3044, 3109, 3174, 3239, 3304, 3369, 3434, 3499, 3564, 3629, 3694, 3759, 3824};
+    const static int offs[]={0, 513, 923, 1265, 1558, 1815, 2020, 2191, 2338, 2467, 2570, 2656, 2730, 2795, 2847, 2890, 2927, 2960, 2986, 3008, 3027, 3044, 3109, 3174, 3183, 3248, 3313, 3318, 3383, 3448, 3513, 3516, 3581, 3646, 3648, 3713, 3778, 3780, 3845};
     return offs[bin];
   }
 }
@@ -196,27 +210,30 @@ static binnumber_t size_2_bin(size_t size) {
   if (size <= 256) return 20;
   if (size <= 320) return 21;
   if (size <= 448) return 22;
-  if (size <= 704) return 23;
-  if (size <= 832) return 24;
-  if (size <= 1088) return 25;
-  if (size <= 1472) return 26;
-  if (size <= 1984) return 27;
-  if (size <= 2752) return 28;
-  if (size <= 3904) return 29;
-  if (size <= 5312) return 30;
-  if (size <= 7232) return 31;
-  if (size <= 10048) return 32;
-  if (size <= 14272) return 33;
-  if (size <= 4096) return 34;
-  if (size <= 8192) return 35;
-  if (size <= 16384) return 36;
-  if (size <= 32768) return 37;
-  if (size <= 65536) return 38;
-  if (size <= 126976) return 39;
-  if (size <= 258048) return 40;
-  if (size <= 520192) return 41;
-  if (size <= 1044480) return 42;
-  return 42 + ceil(size-1044480, 4096);
+  if (size <= 512) return 23;
+  if (size <= 704) return 24;
+  if (size <= 832) return 25;
+  if (size <= 1024) return 26;
+  if (size <= 1088) return 27;
+  if (size <= 1472) return 28;
+  if (size <= 1984) return 29;
+  if (size <= 2048) return 30;
+  if (size <= 2752) return 31;
+  if (size <= 3904) return 32;
+  if (size <= 4096) return 33;
+  if (size <= 5312) return 34;
+  if (size <= 7232) return 35;
+  if (size <= 8192) return 36;
+  if (size <= 10048) return 37;
+  if (size <= 14272) return 38;
+  if (size <= 16384) return 39;
+  if (size <= 32768) return 40;
+  if (size <= 65536) return 41;
+  if (size <= 131072) return 42;
+  if (size <= 258048) return 43;
+  if (size <= 520192) return 44;
+  if (size <= 1044480) return 45;
+  return 45 + ceil(size-1044480, 4096);
 }
 static size_t bin_2_size(binnumber_t bin) __attribute((unused)) __attribute((const));
 static size_t bin_2_size(binnumber_t bin) {
@@ -243,31 +260,38 @@ static size_t bin_2_size(binnumber_t bin) {
   if (bin == 20) return 256;
   if (bin == 21) return 320;
   if (bin == 22) return 448;
-  if (bin == 23) return 704;
-  if (bin == 24) return 832;
-  if (bin == 25) return 1088;
-  if (bin == 26) return 1472;
-  if (bin == 27) return 1984;
-  if (bin == 28) return 2752;
-  if (bin == 29) return 3904;
-  if (bin == 30) return 5312;
-  if (bin == 31) return 7232;
-  if (bin == 32) return 10048;
-  if (bin == 33) return 14272;
-  if (bin == 34) return 4096;
-  if (bin == 35) return 8192;
-  if (bin == 36) return 16384;
-  if (bin == 37) return 32768;
-  if (bin == 38) return 65536;
-  if (bin == 39) return 126976;
-  if (bin == 40) return 258048;
-  if (bin == 41) return 520192;
-  if (bin == 42) return 1044480;
-  return (bin-42)*pagesize + 1044480;
+  if (bin == 23) return 512;
+  if (bin == 24) return 704;
+  if (bin == 25) return 832;
+  if (bin == 26) return 1024;
+  if (bin == 27) return 1088;
+  if (bin == 28) return 1472;
+  if (bin == 29) return 1984;
+  if (bin == 30) return 2048;
+  if (bin == 31) return 2752;
+  if (bin == 32) return 3904;
+  if (bin == 33) return 4096;
+  if (bin == 34) return 5312;
+  if (bin == 35) return 7232;
+  if (bin == 36) return 8192;
+  if (bin == 37) return 10048;
+  if (bin == 38) return 14272;
+  if (bin == 39) return 16384;
+  if (bin == 40) return 32768;
+  if (bin == 41) return 65536;
+  if (bin == 42) return 131072;
+  if (bin == 43) return 258048;
+  if (bin == 44) return 520192;
+  if (bin == 45) return 1044480;
+  return (bin-45)*pagesize + 1044480;
 }
 
 static inline uint32_t divide_offset_by_objsize(uint32_t offset, binnumber_t bin) {
-  return (offset * static_bin_info[bin].division_multiply_magic) >> static_bin_info[bin].division_shift_magic;
+  return (offset * static_bin_info[bin].object_division_multiply_magic) >> static_bin_info[bin].object_division_shift_magic;
+}
+
+static inline uint32_t divide_offset_by_foliosize(uint32_t offset, binnumber_t bin) {
+  return (offset * static_bin_info[bin].folio_division_multiply_magic) >> static_bin_info[bin].folio_division_shift_magic;
 }
 
 #endif
