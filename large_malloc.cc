@@ -192,23 +192,24 @@ void large_free(void *p) {
 
 
 void test_large_malloc(void) {
+  uint32_t msize = 4*pagesize;
   int64_t fp = get_footprint();
   {
-    void *x = large_malloc(pagesize);
+    void *x = large_malloc(msize);
     bassert(x);
     bassert(offset_in_chunk(x) == 2*pagesize);
 
-    void *y = large_malloc(pagesize);
+    void *y = large_malloc(msize);
     bassert(y);
-    bassert(offset_in_chunk(y) == 3*pagesize);
+    bassert(offset_in_chunk(y) == 2*pagesize+msize);
 
     int64_t fy = large_footprint(y);
-    bassert(fy==pagesize);
+    bassert(fy==msize);
 
-    bassert(get_footprint() - fp == 2*pagesize);
+    bassert(get_footprint() - fp == 2*msize);
 
     large_free(x);
-    void *z = large_malloc(pagesize);
+    void *z = large_malloc(msize);
     bassert(z==x);
 
     large_free(z);
@@ -217,20 +218,20 @@ void test_large_malloc(void) {
 
   bassert(get_footprint() - fp == 0);
   {
-    void *x = large_malloc(2*pagesize);
+    void *x = large_malloc(2*msize);
     bassert(x);
-    bassert(offset_in_chunk(x) == (2+0)*pagesize);
+    bassert(offset_in_chunk(x) == 2*pagesize+0*msize);
 
-    bassert(get_footprint() - fp == 2*pagesize);
+    bassert(get_footprint() - fp == 2*msize);
 
-    void *y = large_malloc(2*pagesize);
+    void *y = large_malloc(2*msize);
     bassert(y);
-    bassert(offset_in_chunk(y) == (2+2)*pagesize);
+    bassert(offset_in_chunk(y) == 2*pagesize+2*msize);
 
-    bassert(get_footprint() - fp == 4*pagesize);
+    bassert(get_footprint() - fp == 4*msize);
 
     large_free(x);
-    void *z = large_malloc(2*pagesize);
+    void *z = large_malloc(2*msize);
     bassert(z==x);
 
     large_free(z);
@@ -240,11 +241,11 @@ void test_large_malloc(void) {
   {
     void *x = large_malloc(largest_large);
     bassert(x);
-    bassert(offset_in_chunk(x) == (2+0)*pagesize);
+    bassert(offset_in_chunk(x) == 2*pagesize + 0*largest_large);
 
     void *y = large_malloc(largest_large);
     bassert(y);
-    bassert(offset_in_chunk(y) % chunksize == 2*pagesize + largest_large);
+    bassert(offset_in_chunk(y) == 2*pagesize + 1*largest_large);
 
     large_free(x);
     void *z = large_malloc(largest_large);
@@ -261,7 +262,7 @@ void test_large_malloc(void) {
 
     void *x = large_malloc(s);
     bassert(x);
-    bassert(offset_in_chunk(x) == (2+0)*pagesize);
+    bassert(offset_in_chunk(x) == 2*pagesize + 0*msize);
 
     bassert(large_footprint(x) == s);
 

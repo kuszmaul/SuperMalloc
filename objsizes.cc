@@ -147,7 +147,6 @@ int main () {
   }
 done_small:
 
-  uint64_t largest_small = 0;
   printf("// Class 2 small objects are prime multiples of a cache line.\n");
   printf("// The folio size is such that the number of 4K pages equals the\n");
   printf("// number of cache lines in the object.  Namely, the folio size is 64 times\n");
@@ -212,7 +211,6 @@ done_small:
     b.print(bin++);
     printf("\n};\n");
   }
-  printf("static const size_t largest_small         = %lu;\n", largest_small);
   const size_t largest_large = (1ul<<(log_chunksize-1))-pagesize;
   printf("static const size_t largest_large         = %lu;\n", largest_large);
   printf("static const binnumber_t first_large_bin_number = %u;\n", first_large_bin);

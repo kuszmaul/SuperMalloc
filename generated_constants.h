@@ -83,7 +83,6 @@ static const struct { uint32_t object_size, folio_size, objects_per_folio, folio
 // huge objects (chunk allocated) start  at this size.
  { 2097152, 2097152,   1,   1,          1lu,          1lu, 21, 21},  //  46
 };
-static const size_t largest_small         = 0;
 static const size_t largest_large         = 1044480;
 static const binnumber_t first_large_bin_number = 39;
 static const binnumber_t first_huge_bin_number   = 46;
