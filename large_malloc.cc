@@ -144,7 +144,7 @@ size_t large_footprint(void *p) {
   bassert(bin < first_huge_bin_number);
   uint64_t usable_size = bin_2_size(bin);
   uint64_t offset = offset_in_chunk(p);
-  uint64_t objnum = (offset-2*pagesize)/usable_size;
+  uint64_t objnum = (offset-offset_of_first_object_in_large_chunk)/usable_size;
   if (0) printf("objnum %p is in bin %d, usable_size=%ld, objnum=%ld\n", p, bin, usable_size, objnum);
   large_object_list_cell *entries = reinterpret_cast<large_object_list_cell*>(address_2_chunkaddress(p));
 
@@ -161,9 +161,9 @@ void large_free(void *p) {
   uint64_t usable_size = bin_2_size(bin);
   madvise(p, usable_size, MADV_DONTNEED);
   uint64_t offset = offset_in_chunk(p);
-  uint64_t        objnum = divide_offset_by_objsize(offset-2*pagesize, bin);
+  uint64_t        objnum = divide_offset_by_objsize(offset-offset_of_first_object_in_large_chunk, bin);
   if (IS_TESTING) {
-    uint64_t objnum2 = (offset-2*pagesize)/usable_size;
+    uint64_t objnum2 = (offset-offset_of_first_object_in_large_chunk)/usable_size;
     bassert(objnum == objnum2);
   }
   large_object_list_cell *entries = reinterpret_cast<large_object_list_cell*>(address_2_chunkaddress(p));
@@ -191,11 +191,11 @@ void test_large_malloc(void) {
   {
     void *x = large_malloc(msize);
     bassert(x);
-    bassert(offset_in_chunk(x) == 2*pagesize);
+    bassert(offset_in_chunk(x) == offset_of_first_object_in_large_chunk);
 
     void *y = large_malloc(msize);
     bassert(y);
-    bassert(offset_in_chunk(y) == 2*pagesize+msize);
+    bassert(offset_in_chunk(y) == offset_of_first_object_in_large_chunk+msize);
 
     size_t fy = large_footprint(y);
     bassert(fy==msize);
@@ -214,13 +214,13 @@ void test_large_malloc(void) {
   {
     void *x = large_malloc(2*msize);
     bassert(x);
-    bassert(offset_in_chunk(x) == 2*pagesize+0*msize);
+    bassert(offset_in_chunk(x) == offset_of_first_object_in_large_chunk+0*msize);
 
     bassert(get_footprint() - fp == (int64_t)(2*msize));
 
     void *y = large_malloc(2*msize);
     bassert(y);
-    bassert(offset_in_chunk(y) == 2*pagesize+2*msize);
+    bassert(offset_in_chunk(y) == offset_of_first_object_in_large_chunk+2*msize);
 
     bassert(get_footprint() - fp == (int64_t)(4*msize));
 
@@ -235,11 +235,11 @@ void test_large_malloc(void) {
   {
     void *x = large_malloc(largest_large);
     bassert(x);
-    bassert(offset_in_chunk(x) == 2*pagesize + 0*largest_large);
+    bassert(offset_in_chunk(x) == offset_of_first_object_in_large_chunk + 0*largest_large);
 
     void *y = large_malloc(largest_large);
     bassert(y);
-    bassert(offset_in_chunk(y) == 2*pagesize + 1*largest_large);
+    bassert(offset_in_chunk(y) == offset_of_first_object_in_large_chunk + 1*largest_large);
 
     large_free(x);
     void *z = large_malloc(largest_large);
@@ -256,7 +256,7 @@ void test_large_malloc(void) {
 
     void *x = large_malloc(s);
     bassert(x);
-    bassert(offset_in_chunk(x) == 2*pagesize + 0*msize);
+    bassert(offset_in_chunk(x) == offset_of_first_object_in_large_chunk + 0*msize);
 
     bassert(large_footprint(x) == s);
 
@@ -264,7 +264,7 @@ void test_large_malloc(void) {
 
     void *y = large_malloc(s);
     bassert(y);
-    bassert(offset_in_chunk(y) == 2*pagesize + bin_2_size(size_2_bin(s)));
+    bassert(offset_in_chunk(y) == offset_of_first_object_in_large_chunk + bin_2_size(size_2_bin(s)));
 
     bassert(large_footprint(y) == s);
 
