@@ -345,23 +345,26 @@ extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
 extern "C" size_t malloc_usable_size(const void *ptr) {
   chunknumber_t cn = address_2_chunknumber(ptr);
   binnumber_t bin = chunk_infos[cn].bin_number;
-  return bin_2_size(bin);
+  const char *base = reinterpret_cast<const char*>(object_base(const_cast<void*>(ptr)));
+  const char *ptr_c = reinterpret_cast<const char*>(ptr);
+  ssize_t base_size = bin_2_size(bin);
+  bassert(base <= ptr);
+  bassert(base_size >= ptr_c-base);
+  return base_size - (ptr_c-base);
 }
 
 #ifdef TESTING
 static void test_malloc_usable_size_internal(size_t given_s) {
   char *a = reinterpret_cast<char*>(malloc(given_s));
   size_t as = malloc_usable_size(a);
-  binnumber_t b = size_2_bin(as);
   char *base = reinterpret_cast<char*>(object_base(a));
+  binnumber_t b = size_2_bin(malloc_usable_size(base));
   bassert(malloc_usable_size(base) == bin_2_size(b));
   bassert(malloc_usable_size(base) + base == malloc_usable_size(a) + a);  
   if (b < first_huge_bin_number) {
     bassert(address_2_chunknumber(a) == address_2_chunknumber(a+as-1));
   } else {
-    bassert((offset_in_chunk(a) + as) % chunksize == 0);
     bassert(offset_in_chunk(base) == 0);
-    bassert(malloc_usable_size(base) % chunksize == 0);
   }
   free(a);
 }
