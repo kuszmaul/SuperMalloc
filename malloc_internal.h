@@ -68,6 +68,14 @@ static inline uint64_t offset_in_page(const void *a) {
   return reinterpret_cast<uint64_t>(a) % pagesize;
 }
 
+static inline bool is_power_of_two(uint64_t x) {
+  return (x&(x-1))==0;
+}
+
+void* object_base(void *ptr);
+// Effect: if we are passed a pointer into the middle of an object, return the beginning of the object.
+// Requires: the pointer must be on the same  chunk as the beginning of the object.
+
 // We keep a table of all the chunks for record keeping.
 // Since the chunks are 2MB (21 bits) and the current address space of x86_64 processors is only 48 bits (256 TiB) \cite[p.120]{AMD12b}
 // that means there can be at most 2^{27} chunks (that's 128 million chunks.)   We simply allocate a direct-mapped table for them all.
@@ -116,14 +124,14 @@ void test_large_malloc();
 void add_to_footprint(int64_t delta);
 int64_t get_footprint();
 
-void *small_malloc(size_t size);
+void *small_malloc(binnumber_t bin);
 void small_free(void* ptr);
 #ifdef TESTING
 void test_small_malloc();
 #endif
 
 extern bool use_threadcache;
-void* cached_malloc(size_t size);
+void* cached_malloc(binnumber_t bin);
 void cached_free(void *ptr, binnumber_t bin);
 
 #ifdef TESTING
@@ -157,6 +165,13 @@ static inline void bin_stats_note_free(binnumber_t b __attribute__((unused))) {}
 #ifdef ENABLE_LOG_CHECKING
 void check_log_large();
 #endif
+
+struct large_object_list_cell {
+  union {
+    large_object_list_cell *next;
+    uint32_t footprint;
+  };
+};
 
 #endif
 

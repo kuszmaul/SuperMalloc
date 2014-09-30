@@ -167,19 +167,24 @@ static uint64_t max_allocatable_size = (chunksize << 27)-1;
 //   BIG, used for large allocations.  These are 2MB-aligned chunks.  We use BIG for anything bigger than a quarter of a chunk.
 //   SMALL fit within a chunk.  Everything within a single chunk is the same size.
 // The sizes are the powers of two (1<<X) as well as (1<<X)*1.25 and (1<<X)*1.5 and (1<<X)*1.75
-extern "C" void *malloc(size_t size) {
+extern "C" void* malloc(size_t size) {
   maybe_initialize_malloc();
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
     return NULL;
   }
-  void *result;
   if (size <= largest_large) {
-    result = cached_malloc(size);
-  } else {
-    result = huge_malloc(size);
+    binnumber_t bin = size_2_bin(size);
+    size_t siz = bin_2_size(bin);
+    if (!is_power_of_two(siz/cacheline_size))
+      return cached_malloc(bin);
+    if (bin+1 < first_huge_bin_number)
+      return cached_malloc(bin+1);
+    // Else fall through,
   }
-  return result;
+  char *result = reinterpret_cast<char*>(huge_malloc(size+pagesize-cacheline_size));
+  int   add_misalignment = cacheline_size * (prandnum()%(pagesize/cacheline_size));
+  return result+add_misalignment;  
 }
 
 extern "C" void free(void *p) {
@@ -233,7 +238,7 @@ extern "C" void* realloc(void *p, size_t size) {
 static void test_realloc(void) {
   char *a = (char*)malloc(128);
   for (int i = 0; i < 128; i++) a[i]='a';
-  char *b = (char*)realloc(a, 129);
+  char *b = (char*)realloc(a, 1+malloc_usable_size(a));
   bassert(a != b);
   for (int i = 0; i < 128; i++) bassert(b[i]=='a');
   bassert(malloc_usable_size(b) >= 129);
@@ -248,15 +253,59 @@ static void test_realloc(void) {
 
 extern "C" void* calloc(size_t number, size_t size) {
   void *result = malloc(number*size);
-  size_t usable = malloc_usable_size(result);
-  if ((offset_in_chunk(result) == 0) &&
-      (usable % pagesize == 0)) {
-    madvise(result, usable, MADV_DONTNEED);
-  } else {
+
+  void *base = object_base(result);
+  size_t usable_from_base = malloc_usable_size(base);
+  uint64_t oip = offset_in_page(base);
+
+  if (oip > 0) {
+    // if the base object is not page aligned, then it's a small object.  Just zero it.
     memset(result, 0, number*size);
+  } else if (usable_from_base % pagesize != 0) {
+    // If the base object is page aligned, and the usable amount isn't page aligned, it's still pretty small, so just zero it.
+    bassert(usable_from_base < chunksize);
+    memset(result, 0, number*size);
+  } else {
+    // everything is page aligned.
+    madvise(base, usable_from_base, MADV_DONTNEED);
   }
   return result;
 }
+
+static void* align_pointer_up(void *p, uint64_t alignment, uint64_t size, uint64_t alloced_size) {
+  uint64_t ru = reinterpret_cast<uint64_t>(p);
+  uint64_t ra = (ru + alignment -1) & ~(alignment-1);
+  bassert((ra & (alignment-1)) == 0);
+  bassert(ra + size <= ru + alloced_size);
+  return reinterpret_cast<void*>(ra);
+}
+
+static void* aligned_malloc_internal(size_t alignment, size_t size) {
+  // requires alignment is a power of two.
+  maybe_initialize_malloc();
+  binnumber_t bin = size_2_bin(size);
+  while (bin < first_huge_bin_number) {
+    uint64_t bs = bin_2_size(bin);
+    if (0 == (bs & (alignment -1))) {
+      // this bin produced blocks that are aligned with alignment
+      return cached_malloc(bin);
+    }
+    if (bs+1 >= alignment+size) {
+      // this bin produces big enough blocks to force alignment by taing a subpiece.
+      return align_pointer_up(cached_malloc(bin), alignment, size, bs);
+    }
+    bin++;
+  }
+  // We fell out the bottom.  We'll use a huge block.
+  if (alignment <= chunksize) {
+    // huge blocks are naturally aligned properly.
+    return huge_malloc(size); // huge blocks are always naturally aligned.
+  } else {
+    // huge blocks are naturally powers of two, but they aren't always aligned.  Allocate something big enough to align it.
+    return align_pointer_up(huge_malloc(alignment+size-pagesize), alignment, size, alignment+size-pagesize);
+  }
+}
+
 
 extern "C" void* aligned_alloc(size_t alignment, size_t size) {
   if (size >= max_allocatable_size) {
@@ -273,11 +322,7 @@ extern "C" void* aligned_alloc(size_t alignment, size_t size) {
     errno = EINVAL;
     return NULL;
   }
-  binnumber_t bin = size_2_bin(size);
-  while (bin_2_size(bin) & (alignment - 1)) {
-    bin++;
-  }
-  return malloc(bin_2_size(bin)); // it looks like it happens to be the case that all multiples of powers of two are aligned to that power of two.
+  return aligned_malloc_internal(alignment, size);
 }
 
 extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
@@ -293,11 +338,7 @@ extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
     *ptr = NULL;
     return 0;
   }
-  binnumber_t bin = size_2_bin(size);
-  while (bin_2_size(bin) & (alignment -1)) {
-    bin++;
-  }
-  *ptr = malloc(bin_2_size(bin));
+  *ptr = aligned_malloc_internal(alignment, size);
   return 0;
 }
 
@@ -305,6 +346,24 @@ extern "C" size_t malloc_usable_size(const void *ptr) {
   chunknumber_t cn = address_2_chunknumber(ptr);
   binnumber_t bin = chunk_infos[cn].bin_number;
   return bin_2_size(bin);
+}
+
+void* object_base(void *ptr) {
+  // Requires: ptr is on the same chunk as the object base.
+  chunknumber_t cn = address_2_chunknumber(ptr);
+  binnumber_t bin = chunk_infos[cn].bin_number;
+  if (bin >= first_huge_bin_number) {
+    return address_2_chunkaddress(ptr);
+  } else {
+    uint64_t oic = offset_in_chunk(ptr);
+    // now figure out which folio we are in.
+    uint64_t folio_number = oic/folio_size; // use magic for this.  What about the reserved pages for the list of sizes?
+    uint32_t folio_size   = static_bin_info[bin].folio_size;
+    uint64_t offset_in_folio = oic - folio_number * folio_size;
+    uint64_t object_number = offset_in_folio/object_size; // use magic for this.
+    uint32_t object_size = static_bin_info[bin].object_size;
+    return (char*)ptr + offset_in_folio - object_number * object_size;
+  }
 }
 
 // The basic idea of allocation, is that that we allocate 2MiB chunks

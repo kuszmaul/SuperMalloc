@@ -464,13 +464,12 @@ static void* try_get_global_cached(int processor,
 uint64_t global_cache_attempt_count = 0;
 uint64_t global_cache_success_count = 0;
 
-void* cached_malloc(size_t size)
-// Effect: Try to the thread cache first.  Otherwise try the cpu cache
+void* cached_malloc(binnumber_t bin)
+// Effect: Try the thread cache first.  Otherwise try the cpu cache
 //   (move several things from the cpu cache to the thread cache if we
 //   can do it efficiently), otherwise try the global cache (move a
 //   whole chunk from the global cache to the cpu cache).
 {
-  binnumber_t bin = size_2_bin(size);
   bassert(bin < first_huge_bin_number);
   uint64_t siz = bin_2_size(bin);
 
@@ -480,7 +479,7 @@ void* cached_malloc(size_t size)
 				       siz);
     if (result) {
       cache_for_thread.success_count++;
-      clog_command('a', result, size);
+      clog_command('a', result, siz);
       return result;
     }
   }
@@ -493,7 +492,7 @@ void* cached_malloc(size_t size)
     void *result = try_get_cpu_cached(p, bin, siz);
     if (result) {
       __sync_fetch_and_add(&cache_for_cpu[p].success_count, 1);
-      clog_command('a', result, size);
+      clog_command('a', result, siz);
       return result;
     }
   }
@@ -510,12 +509,12 @@ void* cached_malloc(size_t size)
     
   // Didn't get a result.  Use the underlying alloc
   if (bin < first_large_bin_number) {
-    void *result = small_malloc(size);
-    clog_command('a', result, size);
+    void *result = small_malloc(bin);
+    clog_command('a', result, siz);
     return result;
   } else {
-    void *result = large_malloc(size);
-    clog_command('a', result, size);
+    void *result = large_malloc(siz);
+    clog_command('a', result, siz);
     return result;
   }
 }

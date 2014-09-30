@@ -70,7 +70,10 @@ static const struct { uint32_t object_size, folio_size, objects_per_folio, folio
  {   10048,  643072,  64,   3, 7003258776lu, 7003258776lu, 46, 52},  //  37     0.662 (157 cache lines, 3 folios/chunk, at least 462912 bytes used/folio)
  {   14272,  913408,  64,   2, 4930545417lu, 4930545417lu, 46, 52},  //  38     0.613 (223 cache lines, 2 folios/chunk, at least 643136 bytes used/folio)
 // large objects (page allocated):
-//  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].
+//  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) information about each object (large_object_list_cell)
+//   For unallocated objects we maintain a next pointer to the next large_object_list_cell for an free object of the same size.
+//   For allocated objects, we maintain the footprint.
+//  This extra information always fits within one page.
 //  This introduces fragmentation.  This fragmentation doesn't matter much since it will be purged. For sizes up to 1<<17 we waste the last potential object.
 //   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation
  {   16384,   16384,   1, 128,          1lu,          1lu, 14, 14},  //  39 
@@ -83,6 +86,7 @@ static const struct { uint32_t object_size, folio_size, objects_per_folio, folio
 // huge objects (chunk allocated) start  at this size.
  { 2097152, 2097152,   1,   1,          1lu,          1lu, 21, 21},  //  46
 };
+static const uint64_t offset_of_first_object_in_large_chunk = 4096;
 static const size_t largest_large         = 1044480;
 static const binnumber_t first_large_bin_number = 39;
 static const binnumber_t first_huge_bin_number   = 46;

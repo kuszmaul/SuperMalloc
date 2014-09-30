@@ -196,14 +196,12 @@ static void* do_small_malloc(binnumber_t bin,
   abort(); // It's bad if we get here, it means that there was no bit in the bitmap, but the data structure said there should be.
 }
 
-void* small_malloc(size_t size)
+void* small_malloc(binnumber_t bin)
 // Effect: Allocate a small object (subpage, class 1 and class 2 are
 // treated the same by all the code, it's just the sizes that matter).
 // We want to allocate a small object in the fullest possible page.
 {
-  if (0) printf("small_malloc(%ld)\n", size);
   verify_small_invariants();
-  binnumber_t bin = size_2_bin(size);
   bin_stats_note_malloc(bin);
   //size_t usable_size = bin_2_size(bin);
   bassert(bin < first_large_bin_number);
@@ -380,16 +378,16 @@ void test_small_malloc(void) {
   printf("%p\n", data16[n16-1]);
 
   {
-    void *x = small_malloc(2048);
+    void *x = small_malloc(size_2_bin(2048));
     printf("x (2k)=%p\n", x);
     small_free(x);
   }
-  void *x = small_malloc(2048);
+  void *x = small_malloc(size_2_bin(2048));
   printf("x (2k)=%p\n", x);
 
-  void *y = small_malloc(2048);
+  void *y = small_malloc(size_2_bin(2048));
   printf("y (2k)=%p\n", y);
-  void *z = small_malloc(2048);
+  void *z = small_malloc(size_2_bin(2048));
   printf("z (2k)=%p\n", z);
   bassert(chunk_infos[address_2_chunknumber(z)].bin_number == size_2_bin(2048));
 

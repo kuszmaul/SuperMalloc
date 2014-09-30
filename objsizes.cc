@@ -20,10 +20,6 @@ static uint32_t next_prime(uint32_t x) {
   }
 }
 
-static bool is_power_of_two(uint64_t x) {
-  return (x&(x-1))==0;
-}
-
 static uint32_t next_prime_or_power_of_two(uint32_t x) {
   while (1) {
     x++;
@@ -186,8 +182,13 @@ done_small:
     }
   }
 
+  const uint64_t offset_of_first_object_in_large_chunk = pagesize;
+
   printf("// large objects (page allocated):\n");
-  printf("//  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) the number of actual pages allocated as an array of short[512].\n");
+  printf("//  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) information about each object (large_object_list_cell)\n");
+  printf("//   For unallocated objects we maintain a next pointer to the next large_object_list_cell for an free object of the same size.\n");
+  printf("//   For allocated objects, we maintain the footprint.\n");
+  printf("//  This extra information always fits within one page.\n");
   uint32_t largest_waste_at_end = log_chunksize - 4;
   printf("//  This introduces fragmentation.  This fragmentation doesn't matter much since it will be purged. For sizes up to 1<<%d we waste the last potential object.\n", largest_waste_at_end);
   printf("//   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation\n");
@@ -203,6 +204,7 @@ done_small:
     b.print(bin++);
     printf(" %s\n", comment);
     static_bins.push_back(b);
+    assert(b.objects_per_folio * b.folios_per_chunk * sizeof(large_object_list_cell) <= offset_of_first_object_in_large_chunk);
   }
   binnumber_t first_huge_bin = bin;
   printf("// huge objects (chunk allocated) start  at this size.\n");
@@ -212,6 +214,7 @@ done_small:
     printf("\n};\n");
   }
   const size_t largest_large = (1ul<<(log_chunksize-1))-pagesize;
+  printf("static const uint64_t offset_of_first_object_in_large_chunk = %lu;\n", offset_of_first_object_in_large_chunk);
   printf("static const size_t largest_large         = %lu;\n", largest_large);
   printf("static const binnumber_t first_large_bin_number = %u;\n", first_large_bin);
   printf("static const binnumber_t first_huge_bin_number   = %u;\n", first_huge_bin);

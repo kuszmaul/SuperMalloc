@@ -15,13 +15,6 @@ static void log_command(char command, const void *ptr);
 #define log_command(a,b) ((void)0)
 #endif
 
-struct large_object_list_cell {
-  union {
-    large_object_list_cell *next;
-    uint32_t footprint;
-  };
-};
-
 static const binnumber_t n_large_classes = first_huge_bin_number - first_large_bin_number;
 static large_object_list_cell* free_large_objects[n_large_classes]; // For each large size, a list (threaded through the chunk headers) of all the free objects of that size.
 // Later we'll be a little careful about purging those large objects (and we'll need to remember which are which, but we may also want thread-specific parts).  For now, just purge them all.
@@ -99,7 +92,7 @@ void* large_malloc(size_t size)
       large_object_list_cell *chunk_as_list_cell = reinterpret_cast<large_object_list_cell*>(chunk);
       size_t offset = h-chunk_as_list_cell;
       if (0) printf("offset=%ld\n", offset);
-      void* address = reinterpret_cast<void*>(reinterpret_cast<char*>(chunk) + 2*pagesize + offset * usable_size);
+      void* address = reinterpret_cast<void*>(reinterpret_cast<char*>(chunk) + offset_of_first_object_in_large_chunk + offset * usable_size);
       bassert(address_2_chunknumber(address)==address_2_chunknumber(chunk));
       if (0) printf("result=%p\n", address);
       bassert(chunk_infos[address_2_chunknumber(address)].bin_number == b);
@@ -112,10 +105,11 @@ void* large_malloc(size_t size)
       if (0) printf("chunk=%p\n", chunk);
 
       if (0) printf("usable_size=%ld\n", usable_size);
-      size_t objects_per_chunk = (chunksize-2*pagesize)/usable_size;
+      size_t objects_per_chunk = (chunksize-offset_of_first_object_in_large_chunk)/usable_size; // Should use magic for this, but it's already got an mmap(), so it doesn't matter
       if (0) printf("opce=%ld\n", objects_per_chunk);
       size_t size_of_header = objects_per_chunk * sizeof(large_object_list_cell);
       if (0) printf("soh=%ld\n", size_of_header);
+      bassart(size_of_header <= offset_of_first_object_in_large_chunk);
 
       large_object_list_cell *entry = (large_object_list_cell*)chunk;
       for (size_t i = 0; i+1 < objects_per_chunk; i++) {
@@ -192,7 +186,7 @@ void large_free(void *p) {
 
 
 void test_large_malloc(void) {
-  uint32_t msize = 4*pagesize;
+  size_t msize = 4*pagesize;
   int64_t fp = get_footprint();
   {
     void *x = large_malloc(msize);
@@ -203,10 +197,10 @@ void test_large_malloc(void) {
     bassert(y);
     bassert(offset_in_chunk(y) == 2*pagesize+msize);
 
-    int64_t fy = large_footprint(y);
+    size_t fy = large_footprint(y);
     bassert(fy==msize);
 
-    bassert(get_footprint() - fp == 2*msize);
+    bassert(get_footprint() - fp == (int64_t)(2*msize));
 
     large_free(x);
     void *z = large_malloc(msize);
@@ -222,13 +216,13 @@ void test_large_malloc(void) {
     bassert(x);
     bassert(offset_in_chunk(x) == 2*pagesize+0*msize);
 
-    bassert(get_footprint() - fp == 2*msize);
+    bassert(get_footprint() - fp == (int64_t)(2*msize));
 
     void *y = large_malloc(2*msize);
     bassert(y);
     bassert(offset_in_chunk(y) == 2*pagesize+2*msize);
 
-    bassert(get_footprint() - fp == 4*msize);
+    bassert(get_footprint() - fp == (int64_t)(4*msize));
 
     large_free(x);
     void *z = large_malloc(2*msize);
