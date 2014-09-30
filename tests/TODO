@@ -1,1 +1,4 @@
 malloc_usable_size() must not return too much (it does when allocating 2MiB, with an offset of 256, the usable size is still 2MiB)
+
+test the object_base function
+

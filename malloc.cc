@@ -348,6 +348,33 @@ extern "C" size_t malloc_usable_size(const void *ptr) {
   return bin_2_size(bin);
 }
 
+#ifdef TESTING
+static void test_malloc_usable_size_internal(size_t given_s) {
+  char *a = reinterpret_cast<char*>(malloc(given_s));
+  size_t as = malloc_usable_size(a);
+  binnumber_t b = size_2_bin(as);
+  char *base = reinterpret_cast<char*>(object_base(a));
+  bassert(malloc_usable_size(base) == bin_2_size(b));
+  bassert(malloc_usable_size(base) + base == malloc_usable_size(a) + a);  
+  if (b < first_huge_bin_number) {
+    bassert(address_2_chunknumber(a) == address_2_chunknumber(a+as-1));
+  } else {
+    bassert((offset_in_chunk(a) + as) % chunksize == 0);
+    bassert(offset_in_chunk(base) == 0);
+    bassert(malloc_usable_size(base) % chunksize == 0);
+  }
+  free(a);
+}
+
+static void test_malloc_usable_size(void) {
+  for (size_t i=8; i<4*chunksize; i*=2) {
+    for (size_t o=0; o<8; o++) {
+      test_malloc_usable_size_internal(i+o);
+    }
+  }
+}
+#endif
+
 void* object_base(void *ptr) {
   // Requires: ptr is on the same chunk as the object base.
   chunknumber_t cn = address_2_chunknumber(ptr);
@@ -487,5 +514,6 @@ int main() {
   test_large_malloc();
   test_small_malloc();
   test_realloc();
+  test_malloc_usable_size();
 }
 #endif
