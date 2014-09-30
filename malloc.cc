@@ -357,12 +357,13 @@ void* object_base(void *ptr) {
   } else {
     uint64_t oic = offset_in_chunk(ptr);
     // now figure out which folio we are in.
-    uint64_t folio_number = oic/folio_size; // use magic for this.  What about the reserved pages for the list of sizes?
+    uint64_t unused_at_chunk_beginning = (bin < first_large_bin_number) ? 0 : offset_of_first_object_in_large_chunk;
     uint32_t folio_size   = static_bin_info[bin].folio_size;
-    uint64_t offset_in_folio = oic - folio_number * folio_size;
-    uint64_t object_number = offset_in_folio/object_size; // use magic for this.
+    uint64_t folio_number = (oic-unused_at_chunk_beginning)/folio_size; // use magic for this.  What about the reserved pages for the list of sizes?
+    uint64_t offset_in_folio = oic-unused_at_chunk_beginning - folio_number * folio_size;
     uint32_t object_size = static_bin_info[bin].object_size;
-    return (char*)ptr + offset_in_folio - object_number * object_size;
+    uint64_t object_number = offset_in_folio/object_size; // use magic for this.
+    return reinterpret_cast<char*>(address_2_chunkaddress(ptr)) + unused_at_chunk_beginning + folio_number * folio_size + object_number*object_size;
   }
 }
 

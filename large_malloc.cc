@@ -109,7 +109,7 @@ void* large_malloc(size_t size)
       if (0) printf("opce=%ld\n", objects_per_chunk);
       size_t size_of_header = objects_per_chunk * sizeof(large_object_list_cell);
       if (0) printf("soh=%ld\n", size_of_header);
-      bassart(size_of_header <= offset_of_first_object_in_large_chunk);
+      bassert(size_of_header <= offset_of_first_object_in_large_chunk);
 
       large_object_list_cell *entry = (large_object_list_cell*)chunk;
       for (size_t i = 0; i+1 < objects_per_chunk; i++) {
