@@ -1,0 +1,5 @@
+aligned_alloc
+calloc
+posix_memalign
+test-malloc_test
+unit-tests

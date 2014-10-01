@@ -93,10 +93,6 @@ extern struct chunk_info {
 // Functions that are separated into various files.
 void* huge_malloc(uint64_t size);
 void huge_free(void* ptr);
-#ifdef TESTING
-void test_huge_malloc();
-#endif
-
 
 const unsigned int log_max_chunknumber = 27;
 const chunknumber_t null_chunknumber = 0;
@@ -112,32 +108,18 @@ extern chunknumber_t free_chunks[log_max_chunknumber];
 
 void* mmap_chunk_aligned_block(size_t n_chunks); //
 
-#ifdef TESTING
-void test_makechunk();
-#endif
-
 void *large_malloc(size_t size);
 void large_free(void* ptr);
-#ifdef TESTING
-void test_large_malloc();
-#endif
 
 void add_to_footprint(int64_t delta);
 int64_t get_footprint();
 
 void *small_malloc(binnumber_t bin);
 void small_free(void* ptr);
-#ifdef TESTING
-void test_small_malloc();
-#endif
 
 extern bool use_threadcache;
 void* cached_malloc(binnumber_t bin);
 void cached_free(void *ptr, binnumber_t bin);
-
-#ifdef TESTING
-void test_cache_early();
-#endif
 
 const int cpulimit = 128;
 
@@ -181,6 +163,10 @@ struct per_folio {
   per_folio *prev;
   uint64_t inuse_bitmap[folio_bitmap_n_words]; // up to 512 objects (8 bytes per object) per page.  The bit is set if the object is in use.
 };
+
+#ifdef TESTING
+#include "unit-tests.h"
+#endif
 
 #endif
 

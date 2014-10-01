@@ -25,7 +25,12 @@ static inline  void bassert_f(bool test, const char *pred, const char *file, int
 #define assert dont_use_assert_do_use_bassert
 #endif
 
-
+static bool OR(bool a, bool b) {
+  return a || b;
+}
+static bool AND(bool a, bool b) {
+  return a && b;
+}
 
 
 #endif

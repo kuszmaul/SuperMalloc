@@ -17,13 +17,13 @@
 #include "generated_constants.h"
 
 #ifdef TESTING
-static void test_size_2_bin(void) {
+extern "C" void test_size_2_bin(void) {
     for (size_t i=8; i<=largest_large; i++) {
         binnumber_t g = size_2_bin(i);
         bassert(g<first_huge_bin_number);
         bassert(i <= static_bin_info[g].object_size);
         if (g>0) bassert(i > static_bin_info[g-1].object_size);
-        else bassert(g==0 && i==8);
+        else bassert(AND(g==0, i==8));
 	size_t s = bin_2_size(g);
 	bassert(s>=i);
 	bassert(size_2_bin(s) == g);
@@ -44,7 +44,7 @@ static void test_size_2_bin(void) {
     // Verify that all the bins that are 256 or larger are multiples of a cache line.
     for (binnumber_t i = 0; i <= first_huge_bin_number; i++) {
       size_t os = static_bin_info[i].object_size;
-      bassert(os < 256 || os%64 == 0);
+      bassert(OR(os < 256, os%64 == 0));
     }
 }
 #endif
@@ -71,7 +71,12 @@ bool use_transactions = true;
 bool do_predo = true;
 bool use_threadcache = true;
 
-static void initialize_malloc() {
+#ifndef TESTING
+static
+#else
+extern "C"
+#endif
+void initialize_malloc() {
 #ifdef ENABLE_STATS
   atexit(print_stats);
 #endif
@@ -142,12 +147,10 @@ static uint64_t slow_hyperceil(uint64_t a) {
 
 static void test_hyperceil_v(uint64_t a, uint64_t expected) {
   bassert(hyperceil(a)==slow_hyperceil(a));
-  if (expected) {
-    bassert(hyperceil(a)==expected);
-  }
+  bassert(hyperceil(a)==expected);
 }
 
-static void test_hyperceil(void) {
+void test_hyperceil(void) {
   test_hyperceil_v(1, 1);
   test_hyperceil_v(2, 2);
   test_hyperceil_v(3, 4);
@@ -199,14 +202,6 @@ extern "C" void free(void *p) {
   }
 }
 
-extern "C" void free_known_size(void *p, size_t size) {
-  if (p == NULL) return;
-  chunknumber_t cn = address_2_chunknumber(p);
-  binnumber_t bin = chunk_infos[cn].bin_number;
-  bassert(bin == size_2_bin(size));
-  free(p);
-}
-
 extern "C" void* realloc(void *p, size_t size) {
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
@@ -235,7 +230,7 @@ extern "C" void* realloc(void *p, size_t size) {
 }
 
 #ifdef TESTING
-static void test_realloc(void) {
+void test_realloc(void) {
   char *a = (char*)malloc(128);
   for (int i = 0; i < 128; i++) a[i]='a';
   char *b = (char*)realloc(a, 1+malloc_usable_size(a));
@@ -369,7 +364,7 @@ static void test_malloc_usable_size_internal(size_t given_s) {
   free(a);
 }
 
-static void test_malloc_usable_size(void) {
+void test_malloc_usable_size(void) {
   for (size_t i=8; i<4*chunksize; i*=2) {
     for (size_t o=0; o<8; o++) {
       test_malloc_usable_size_internal(i+o);
@@ -506,17 +501,3 @@ void* object_base(void *ptr) {
 // even at the beginning, since it probably means a single page table
 // entry for this table.
 
-#ifdef TESTING
-int main() {
-  test_cache_early(); // this test should be done before any mallocs are done
-  initialize_malloc();
-  test_hyperceil();
-  test_size_2_bin();
-  test_makechunk();
-  test_huge_malloc();
-  test_large_malloc();
-  test_small_malloc();
-  test_realloc();
-  test_malloc_usable_size();
-}
-#endif
