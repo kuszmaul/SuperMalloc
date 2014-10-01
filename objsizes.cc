@@ -88,10 +88,10 @@ class static_bin_t {
       folio_division_shift_magic(calculate_shift_magic(foliosize))
   {}
   void print(uint32_t bin) {
-    printf(" {%8u, %7u, %3u, %3u, %10lulu, %10lulu, %2u, %2u},  // %3d",
+    printf(" {%8u, %7u, %3u, %3u, %2u, %2u, %10lulu, %10lulu},  // %3d",
 	   object_size, foliosize, objects_per_folio, folios_per_chunk,
-	   object_division_multiply_magic, folio_division_multiply_magic,
 	   object_division_shift_magic,    folio_division_shift_magic,
+	   object_division_multiply_magic, folio_division_multiply_magic,
 	   bin);
   }
 };
@@ -124,7 +124,7 @@ int main () {
 
   std::vector<static_bin_t> static_bins;
 
-  printf("static const struct { uint32_t object_size, folio_size, objects_per_folio, folios_per_chunk; uint64_t object_division_multiply_magic, folio_division_multiply_magic; uint32_t object_division_shift_magic, folio_division_shift_magic;} static_bin_info[] __attribute__((unused)) = {\n");
+  printf("static const struct static_bin_s { uint32_t object_size, folio_size; uint16_t objects_per_folio, folios_per_chunk;  uint8_t object_division_shift_magic, folio_division_shift_magic; uint64_t object_division_multiply_magic, folio_division_multiply_magic;} static_bin_info[] __attribute__((unused)) = {\n");
   printf("// The first class of small objects try to get a maximum of 25%% internal fragmentation by having sizes of the form c<<k where c is 4, 5, 6 or 7.\n");
   printf("// We stop at when we have 4 cachelines, so that the ones that happen to be multiples of cache lines are either a power of two or odd.\n");
   printf("//   objsize foliosize objects_per_folio  multiply_division_magic shift_division_magic   bin   wastage\n");
@@ -220,18 +220,18 @@ done_small:
   printf("static const binnumber_t first_huge_bin_number   = %u;\n", first_huge_bin);
   //  printf("static const uint64_t    slot_size               = %u;\n", slot_size);
   
-  printf("struct per_page; // Forward decl needed here.\n");
+  printf("struct per_folio; // Forward decl needed here.\n");
   printf("struct dynamic_small_bin_info {\n");
   printf("  union {\n");
   printf("    struct {\n");
   {
     int count = 0;
     for (int b = 0; b < first_large_bin;  b++ ) {
-      printf("      per_page *b%d[%d];\n", b, static_bins[b].objects_per_folio+1);
+      printf("      per_folio *b%d[%d];\n", b, static_bins[b].objects_per_folio+1);
       count += static_bins[b].objects_per_folio+1;
     }
     printf("    };\n");
-    printf("    per_page *b[%d];\n", count);
+    printf("    per_folio *b[%d];\n", count);
   }
   printf("  };\n");
   printf("};\n");
