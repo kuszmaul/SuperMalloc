@@ -24,6 +24,7 @@ malloc: OPTFLAGS = -O0
 malloc: malloc.cc makechunk.cc rng.cc huge_malloc.cc large_malloc.cc small_malloc.cc cache.cc bassert.cc footprint.cc stats.cc $(wildcard *.h) generated_constants.h
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $(filter-out %.h, $^) -o $@
 objsizes: OPTFLAGS=-O0
+objsizes: COVERAGE=
 objsizes: malloc_internal.h
 generated_constants.h: objsizes
 	./$< > $@
@@ -43,7 +44,7 @@ tests_check: libsupermalloc.so
 	cd tests;$(MAKE) check
 .PHONY: clean
 clean:
-	rm -f t malloc *.o *.so generated_constants.h objsizes *.gcda
+	rm -f t malloc *.o *.so generated_constants.h objsizes *.gcda *.gcno *.gcov
 	cd tests;$(MAKE) clean
 
 TAGS: $(wildcard *.cc) $(wildcard *.h) $(wildcard */*.cc) $(wildcard */*.c)  $(wildcard */*.h)
