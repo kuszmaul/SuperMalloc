@@ -3,6 +3,8 @@
 #include "generated_constants.h"
 #include "malloc_internal.h"
 
+lock small_lock;
+
 static struct {
   dynamic_small_bin_info lists;
 
@@ -36,6 +38,13 @@ void test_small_page_header() {
 
 static inline void verify_small_invariants() {
   return;
+  mylock_raii mr(&small_lock.l);
+  if (0 && dsbi.fullest_offset[27] == 0) {
+    for (unsigned int i = 1; i<static_bin_info[27].objects_per_folio; i++) {
+      bassert(dsbi.lists.b27[i]==NULL);
+    }
+  }
+  //  return;
   for (binnumber_t bin = 0; bin < first_large_bin_number; bin++) {
     uint16_t fullest_off = dsbi.fullest_offset[bin];
     int start       = dynamic_small_bin_offset(bin);
@@ -65,8 +74,6 @@ static inline void verify_small_invariants() {
     }
   }
 }
-
-lock small_lock;
 
 static void predo_small_malloc_add_pages_from_new_chunk(binnumber_t bin,
 							uint32_t dsbi_offset,
@@ -187,10 +194,11 @@ static void* do_small_malloc(binnumber_t bin,
 
       uint64_t chunk_address = reinterpret_cast<uint64_t>(address_2_chunkaddress(result_pp));
       uint64_t wasted_off   = n_pages_wasted*pagesize;
-      uint64_t page_num     = offset_in_chunk(result_pp)/sizeof(per_page);
-      uint64_t page_off     = page_num*pagesize;
+      uint64_t folio_num     = offset_in_chunk(result_pp)/sizeof(per_page);
+      uint64_t folio_size   = static_bin_info[bin].folio_size;
+      uint64_t folio_off     = folio_num * folio_size;
       uint64_t obj_off      = (w * 64 + bit_to_set) * o_size;
-      return reinterpret_cast<void*>(chunk_address + wasted_off + page_off + obj_off);
+      return reinterpret_cast<void*>(chunk_address + wasted_off + folio_off + obj_off);
     }
   }
   abort(); // It's bad if we get here, it means that there was no bit in the bitmap, but the data structure said there should be.
@@ -236,6 +244,7 @@ void* small_malloc(binnumber_t bin)
     if (0 && needed) printf("Chunked\n");
     if (0) printf("There's one somewhere\n");
     
+    verify_small_invariants();
     void *result = atomically(&small_lock.l, predo_small_malloc, do_small_malloc,
 			      bin, dsbi_offset, o_per_folio, o_size);
 
@@ -293,7 +302,7 @@ static bool do_small_free(binnumber_t bin,
   uint32_t old_count = 0;
   for (uint32_t i = 0; i < ceil(static_bin_info[bin].objects_per_folio, 64); i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
   // clear the bit.
-  if (IS_TESTING) bassert(pp->inuse_bitmap[objnum/64] & (1ul << (objnum%64)));
+  bassert(pp->inuse_bitmap[objnum/64] & (1ul << (objnum%64)));
   pp->inuse_bitmap[objnum/64] &= ~ ( 1ul << (objnum%64 ));
   if (IS_TESTING) bassert(old_count > 0 && old_count <= o_per_folio);
 
@@ -333,17 +342,18 @@ static bool do_small_free(binnumber_t bin,
 void small_free(void* p) {
   verify_small_invariants();
   void *chunk = address_2_chunkaddress(p);
-  small_chunk_header *sch = (small_chunk_header*)chunk;
-  uint64_t page_num = pagenum_in_chunk(p);
-  if (IS_TESTING) bassert(page_num >= n_pages_wasted);
+  small_chunk_header *sch = reinterpret_cast<small_chunk_header*>(chunk);
+  bassert(reinterpret_cast<uint64_t>(p) >= n_pages_wasted * pagesize);
+  uint64_t useful_offset =   offset_in_chunk(p) - n_pages_wasted * pagesize;
   chunknumber_t chunk_num  = address_2_chunknumber(p);
   binnumber_t   bin        = chunk_infos[chunk_num].bin_number;
-  uint32_t useful_page_num = page_num - n_pages_wasted;
-  per_page             *pp = &sch->ll[useful_page_num];
-  uint32_t o_size     = static_bin_info[bin].object_size;
-  uint64_t        objnum = divide_offset_by_objsize(offset_in_page(p), bin);
+  uint32_t       folio_num = divide_offset_by_foliosize(useful_offset, bin);
+  per_page             *pp = &sch->ll[folio_num];
+  uint32_t offset_in_folio = useful_offset - folio_num * static_bin_info[bin].folio_size;
+  uint64_t        objnum   = divide_offset_by_objsize(offset_in_folio, bin);
   if (IS_TESTING) {
-    uint64_t       objnum2 = offset_in_page(p) / o_size;
+    uint32_t o_size     = static_bin_info[bin].object_size;
+    uint64_t       objnum2 = offset_in_folio / o_size;
     bassert(objnum == objnum2);
   }
   if (IS_TESTING) bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
@@ -357,6 +367,42 @@ void small_free(void* p) {
 }
 
 #ifdef TESTING
+static void test_bin_27() {
+  static const int max_n_objects = 256;
+  static void *allocated[max_n_objects];
+  static int32_t folio_numbers[max_n_objects];
+  static per_page *pps[max_n_objects];
+  static int32_t object_numbers_in_folio[max_n_objects];
+  for (int n_objects = 1; n_objects <= max_n_objects; n_objects++) {
+    for (int objnum = 0; objnum < n_objects; objnum++) {
+      const binnumber_t bin = 27;
+      allocated[objnum] = small_malloc(bin);
+      int32_t useful_offset = offset_in_chunk(allocated[objnum]) - n_pages_wasted * pagesize;
+      folio_numbers[objnum]  = useful_offset / static_bin_info[bin].folio_size;
+      object_numbers_in_folio[objnum] = (useful_offset - folio_numbers[objnum] * static_bin_info[bin].folio_size) / static_bin_info[bin].object_size;
+      small_chunk_header *sch = reinterpret_cast<small_chunk_header*>(address_2_chunkaddress(allocated[objnum]));
+      pps[objnum] = &sch->ll[folio_numbers[objnum]];
+      bassert(object_numbers_in_folio[objnum] < 64);
+      bassert(1 == ((pps[objnum]->inuse_bitmap[0] >> object_numbers_in_folio[objnum]) & 1));
+    }
+    for (int objnum = 0; objnum < n_objects; objnum++) {
+      for (int k = 0; k < n_objects; k++) {
+	if (k < objnum)
+	  bassert(0 == ((pps[k]->inuse_bitmap[0] >> object_numbers_in_folio[k]) & 1));
+	else
+	  bassert(1 == ((pps[k]->inuse_bitmap[0] >> object_numbers_in_folio[k]) & 1));
+      }
+      small_free(allocated[objnum]);
+      for (int k = 0; k < n_objects; k++) {
+	if (k <= objnum)
+	  bassert(0 == ((pps[k]->inuse_bitmap[0] >> object_numbers_in_folio[k]) & 1));
+	else
+	  bassert(1 == ((pps[k]->inuse_bitmap[0] >> object_numbers_in_folio[k]) & 1));
+      }
+    }
+  }
+}
+
 const int n8 = 600000;
 static void* data8[n8];
 const int n16 = n8/2;
@@ -364,6 +410,8 @@ static void* data16[n16];
 
 void test_small_malloc(void) {
   test_small_page_header();
+
+  test_bin_27();
 
   for (int i = 0; i < n8; i++) {
     data8[i] = small_malloc(8);
@@ -401,6 +449,5 @@ void test_small_malloc(void) {
   small_free(y);
   small_free(z);
   
-
 }
 #endif
