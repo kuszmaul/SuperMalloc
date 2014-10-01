@@ -25,9 +25,12 @@ static inline  void bassert_f(bool test, const char *pred, const char *file, int
 #define assert dont_use_assert_do_use_bassert
 #endif
 
+// A couple more functions to remove never-executing branches out of the main code.
+static bool OR(bool a, bool b) __attribute__((unused));
 static bool OR(bool a, bool b) {
   return a || b;
 }
+static bool AND(bool a, bool b)  __attribute__((unused));
 static bool AND(bool a, bool b) {
   return a && b;
 }

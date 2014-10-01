@@ -8,7 +8,7 @@ CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 CPPFLAGS += $(STATS) $(LOGCHECK)
 
-default: libsupermalloc.so malloc tests_default
+default: libsupermalloc.so tests_default
 .PHONY: default tests_default
 tests_default: libsupermalloc.so
 	cd tests;$(MAKE) default
@@ -19,10 +19,6 @@ libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small
 	$(CXX) $(CXXFLAGS) $^ -shared -o $@
 
 malloc.o: cpucores.h
-malloc: CPPFLAGS += -DTESTING
-malloc: OPTFLAGS = -O0
-malloc: malloc.cc makechunk.cc rng.cc huge_malloc.cc large_malloc.cc small_malloc.cc cache.cc bassert.cc footprint.cc stats.cc $(wildcard *.h) generated_constants.h
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(LDLIBS) $(filter-out %.h, $^) -o $@
 objsizes: OPTFLAGS=-O0
 objsizes: COVERAGE=
 objsizes: malloc_internal.h
@@ -35,16 +31,16 @@ objsizes $(patsubst %, %.o, $(ALL_LIB_SOURCES)): bassert.h
 # Must name generated_constants.h specifically, since wildcard won't find it after a clean.
 $(patsubst %, %.o, $(ALL_LIB_SOURCES)): $(wildcard *.h) generated_constants.h
 
-check: check_malloc tests_check
-check_malloc: malloc
-	SUPERMALLOC_THREADCACHE=1 ./malloc
-	SUPERMALLOC_THREADCACHE=0 ./malloc
+check: tests_check
+#check_malloc: malloc
+#	SUPERMALLOC_THREADCACHE=1 ./malloc
+#	SUPERMALLOC_THREADCACHE=0 ./malloc
 .PHONY: tests_check
 tests_check: libsupermalloc.so
 	cd tests;$(MAKE) check
 .PHONY: clean
 clean:
-	rm -f t malloc *.o *.so generated_constants.h objsizes *.gcda *.gcno *.gcov
+	rm -f *.o *.so generated_constants.h objsizes *.gcda *.gcno *.gcov
 	cd tests;$(MAKE) clean
 
 TAGS: $(wildcard *.cc) $(wildcard *.h) $(wildcard */*.cc) $(wildcard */*.c)  $(wildcard */*.h)
