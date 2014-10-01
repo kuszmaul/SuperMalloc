@@ -173,5 +173,13 @@ struct large_object_list_cell {
   };
 };
 
+const uint32_t folio_bitmap_n_words = pagesize/512; /* at most 512 objects per folio. */ 
+
+struct per_folio {
+  per_folio *next __attribute__((aligned(64)));
+  per_folio *prev;
+  uint64_t inuse_bitmap[folio_bitmap_n_words]; // up to 512 objects (8 bytes per object) per page.  The bit is set if the object is in use.
+};
+
 #endif
 

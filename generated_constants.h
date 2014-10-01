@@ -22,53 +22,54 @@
 //  Bins [0..first_huge_bin_number) give the size of an object.
 //  Larger bin numbers B indicate the object size, coded as
 //     malloc_usable_size(object) = page_size*(bin_of(object)-first_huge_bin_number;
-static const struct static_bin_s { uint32_t object_size, folio_size; uint16_t objects_per_folio, folios_per_chunk;  uint8_t object_division_shift_magic, folio_division_shift_magic; uint64_t object_division_multiply_magic, folio_division_multiply_magic;} static_bin_info[] __attribute__((unused)) = {
+static const struct static_bin_s { uint32_t object_size, folio_size; uint16_t objects_per_folio, folios_per_chunk;  uint8_t overhead_pages_per_chunk, object_division_shift_magic, folio_division_shift_magic; uint64_t object_division_multiply_magic, folio_division_multiply_magic;} static_bin_info[] __attribute__((unused)) = {
 // The first class of small objects try to get a maximum of 25% internal fragmentation by having sizes of the form c<<k where c is 4, 5, 6 or 7.
 // We stop at when we have 4 cachelines, so that the ones that happen to be multiples of cache lines are either a power of two or odd.
-//   objsize foliosize objects_per_folio  multiply_division_magic shift_division_magic   bin   wastage
- {       8,    4096, 512, 512,  3, 12,          1lu,          1lu},  //   0      0
- {      10,    4096, 409, 512, 36, 12, 6871947674lu,          1lu},  //   1      6
- {      12,    4096, 341, 512, 36, 12, 5726623062lu,          1lu},  //   2      4
- {      14,    4096, 292, 512, 36, 12, 4908534053lu,          1lu},  //   3      8
- {      16,    4096, 256, 512,  4, 12,          1lu,          1lu},  //   4      0
- {      20,    4096, 204, 512, 37, 12, 6871947674lu,          1lu},  //   5     16
- {      24,    4096, 170, 512, 37, 12, 5726623062lu,          1lu},  //   6     16
- {      28,    4096, 146, 512, 37, 12, 4908534053lu,          1lu},  //   7      8
- {      32,    4096, 128, 512,  5, 12,          1lu,          1lu},  //   8      0
- {      40,    4096, 102, 512, 38, 12, 6871947674lu,          1lu},  //   9     16
- {      48,    4096,  85, 512, 38, 12, 5726623062lu,          1lu},  //  10     16
- {      56,    4096,  73, 512, 38, 12, 4908534053lu,          1lu},  //  11      8
- {      64,    4096,  64, 512,  6, 12,          1lu,          1lu},  //  12      0
- {      80,    4096,  51, 512, 39, 12, 6871947674lu,          1lu},  //  13     16
- {      96,    4096,  42, 512, 39, 12, 5726623062lu,          1lu},  //  14     64
- {     112,    4096,  36, 512, 39, 12, 4908534053lu,          1lu},  //  15     64
- {     128,    4096,  32, 512,  7, 12,          1lu,          1lu},  //  16      0
- {     160,    4096,  25, 512, 40, 12, 6871947674lu,          1lu},  //  17     96
- {     192,    4096,  21, 512, 40, 12, 5726623062lu,          1lu},  //  18     64
- {     224,    4096,  18, 512, 40, 12, 4908534053lu,          1lu},  //  19     64
- {     256,    4096,  16, 512,  8, 12,          1lu,          1lu},  //  20      0
+//   objsize, folio_size, objects_per_folio, folios_per_chunk, overhead_pages_per_chunk, object_division_shift_magic, folio_division_shift_magic, object_division_multiply_magic, folio_division_multiply_magic,   bin   wastage
+ {         8,       4096,               512,              496,                       16,                           3,                         12,                            1lu,                          1lu},  //   0      0
+ {        10,       4096,               409,              496,                       16,                          36,                         12,                   6871947674lu,                          1lu},  //   1      6
+ {        12,       4096,               341,              496,                       16,                          36,                         12,                   5726623062lu,                          1lu},  //   2      4
+ {        14,       4096,               292,              496,                       16,                          36,                         12,                   4908534053lu,                          1lu},  //   3      8
+ {        16,       4096,               256,              496,                       16,                           4,                         12,                            1lu,                          1lu},  //   4      0
+ {        20,       4096,               204,              496,                       16,                          37,                         12,                   6871947674lu,                          1lu},  //   5     16
+ {        24,       4096,               170,              496,                       16,                          37,                         12,                   5726623062lu,                          1lu},  //   6     16
+ {        28,       4096,               146,              496,                       16,                          37,                         12,                   4908534053lu,                          1lu},  //   7      8
+ {        32,       4096,               128,              496,                       16,                           5,                         12,                            1lu,                          1lu},  //   8      0
+ {        40,       4096,               102,              496,                       16,                          38,                         12,                   6871947674lu,                          1lu},  //   9     16
+ {        48,       4096,                85,              496,                       16,                          38,                         12,                   5726623062lu,                          1lu},  //  10     16
+ {        56,       4096,                73,              496,                       16,                          38,                         12,                   4908534053lu,                          1lu},  //  11      8
+ {        64,       4096,                64,              496,                       16,                           6,                         12,                            1lu,                          1lu},  //  12      0
+ {        80,       4096,                51,              496,                       16,                          39,                         12,                   6871947674lu,                          1lu},  //  13     16
+ {        96,       4096,                42,              496,                       16,                          39,                         12,                   5726623062lu,                          1lu},  //  14     64
+ {       112,       4096,                36,              496,                       16,                          39,                         12,                   4908534053lu,                          1lu},  //  15     64
+ {       128,       4096,                32,              496,                       16,                           7,                         12,                            1lu,                          1lu},  //  16      0
+ {       160,       4096,                25,              496,                       16,                          40,                         12,                   6871947674lu,                          1lu},  //  17     96
+ {       192,       4096,                21,              496,                       16,                          40,                         12,                   5726623062lu,                          1lu},  //  18     64
+ {       224,       4096,                18,              496,                       16,                          40,                         12,                   4908534053lu,                          1lu},  //  19     64
+ {       256,       4096,                16,              496,                       16,                           8,                         12,                            1lu,                          1lu},  //  20      0
 // Class 2 small objects are prime multiples of a cache line.
 // The folio size is such that the number of 4K pages equals the
 // number of cache lines in the object.  Namely, the folio size is 64 times
 // the object size.  The small_chunk_header fits into 8 pages.
- {     320,   20480,  64, 102, 41, 47, 6871947674lu, 6871947674lu},  //  21     0.784 ( 5 cache lines, 100 folios/chunk, at least 16448 bytes used/folio)
- {     448,   28672,  64,  73, 41, 47, 4908534053lu, 4908534053lu},  //  22     0.705 ( 7 cache lines, 72 folios/chunk, at least 20544 bytes used/folio)
- {     512,    4096,   8, 512,  9, 12,          1lu,          1lu},  //  23     0.863 ( 8 cache lines, 504 folios/chunk, at least 3592 bytes used/folio)
- {     704,   45056,  64,  46, 42, 48, 6247225158lu, 6247225158lu},  //  24     0.617 (11 cache lines, 45 folios/chunk, at least 28736 bytes used/folio)
- {     832,   53248,  64,  39, 42, 48, 5286113596lu, 5286113596lu},  //  25     0.818 (13 cache lines, 38 folios/chunk, at least 45120 bytes used/folio)
- {    1024,    4096,   4, 512, 10, 12,          1lu,          1lu},  //  26     0.801 (16 cache lines, 504 folios/chunk, at least 3332 bytes used/folio)
- {    1088,   69632,  64,  30, 43, 49, 8084644322lu, 8084644322lu},  //  27     0.737 (17 cache lines, 29 folios/chunk, at least 53312 bytes used/folio)
- {    1472,   94208,  64,  22, 43, 49, 5975606673lu, 5975606673lu},  //  28     0.698 (23 cache lines, 21 folios/chunk, at least 69696 bytes used/folio)
- {    1984,  126976,  64,  16, 43, 49, 4433514629lu, 4433514629lu},  //  29     0.719 (31 cache lines, 16 folios/chunk, at least 94272 bytes used/folio)
- {    2048,    4096,   2, 512, 11, 12,          1lu,          1lu},  //  30     0.954 (32 cache lines, 504 folios/chunk, at least 3970 bytes used/folio)
- {    2752,  176128,  64,  11, 44, 50, 6392509464lu, 6392509464lu},  //  31     0.666 (43 cache lines, 11 folios/chunk, at least 127040 bytes used/folio)
- {    3904,  249856,  64,   8, 44, 50, 4506195196lu, 4506195196lu},  //  32     0.672 (61 cache lines, 8 folios/chunk, at least 176192 bytes used/folio)
- {    4096,    4096,   1, 512, 12, 12,          1lu,          1lu},  //  33     0.938 (64 cache lines, 504 folios/chunk, at least 3905 bytes used/folio)
- {    5312,  339968,  64,   6, 45, 51, 6623564023lu, 6623564023lu},  //  34     0.715 (83 cache lines, 6 folios/chunk, at least 249920 bytes used/folio)
- {    7232,  462848,  64,   4, 45, 51, 4865095699lu, 4865095699lu},  //  35     0.649 (113 cache lines, 4 folios/chunk, at least 340032 bytes used/folio)
- {    8192,    8192,   1, 256, 13, 13,          1lu,          1lu},  //  36     0.869 (128 cache lines, 252 folios/chunk, at least 7233 bytes used/folio)
- {   10048,  643072,  64,   3, 46, 52, 7003258776lu, 7003258776lu},  //  37     0.662 (157 cache lines, 3 folios/chunk, at least 462912 bytes used/folio)
- {   14272,  913408,  64,   2, 46, 52, 4930545417lu, 4930545417lu},  //  38     0.613 (223 cache lines, 2 folios/chunk, at least 643136 bytes used/folio)
+//   objsize, folio_size, objects_per_folio, folios_per_chunk, overhead_pages_per_chunk, object_division_shift_magic, folio_division_shift_magic, object_division_multiply_magic, folio_division_multiply_magic,   bin   wastage
+ {       320,      20480,                64,              101,                        4,                          41,                         47,                   6871947674lu,                 6871947674lu},  //  21     0.784 ( 5 cache lines, 100 folios/chunk, at least 16448 bytes used/folio)
+ {       448,      28672,                64,               72,                        3,                          41,                         47,                   4908534053lu,                 4908534053lu},  //  22     0.705 ( 7 cache lines, 72 folios/chunk, at least 20544 bytes used/folio)
+ {       512,       4096,                 8,              496,                       16,                           9,                         12,                            1lu,                          1lu},  //  23     0.863 ( 8 cache lines, 504 folios/chunk, at least 3592 bytes used/folio)
+ {       704,      45056,                64,               46,                        2,                          42,                         48,                   6247225158lu,                 6247225158lu},  //  24     0.617 (11 cache lines, 45 folios/chunk, at least 28736 bytes used/folio)
+ {       832,      53248,                64,               39,                        2,                          42,                         48,                   5286113596lu,                 5286113596lu},  //  25     0.818 (13 cache lines, 38 folios/chunk, at least 45120 bytes used/folio)
+ {      1024,       4096,                 4,              496,                       16,                          10,                         12,                            1lu,                          1lu},  //  26     0.801 (16 cache lines, 504 folios/chunk, at least 3332 bytes used/folio)
+ {      1088,      69632,                64,               30,                        1,                          43,                         49,                   8084644322lu,                 8084644322lu},  //  27     0.737 (17 cache lines, 29 folios/chunk, at least 53312 bytes used/folio)
+ {      1472,      94208,                64,               22,                        1,                          43,                         49,                   5975606673lu,                 5975606673lu},  //  28     0.698 (23 cache lines, 21 folios/chunk, at least 69696 bytes used/folio)
+ {      1984,     126976,                64,               16,                        1,                          43,                         49,                   4433514629lu,                 4433514629lu},  //  29     0.719 (31 cache lines, 16 folios/chunk, at least 94272 bytes used/folio)
+ {      2048,       4096,                 2,              496,                       16,                          11,                         12,                            1lu,                          1lu},  //  30     0.954 (32 cache lines, 504 folios/chunk, at least 3970 bytes used/folio)
+ {      2752,     176128,                64,               11,                        1,                          44,                         50,                   6392509464lu,                 6392509464lu},  //  31     0.666 (43 cache lines, 11 folios/chunk, at least 127040 bytes used/folio)
+ {      3904,     249856,                64,                8,                        1,                          44,                         50,                   4506195196lu,                 4506195196lu},  //  32     0.672 (61 cache lines, 8 folios/chunk, at least 176192 bytes used/folio)
+ {      4096,       4096,                 1,              496,                       16,                          12,                         12,                            1lu,                          1lu},  //  33     0.938 (64 cache lines, 504 folios/chunk, at least 3905 bytes used/folio)
+ {      5312,     339968,                64,                6,                        1,                          45,                         51,                   6623564023lu,                 6623564023lu},  //  34     0.715 (83 cache lines, 6 folios/chunk, at least 249920 bytes used/folio)
+ {      7232,     462848,                64,                4,                        1,                          45,                         51,                   4865095699lu,                 4865095699lu},  //  35     0.649 (113 cache lines, 4 folios/chunk, at least 340032 bytes used/folio)
+ {      8192,       8192,                 1,              252,                        8,                          13,                         13,                            1lu,                          1lu},  //  36     0.869 (128 cache lines, 252 folios/chunk, at least 7233 bytes used/folio)
+ {     10048,     643072,                64,                3,                        1,                          46,                         52,                   7003258776lu,                 7003258776lu},  //  37     0.662 (157 cache lines, 3 folios/chunk, at least 462912 bytes used/folio)
+ {     14272,     913408,                64,                2,                        1,                          46,                         52,                   4930545417lu,                 4930545417lu},  //  38     0.613 (223 cache lines, 2 folios/chunk, at least 643136 bytes used/folio)
 // large objects (page allocated):
 //  So that we can return an accurate malloc_usable_size(), we maintain (in the first page of each largepage chunk) information about each object (large_object_list_cell)
 //   For unallocated objects we maintain a next pointer to the next large_object_list_cell for an free object of the same size.
@@ -76,15 +77,15 @@ static const struct static_bin_s { uint32_t object_size, folio_size; uint16_t ob
 //  This extra information always fits within one page.
 //  This introduces fragmentation.  This fragmentation doesn't matter much since it will be purged. For sizes up to 1<<17 we waste the last potential object.
 //   for the larger stuff, we reduce the size of the object slightly which introduces some other fragmentation
- {   16384,   16384,   1, 128, 14, 14,          1lu,          1lu},  //  39 
- {   32768,   32768,   1,  64, 15, 15,          1lu,          1lu},  //  40 
- {   65536,   65536,   1,  32, 16, 16,          1lu,          1lu},  //  41 
- {  131072,  131072,   1,  16, 17, 17,          1lu,          1lu},  //  42 
- {  258048,  258048,   1,   8, 50, 50, 4363141381lu, 4363141381lu},  //  43  (reserve a page for the list of sizes)
- {  520192,  520192,   1,   4, 51, 51, 4328785937lu, 4328785937lu},  //  44  (reserve a page for the list of sizes)
- { 1044480, 1044480,   1,   2, 52, 52, 4311810306lu, 4311810306lu},  //  45  (reserve a page for the list of sizes)
+ {     16384,      16384,                 1,              127,                        4,                          14,                         14,                            1lu,                          1lu},  //  39 
+ {     32768,      32768,                 1,               63,                        2,                          15,                         15,                            1lu,                          1lu},  //  40 
+ {     65536,      65536,                 1,               31,                        1,                          16,                         16,                            1lu,                          1lu},  //  41 
+ {    131072,     131072,                 1,               15,                        1,                          17,                         17,                            1lu,                          1lu},  //  42 
+ {    258048,     258048,                 1,                8,                        1,                          50,                         50,                   4363141381lu,                 4363141381lu},  //  43  (reserve a page for the list of sizes)
+ {    520192,     520192,                 1,                4,                        1,                          51,                         51,                   4328785937lu,                 4328785937lu},  //  44  (reserve a page for the list of sizes)
+ {   1044480,    1044480,                 1,                2,                        1,                          52,                         52,                   4311810306lu,                 4311810306lu},  //  45  (reserve a page for the list of sizes)
 // huge objects (chunk allocated) start  at this size.
- { 2097152, 2097152,   1,   1, 21, 21,          1lu,          1lu},  //  46
+ {   2097152,    2097152,                 1,                0,                        1,                          21,                         21,                            1lu,                          1lu},  //  46
 };
 static const uint64_t offset_of_first_object_in_large_chunk = 4096;
 static const size_t largest_large         = 1044480;

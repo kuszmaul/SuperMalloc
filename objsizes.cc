@@ -72,24 +72,27 @@ class static_bin_t {
   uint32_t object_size;
   uint32_t foliosize;
   uint32_t objects_per_folio; // a folio is like a pagesize: we try to find the folio with the fewest free slots on it, when allocating storage.
-  uint32_t folios_per_chunk;
   uint64_t object_division_multiply_magic;
   uint64_t folio_division_multiply_magic;
   uint32_t object_division_shift_magic;
   uint32_t folio_division_shift_magic;
+  uint32_t overhead_pages_per_chunk;
+  uint32_t folios_per_chunk;
   static_bin_t(uint32_t object_size) :
       object_size(object_size),
       foliosize(calculate_foliosize(object_size)),
       objects_per_folio(foliosize/object_size),
-      folios_per_chunk(chunksize/foliosize), // really should account for overhead
       object_division_multiply_magic(calculate_multiply_magic(object_size)),
       folio_division_multiply_magic(calculate_multiply_magic(foliosize)),
       object_division_shift_magic(calculate_shift_magic(object_size)),
-      folio_division_shift_magic(calculate_shift_magic(foliosize))
+      folio_division_shift_magic(calculate_shift_magic(foliosize)),
+      overhead_pages_per_chunk(ceil(sizeof(per_folio) * (chunksize/foliosize), pagesize)),
+      folios_per_chunk((chunksize-overhead_pages_per_chunk*pagesize)/foliosize)
   {}
   void print(uint32_t bin) {
-    printf(" {%8u, %7u, %3u, %3u, %2u, %2u, %10lulu, %10lulu},  // %3d",
+    printf(" {  %8u,    %7u,               %3u,              %3u,                       %2u,                          %2u,                         %2u,                   %10lulu,                 %10lulu},  // %3d",
 	   object_size, foliosize, objects_per_folio, folios_per_chunk,
+	   overhead_pages_per_chunk,
 	   object_division_shift_magic,    folio_division_shift_magic,
 	   object_division_multiply_magic, folio_division_multiply_magic,
 	   bin);
@@ -124,10 +127,11 @@ int main () {
 
   std::vector<static_bin_t> static_bins;
 
-  printf("static const struct static_bin_s { uint32_t object_size, folio_size; uint16_t objects_per_folio, folios_per_chunk;  uint8_t object_division_shift_magic, folio_division_shift_magic; uint64_t object_division_multiply_magic, folio_division_multiply_magic;} static_bin_info[] __attribute__((unused)) = {\n");
+  printf("static const struct static_bin_s { uint32_t object_size, folio_size; uint16_t objects_per_folio, folios_per_chunk;  uint8_t overhead_pages_per_chunk, object_division_shift_magic, folio_division_shift_magic; uint64_t object_division_multiply_magic, folio_division_multiply_magic;} static_bin_info[] __attribute__((unused)) = {\n");
   printf("// The first class of small objects try to get a maximum of 25%% internal fragmentation by having sizes of the form c<<k where c is 4, 5, 6 or 7.\n");
   printf("// We stop at when we have 4 cachelines, so that the ones that happen to be multiples of cache lines are either a power of two or odd.\n");
-  printf("//   objsize foliosize objects_per_folio  multiply_division_magic shift_division_magic   bin   wastage\n");
+  const char * header_line = "//   objsize, folio_size, objects_per_folio, folios_per_chunk, overhead_pages_per_chunk, object_division_shift_magic, folio_division_shift_magic, object_division_multiply_magic, folio_division_multiply_magic,   bin   wastage\n";
+  printf("%s", header_line);
   int bin = 0;
 
   for (uint64_t k = 8; 1; k*=2) {
@@ -147,6 +151,8 @@ done_small:
   printf("// The folio size is such that the number of 4K pages equals the\n");
   printf("// number of cache lines in the object.  Namely, the folio size is 64 times\n");
   printf("// the object size.  The small_chunk_header fits into 8 pages.\n");
+
+  printf("%s", header_line);
 
   uint32_t prev_objsize_in_cachelines = 4;
   for (uint32_t objsize_in_cachelines = 5; objsize_in_cachelines < 64*4; objsize_in_cachelines = next_prime_or_power_of_two(objsize_in_cachelines)) {

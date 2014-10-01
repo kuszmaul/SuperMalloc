@@ -17,13 +17,6 @@ static struct {
   uint16_t fullest_offset[first_large_bin_number];
 } dsbi;
 
-const uint32_t bitmap_n_words = pagesize/64/8; /* 64 its per uint64_t, 8 is the smallest object */ 
-
-struct per_folio {
-  per_folio *next __attribute__((aligned(64)));
-  per_folio *prev;
-  uint64_t inuse_bitmap[bitmap_n_words]; // up to 512 objects (8 bytes per object) per page.  The bit is set if the object is in use.
-};
 struct small_chunk_header {
   per_folio ll[512];  // This object is 16 pages long.  We don't use the last the array.  We could get it down to fewer pages if we packed it, but we want this to be
   //                 //  cached-aligned.  Also for larger objects we could use fewer pages since there are fewer objects per folio.
@@ -67,7 +60,7 @@ static inline void verify_small_invariants() {
 	bassert(prev_pp == pp->prev);
 	prev_pp = pp;
 	int sum = 0;
-	for (uint32_t j = 0; j < bitmap_n_words; j++) {
+	for (uint32_t j = 0; j < folio_bitmap_n_words; j++) {
 	  sum += __builtin_popcountl(pp->inuse_bitmap[j]);
 	}
 	bassert(sum == opp - i);
