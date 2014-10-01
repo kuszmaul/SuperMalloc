@@ -10,7 +10,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-
 const uint64_t pagesize = 4096;
 const uint64_t log_chunksize = 21;
 const uint64_t chunksize = 1ul<<log_chunksize;
@@ -20,6 +19,8 @@ const uint64_t cachelines_per_page = pagesize/cacheline_size;
 // We exploit the fact that these are the same size in chunk_infos, which is a union of these two types.
 typedef uint32_t chunknumber_t;
 typedef uint32_t binnumber_t;
+typedef uint16_t objects_per_folio_t;
+typedef uint16_t folios_per_chunk_t;
 
 static inline uint64_t ceil(uint64_t a, uint64_t b) {
   return (a+b-1)/b;

@@ -22,7 +22,7 @@
 //  Bins [0..first_huge_bin_number) give the size of an object.
 //  Larger bin numbers B indicate the object size, coded as
 //     malloc_usable_size(object) = page_size*(bin_of(object)-first_huge_bin_number;
-static const struct static_bin_s { uint32_t object_size, folio_size; uint16_t objects_per_folio, folios_per_chunk;  uint8_t overhead_pages_per_chunk, object_division_shift_magic, folio_division_shift_magic; uint64_t object_division_multiply_magic, folio_division_multiply_magic;} static_bin_info[] __attribute__((unused)) = {
+static const struct static_bin_s { uint32_t object_size, folio_size; objects_per_folio_t objects_per_folio; folios_per_chunk_t folios_per_chunk;  uint8_t overhead_pages_per_chunk, object_division_shift_magic, folio_division_shift_magic; uint64_t object_division_multiply_magic, folio_division_multiply_magic;} static_bin_info[] __attribute__((unused)) = {
 // The first class of small objects try to get a maximum of 25% internal fragmentation by having sizes of the form c<<k where c is 4, 5, 6 or 7.
 // We stop at when we have 4 cachelines, so that the ones that happen to be multiples of cache lines are either a power of two or odd.
 //   objsize, folio_size, objects_per_folio, folios_per_chunk, overhead_pages_per_chunk, object_division_shift_magic, folio_division_shift_magic, object_division_multiply_magic, folio_division_multiply_magic,   bin   wastage
