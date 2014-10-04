@@ -20,7 +20,9 @@ static double tdiff(const struct timespec &a, const struct timespec &b) {
   return (b.tv_sec - a.tv_sec) + 1e-9*(b.tv_nsec - a.tv_nsec);
 }
 
-static void timeit_fun(void(*f)(), const char *name) {
+const int N_iterations = 100000000;
+
+static void timeit(void(*f)(), const char *name) {
   struct timespec start,end;
   clock_gettime(CLOCK_MONOTONIC, &start);
   std::thread a(f);
@@ -28,10 +30,8 @@ static void timeit_fun(void(*f)(), const char *name) {
   a.join();
   b.join();
   clock_gettime(CLOCK_MONOTONIC, &end);
-  printf("%12s: %9.6fs\n", name, tdiff(start, end));
+  printf("%55s & %8.1fns \\\\\n", name, (tdiff(start, end)/N_iterations) * 1e9);
 }
-
-#define timeit(name) timeit_fun(name, #name)
 
 struct datastruct {
   volatile int   value __attribute__((aligned(64)));
@@ -48,8 +48,6 @@ static void atomic_do(datastruct *l) {
    
 static datastruct  the_global_list; 
 
-const int N_iterations = 100000000;
-
 static void global_list() {
   for (int i = 0; i < N_iterations; i++) {
     atomic_do(&the_global_list);
@@ -63,16 +61,23 @@ static datastruct cpu_lists[128];
 struct getcpu_cache {
   uint32_t cpu, count;
 };
+static const int cpu_cache_recheck_freq = 32;
 static uint32_t getcpu(getcpu_cache *c) {
-  if ((c->count++)%64  ==0) { c->cpu = sched_getcpu(); }
+  if ((c->count++)%cpu_cache_recheck_freq  ==0) { c->cpu = sched_getcpu(); }
   return c->cpu;
 }
 
 
-static void per_cpu() {
+static void per_cachedcpu() {
   getcpu_cache c = {0,0};
   for (int i = 0; i < N_iterations; i++) {
     atomic_do(&cpu_lists[getcpu(&c)]);
+  }
+}
+
+static void per_schedcpu() {
+  for (int i = 0; i < N_iterations; i++) {
+    atomic_do(&cpu_lists[sched_getcpu()]);
   }
 }
 
@@ -92,9 +97,12 @@ static void in_stack() {
 
 int main(int argc, char *argv[] __attribute__((unused))) {
   assert(argc == 1);
-  timeit(global_list);
-  timeit(per_cpu);
-  timeit(per_thread);
-  timeit(in_stack);
+  timeit(global_list,    "global list");
+  timeit(per_schedcpu,   "per cpu (\\mintinline{c}{sched\\_cpu()} every time)");
+  char name[99];
+  snprintf(name, sizeof(name), "per cpu (cache getcpu, refresh every %d", cpu_cache_recheck_freq);
+  timeit(per_cachedcpu,  name); 
+  timeit(per_thread,     "per thread");
+  timeit(in_stack,       "local in stack");
   return 0;
 }

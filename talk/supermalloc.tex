@@ -1,0 +1,211 @@
+\documentclass[xcolor=dvipsnames,14pt]{beamer}
+\beamertemplatenavigationsymbolsempty%Turn off the navbar
+\usepackage{geometry}
+\usepackage{minted}
+
+\begin{document}
+\title{SuperMalloc}
+\author{Bradley C. Kuszmaul}
+\date{Supertech Meeting Oct 6, 2014}
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Malloc and Free}
+\begin{minted}[mathescape]{c}
+void* malloc(size_t s);
+\end{minted}
+
+Effect: Allocate and return a pointer to a block of memory containing at least $s$ bytes.
+
+\begin{minted}{c}
+void free(void *p);
+\end{minted}
+
+Effect: $p$ is a pointer to a block of memory returned by \mintinline{c}{malloc()}.  Return the block of memory of memory to the system.
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Aligned Allocation}
+
+\begin{minted}[mathescape]{c}
+void* memalign(size_t alignment, size_t s);
+\end{minted}
+
+
+Effect: Allocate and return a pointer to a block of memory containing at least $s$ bytes.  
+The returned pointer shall be a multiple of \mintinline{c}{alignment}.  That is,
+\begin{center}
+\mintinline{c}{0 == (size_t)(memalign(a, s)) % a}
+\end{center}
+
+Requires: \mintinline{c}{a} is a power of two.
+\end{frame}
+
+\begin{frame}
+\frametitle{Goals For Malloc (Doug Lea)}
+
+Maximize
+\begin{description}[Error Detection:]
+\item[Compatibility:] POSIX API.
+
+\item[Portability:] SuperMalloc isn't.
+\item[Space:] SuperMalloc wins.
+\item[Time:] Average? Worst-case?  
+
+SuperMalloc wins on average.
+\item[Tunability:]
+
+I hate tunability. Just make it good.
+\item[Locality:] SuperMalloc doesn't.
+\item[Error Detection:] SuperMalloc doesn't.
+\item[Anomalies:] ???
+\end{description}
+\end{frame}
+
+\begin{frame}
+\frametitle{DLmalloc}
+
+Linux libc employs Doug Lea's malloc, which dates from 1987.
+
+\begin{itemize}
+\item is slow (especially on multithreaded code).
+\item has high space overhead.
+\end{itemize}
+
+To address these problems, allocators such as Hoard, TCmalloc, JEmalloc have appeared.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{DLmalloc Employs Bins}
+A bin is a doubly linked list of free objects that are all close to the same size.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{DLmalloc Employs Boundary Tags}
+
+Put the size before every object and after every free object.  The
+size also indicates the status of the object and the previous
+object. (``status'' means free or in-use.)
+
+\begin{center}
+\begin{tabular}{l|l|}
+                                                    \hline
+an allocated chunk & size                         \\ \cline{2-2}
+                   & $\ldots$ user data $\ldots$ \\ \hline
+a free chunk       & size                         \\ \cline{2-2}
+                   & pointer to next chunk in bin \\ \cline{2-2}
+                   & pointer to prev chunk in bin \\ \cline{2-2}
+                   & $\ldots$ unused space $\ldots$ \\ \cline{2-2}
+                   & size                        \\ \hline
+an allocated chunk & size                        \\ \cline{2-2}
+                   & $\ldots$ user data $\ldots$ \\ \hline
+\end{tabular}
+\end{center}
+\end{frame}
+
+\begin{frame}
+\frametitle{DLmalloc malloc()}
+
+\begin{itemize}
+\item Find any object in the smallest nonempty bin that is big enough.
+
+\item If none available, get  more memory from operating system.
+
+\item Historically: Earlier versions of dlmalloc implemented first-fit within each bin.
+
+They kept the bins sorted (but maintaining a heap in each bin would
+have been enough).
+
+\item Now first-fit has been thrown out.
+\end{itemize}
+\end{frame}
+  
+\begin{frame}
+\frametitle{DLmalloc free()}
+
+\begin{enumerate}
+\item Remove adjacent free blocks (if any) from their bins.
+\item Coalesce adjacent free blocks.
+\item Put the resulting free block in the right bin.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}
+\frametitle{DLmalloc Overall}
+\begin{itemize}
+\item 6281 lines of code (2270 semicolons)
+\item Half as fast as competition.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Costs of Locking vs. Cache Contention}
+
+\begin{tabular}{rr}
+                                                     global list &    193.6ns \\
+            per cpu (always call \mintinline{c}{sched_getcpu()})  &     30.2ns \\
+per cpu (cache getcpu, refresh/32) &     17.0ns \\
+                                                      per thread &      3.1ns \\
+                                                  local in stack &      3.1ns \\
+\end{tabular}
+\end{frame}
+\end{document}
+
+\end{document}
+
+\begin{frame}[fragile]
+\frametitle{An Implementation of Memalign}
+
+Idea: allocate a little extra, and then return adjust the pointer to be aligned.
+
+\begin{minted}[mathescape]{c}
+void* memalign(size_t alignment, size_t s) {
+  size_t p = (size_t)malloc(s+alignment-1);
+  size_t a = (p+alignment-1)&~(alignment-1);
+  return (void*)a;
+}
+\end{minted}
+
+Bug: This implementation is wrong, because objects returned by
+\mintinline{c}{memalign()} can be passed to \mintinline{c}{free()},
+which requires that its argument is a block returned by
+\mintinline{c}{malloc()}.
+
+
+\end{frame}
+
+
+
+the problem(s) with jemalloc
+ visible problems:
+   1) occasional 3-second call to free() (I don't know if I've fixed this, but it seems likely.  It's tough to reproduce)
+   2) large memory footprint (essentially 2x?)
+   3) Cache-index unfriendly
+ mechanisms
+   1) lowest-address allocation (an interesting heuristic.  May not be a problem itself. The data structure to calculate this may be a problem?)
+   2) many arenas (the thread cache is too big?)
+
+also want to investigate
+ programming with transactional memory (this is weak, since I don't really see a performance advantage)
+   1) What is TM
+   2) How does it work (cached watching)
+   3) Transactions fail--> need a fallback
+     a) Subscribe to a lock (explain subscribe)
+     b) Issues with late subscription/early subscription
+   4) Why do transactions fail?
+     a) interrupts (in particular, time slice interupt --> no transactions longer than 10ms)
+     b) cache capacity (the read set can be in L2, the write set must fit in L1 - note this means that writes should be delayed if possible)
+     c) actual conflicts
+     d) Other random failures (the failure codes are essentially useless, except for the ``user aborted'' code)
+   5) Tricks
+     a) don't enter the transaction until the lock is available
+     b) subscribe to the lock late
+     c) prefetch data before entering the transaction (prefetch for write on writeable data) - this optimization doesn't seem to matter much)
+     d) after doing all this, locks are just as fast as transactions
+
+
+threaded random number generation with no initialization (Dice, https://blogs.oracle.com/dave/entry/a_simple_prng_idiom)
+division by object sizes
+batch move from thread cache to global cache
