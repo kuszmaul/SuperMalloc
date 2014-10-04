@@ -3,6 +3,13 @@
  *  Case 1: A global list.
  *  Case 2: A per-cpu list.
  *  Case 3: A per-thread list.
+
+On x240 (i7-4600U 2.10GHz)
+$ ./lock-overhead 
+ global_list: 13.810500s
+     per_cpu:  1.698616s
+  per_thread:  0.331605s
+    in_stack:  0.302764s
  */
 #include <cassert>
 #include <ctime>
@@ -26,110 +33,67 @@ static void timeit_fun(void(*f)(), const char *name) {
 
 #define timeit(name) timeit_fun(name, #name)
 
-struct pair {
-  pair *next;
+struct datastruct {
+  volatile int   value __attribute__((aligned(64)));
+  volatile int   lock;
 };
 
-struct locked_list {
-  pair *list __attribute__((aligned(64)));
-  int   lock;
-};
-
-static void nonatomic_push(locked_list *l, pair *n) {
-  n->next = l->list;
-  l->list = n;
-}
-static void atomic_push(locked_list *l, pair *n) {
+static void atomic_do(datastruct *l) {
   while (__sync_lock_test_and_set(&l->lock, 1)) {
     _mm_pause();
   }
-  nonatomic_push(l, n);
+  l->value++;
   __sync_lock_release(&l->lock);
 }
-static pair* nonatomic_pop(locked_list *l) {
-  pair *result = l->list;
-  if (result) {
-    l->list = result->next;
-  }
-  return result;
-}
-
-static pair* atomic_pop(locked_list *l) {
-  while (__sync_lock_test_and_set(&l->lock, 1)) {
-    _mm_pause();
-  }
-  pair *result = nonatomic_pop(l);
-  __sync_lock_release(&l->lock);
-  return result;
-}
-
    
-static locked_list  the_global_list; 
+static datastruct  the_global_list; 
 
-const int N_iterations = 1000000;
+const int N_iterations = 100000000;
 
 static void global_list() {
-  for (int i = 0; i < 100; i++) {
-    atomic_push(&the_global_list, new pair);
-  }
   for (int i = 0; i < N_iterations; i++) {
-    pair *l = atomic_pop(&the_global_list);
-    if (l) {
-      atomic_push(&the_global_list, l);
-    }
-  }
-}
-
-static locked_list cpu_lists[128];
-static void per_thread() {
-  for (int i = 0; i < 100; i++) {
-    nonatomic_push(&thread_list, new pair);
-  }
-  for (int i = 0; i < N_iterations; i++) {
-    pair *l = nonatomic_pop(&thread_list);
-    if (l) {
-      nonatomic_push(&thread_list, l);
-    }
+    atomic_do(&the_global_list);
   }
 }
 
 
-static __thread locked_list thread_list;
 
-static void per_thread() {
-  for (int i = 0; i < 100; i++) {
-    nonatomic_push(&thread_list, new pair);
-  }
+static datastruct cpu_lists[128];
+
+struct getcpu_cache {
+  uint32_t cpu, count;
+};
+static uint32_t getcpu(getcpu_cache *c) {
+  if ((c->count++)%64  ==0) { c->cpu = sched_getcpu(); }
+  return c->cpu;
+}
+
+
+static void per_cpu() {
+  getcpu_cache c = {0,0};
   for (int i = 0; i < N_iterations; i++) {
-    pair *l = nonatomic_pop(&thread_list);
-    if (l) {
-      nonatomic_push(&thread_list, l);
-    }
+    atomic_do(&cpu_lists[getcpu(&c)]);
+  }
+}
+
+static __thread datastruct thread_list;
+static void per_thread() {
+  for (int i = 0; i < N_iterations; i++) {
+    thread_list.value++;
   }
 }
 
 static void in_stack() {
-  locked_list stack_list = {NULL, 0};
-  for (int i = 0; i < 100; i++) {
-    nonatomic_push(&stack_list, new pair);
-  }
+  datastruct stack_list = {0, 0};
   for (int i = 0; i < N_iterations; i++) {
-    pair *l = nonatomic_pop(&stack_list);
-    if (l) {
-      nonatomic_push(&stack_list, l);
-    }
+    stack_list.value++;
   }
 }
 
 int main(int argc, char *argv[] __attribute__((unused))) {
   assert(argc == 1);
   timeit(global_list);
-  while (1) {
-    pair *l = nonatomic_pop(&the_global_list);
-    if (l == NULL) break;
-    delete l;
-  }
-  //timeit(per_cpu);
+  timeit(per_cpu);
   timeit(per_thread);
   timeit(in_stack);
   return 0;
