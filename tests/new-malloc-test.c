@@ -30,7 +30,6 @@
 #define xmalloc malloc
 #define xfree free
 
-#define	POOL_SIZE	4096
 #define DEFAULT_OBJECT_SIZE 1024
 
 int debug_flag = 0;
@@ -49,11 +48,6 @@ struct counter {
 ;
 };
 struct counter *counters;
-/* memory pool used by all the threads */
-void **mem_pool;
-
-#define atomic_load(addr) __atomic_load_n(addr, __ATOMIC_CONSUME)
-#define atomic_store(addr, v) __atomic_store_n(addr, v, __ATOMIC_RELEASE)
 
 int done_flag = 0;
 struct timeval begin;
@@ -85,85 +79,80 @@ double elapsed_time(struct timeval *time0)
 static const long possible_sizes[] = {8,12,16,24,32,48,64,96,128,192,256,(256*3)/2,512, (512*3)/2, 1024, (1024*3)/2, 2048};
 static const int n_sizes = sizeof(possible_sizes)/sizeof(long);
 
-void *mem_allocator (void *arg)
-{
-	int i;	
-	int thread_id = *(int *)arg;
-	int start = POOL_SIZE * thread_id;
-	int end = POOL_SIZE * (thread_id + 1);
+#define OBJECTS_PER_BATCH 4096
+struct batch {
+  struct batch *next_batch;
+  void *objects[OBJECTS_PER_BATCH];
+};
 
-        struct lran2_st lr;
-	lran2_init(&lr, thread_id);
+struct batch *batches = NULL;
+int batch_count = 0;
+const int batch_count_limit = 100;
+pthread_cond_t empty_cv = PTHREAD_COND_INITIALIZER;
+pthread_cond_t full_cv = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
-	if(verbose_flag>2) {
-	  printf("Releaser %i works on memory pool %i to %i\n",
-		thread_id, start, end);
-	  printf("Releaser %i started...\n", thread_id);
-	}
-
-	while(!atomic_load(&done_flag)) {
-	        bool did_one = false;
-		/* find first NULL slot */
-		for (i = start; i < end; ++i) {
-		  if (NULL == atomic_load(&mem_pool[i])) {
-		        did_one = true;
-			size_t rand_size = possible_sizes[lran2(&lr)%n_sizes];
-			size_t siz = object_size > 0 ? (size_t)object_size : rand_size;
-		        atomic_store(&mem_pool[i], xmalloc(siz));
-			if (debug_flag) 
-			  printf("Allocate %i: slot %i\n", 
-				thread_id, i);
-			break;
-		  }
-		}
-		if (!did_one) sched_yield();
-
-	}
-	pthread_exit(0);
+void enqueue_batch(struct batch *batch) {
+  pthread_mutex_lock(&lock);
+  while (batch_count >= batch_count_limit && !done_flag) {
+    pthread_cond_wait(&full_cv, &lock);
+  }
+  batch->next_batch = batches;
+  batches = batch;
+  batch_count++;
+  pthread_cond_signal(&empty_cv);
+  pthread_mutex_unlock(&lock);
 }
 
-void *mem_releaser(void *arg)
-{
-	int i;
-	int loops = 0;
-	int check_interval = 100;
-	int thread_id = *(int *)arg;
-	int start = POOL_SIZE * thread_id;
-	int end = POOL_SIZE * (thread_id + 1);
-
-	if(verbose_flag>2) {
-	  printf("Allocator %i works on memory pool %i to %i\n",
-		thread_id, start, end);
-	  printf("Allocator %i started...\n", thread_id);
-	}
-
-	while(!atomic_load(&done_flag)) {
-	        bool did_one = false;
-		/* find non-NULL slot */
-		for (i = start; i < end; ++i) {
-		      void *ptr = atomic_load(&mem_pool[i]);
-		      if (NULL != ptr) {
-		          did_one = true;
-			  atomic_store(&mem_pool[i], NULL);
-			  xfree(ptr);
-			  ++counters[thread_id].c;
-			  if (debug_flag) 
-			    printf("Releaser %i: slot %i\n", 
-				thread_id, i);
-			  break;
-		   }
-		}
-		if (!did_one) sched_yield();
-		++loops;
-		if ( (0 == loops % check_interval) && 
-		     (elapsed_time(&begin) > run_time) ) {
-		        atomic_store(&done_flag, 1);
-			break;
-		}
-	}
-	pthread_exit(0);
+struct batch* dequeue_batch() {
+  pthread_mutex_lock(&lock);
+  while (batches == NULL && !done_flag) {
+    pthread_cond_wait(&empty_cv, &lock);
+  }
+  struct batch* result = batches;
+  if (result) {
+    batches = result->next_batch;
+    batch_count--;
+    pthread_cond_signal(&full_cv);
+  }
+  pthread_mutex_unlock(&lock);
+  return result;
 }
 
+#define atomic_load(addr) __atomic_load_n(addr, __ATOMIC_CONSUME)
+#define atomic_store(addr, v) __atomic_store_n(addr, v, __ATOMIC_RELEASE)
+
+void *mem_allocator (void *arg) {
+  int thread_id = *(int *)arg;
+  struct lran2_st lr;
+  lran2_init(&lr, thread_id);
+
+  while (!atomic_load(&done_flag)) {
+    struct batch *b = xmalloc(sizeof(*b));
+    for (int i = 0; i < OBJECTS_PER_BATCH; i++) {
+      size_t siz = object_size > 0 ? object_size : possible_sizes[lran2(&lr)%n_sizes];
+      b->objects[i] = xmalloc(siz);
+    }
+    enqueue_batch(b);
+  }
+  return NULL;
+}
+
+void *mem_releaser(void *arg) {
+  int thread_id = *(int *)arg;
+
+  while(!atomic_load(&done_flag)) {
+    struct batch *b = dequeue_batch();
+    if (b) {
+      for (int i = 0; i < OBJECTS_PER_BATCH; i++) {
+	xfree(b->objects[i]);
+      }
+      xfree(b);
+    }
+    counters[thread_id].c += OBJECTS_PER_BATCH;
+  }
+  return NULL;
+}
 
 int run_memory_free_test()
 {
@@ -176,10 +165,6 @@ int run_memory_free_test()
 	/* Initialize counter */
 	for(i = 0; i < num_workers; ++i) 
 		counters[i].c = 0;
-
-	/* Initialize memory pool */
-	for (i = 0; i < POOL_SIZE * num_workers; ++i)
-		mem_pool[i] = NULL;
 
 	gettimeofday(&begin, (struct timezone *)0);
 
@@ -200,6 +185,16 @@ int run_memory_free_test()
 	}
 
 	if (verbose_flag) printf("Testing for %.2f seconds\n\n", run_time);
+
+	while (1) {
+	  usleep(1000);
+	  if (elapsed_time(&begin) > run_time) {
+	    atomic_store(&done_flag, 1);
+	    pthread_cond_broadcast(&empty_cv);
+	    pthread_cond_broadcast(&full_cv);
+	    break;
+	  }
+	}
 
 	for(i = 0; i < num_workers * 2; ++i)
 		pthread_join (thread_ids[i], &ptr);
@@ -265,12 +260,15 @@ int main(int argc, char **argv)
 	/* allocate memory for working arrays */
 	thread_ids = (pthread_t *) xmalloc(sizeof(pthread_t) * num_workers * 2);
 	counters = (struct counter *) xmalloc(sizeof(*counters) * num_workers);
-	mem_pool  = (void **) (CACHE_ALIGNED
-			       ? aligned_alloc(64, sizeof(void *) * POOL_SIZE * num_workers)
-			       : malloc(sizeof(void *) * POOL_SIZE * num_workers));
-	    
 	
 	run_memory_free_test();
-	
+	while (batches) {
+	  struct batch *b = batches;
+	  batches = b->next_batch;
+	  for (int i = 0 ; i < OBJECTS_PER_BATCH; i++) {
+	    xfree(b->objects[i]);
+	  }
+	  xfree(b);
+	}
 	return 0;
 }

@@ -1,6 +1,10 @@
 aligned_alloc
 calloc
 generated_constants.h
+new-malloc-test
+new-malloc-test-dlmalloc
+new-malloc-test-hoard
+new-malloc-test-libc
 posix_memalign
 test-malloc_test
 test-malloc_test-dlmalloc

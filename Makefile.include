@@ -15,7 +15,7 @@ default: tests
 #lib: $(LIB)/libsupermalloc.so
 #.PHONY: lib
 
-TESTS = aligned_alloc calloc posix_memalign $(UNITTESTS) test-malloc_test
+TESTS = aligned_alloc calloc posix_memalign $(UNITTESTS) test-malloc_test new-malloc-test
 TESTS_IN_DIR = $(patsubst %, $(BLD)/%, $(TESTS))
 
 ifeq ($LINKMODE,static)
