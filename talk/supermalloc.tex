@@ -137,15 +137,15 @@ have been enough).
 
 \begin{tabular}{rrr}
          & lines of code & malloc\_test speed \\
-dlmalloc &    6,281 &  2.8M/s \\
-hoard    &   16,948 & 10.1M/s \\
-supermalloc & 3,571 &  9.8M/s \\
+dlmalloc &    6,281 &  3.0M/s \\
+hoard    &   16,948 &  5.2M/s \\
+supermalloc & 3,571 & 15.1M/s \\
 \end{tabular}
 
 \vfill
 
-malloc\_test allocates objects in one thread and frees them in
-another.  ``Speed'' is mallocs per second.
+malloc\_test allocates objects in two threads and frees them in
+two others.  ``Speed'' is mallocs per second.
 
 \end{frame}
 

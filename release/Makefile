@@ -21,3 +21,9 @@ new-malloc-test-dlmalloc: $(BLD)/new-malloc-test.o
 
 new-malloc-test-hoard:  $(BLD)/new-malloc-test.o
 	$(CXX) $< -L$(HOARD_DIR) -lhoard -Wl,-rpath,$(HOARD_DIR) -pthread -o $@
+
+timings-simple:
+	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test -w 2 -t 10
+	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-libc -w 2 -t 10
+	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-dlmalloc -w 2 -t 10
+	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-hoard -w 2 -t 10
