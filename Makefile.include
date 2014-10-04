@@ -59,7 +59,7 @@ check-test-malloc_test-w1-s-1: $(BLD)/test-malloc_test
 OFILES = $(patsubst %, $(BLD)/%.o, $(LIBOBJECTS))
 
 $(LIB):
-	mkdir $(LIB)
+	mkdir -p $(LIB)
 $(LIB)/libsupermalloc.so: $(OFILES) | $(LIB)
 	mkdir -p $(LIB)
 	$(CXX) $(CXXFLAGS) $^ -shared -o $@

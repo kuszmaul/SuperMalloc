@@ -133,11 +133,24 @@ have been enough).
 \end{frame}
 
 \begin{frame}
-\frametitle{DLmalloc Overall}
-\begin{itemize}
-\item 6281 lines of code (2270 semicolons)
-\item Half as fast as competition.
-\end{itemize}
+\frametitle{DLmalloc is simple, but slow}
+
+\begin{tabular}{rrr}
+         & lines of code & malloc\_test speed \\
+dlmalloc &    6,281 &  2.8M/s \\
+hoard    &   16,948 & 10.1M/s \\
+supermalloc & 3,571 &  9.8M/s \\
+\end{tabular}
+
+\vfill
+
+malloc\_test allocates objects in one thread and frees them in
+another.  ``Speed'' is mallocs per second.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{How is Hoard so Fast?}
 \end{frame}
 
 \begin{frame}

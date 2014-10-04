@@ -3,4 +3,6 @@ calloc
 generated_constants.h
 posix_memalign
 test-malloc_test
+test-malloc_test-dlmalloc
+test-malloc_test-hoard
 unit-tests
