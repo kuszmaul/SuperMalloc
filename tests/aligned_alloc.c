@@ -32,6 +32,9 @@ main(void)
 	if (p != NULL || get_errno() != EINVAL) {
 		malloc_printf(
 		    "Expected error for invalid alignment %zu\n", alignment);
+	} else {
+	  malloc_printf("Didn't get error on alignment %zu\n", alignment);
+	  abort();
 	}
 
 	for (alignment = sizeof(size_t); alignment < MAXALIGN;

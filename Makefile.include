@@ -1,0 +1,85 @@
+SRC = $(ROOT)/src
+BLD = $(ROOT)/$(BUILD)
+TST = $(ROOT)/tests
+LIB = $(BLD)/lib
+
+C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE)
+CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
+CFLAGS = $(C_CXX_FLAGS) -std=c11
+CPPFLAGS += $(STATS) $(LOGCHECK) $(TESTING)
+
+LIBOBJECTS = malloc makechunk rng huge_malloc large_malloc small_malloc cache bassert footprint stats
+default: tests
+.PHONY: default
+
+#lib: $(LIB)/libsupermalloc.so
+#.PHONY: lib
+
+TESTS = aligned_alloc calloc posix_memalign $(UNITTESTS) test-malloc_test
+TESTS_IN_DIR = $(patsubst %, $(BLD)/%, $(TESTS))
+
+ifeq ($LINKMODE,static)
+ IMPLEMENTATION_FILES = $(patsubst %,$(BLD)/%.o, $(LIBOBJECTS))
+else
+ IMPLEMENTATION_FILES = $(LIB)/libsupermalloc.so
+ LDFLAGS += -L$(LIB) -Wl,-rpath,$(LIB)
+endif
+
+$(TESTS_IN_DIR): $(IMPLEMENTATION_FILES)
+tests: $(TESTS_IN_DIR)
+
+check: $(patsubst %, $(BLD)/%.check, $(TESTS)) \
+ check-test-malloc_test-w1 \
+ check-test-malloc_test-w2 \
+ check-test-malloc_test-w1-s4096 \
+ check-test-malloc_test-w1-s-1
+.PHONY: check %.check \
+ check-test-malloc_test-w1 \
+ check-test-malloc_test-w2 \
+ check-test-malloc_test-w1-s4096 \
+ check-test-malloc_test-w1-s-1
+
+%.check: %
+	SUPERMALLOC_THREADCACHE=1 ./$<
+	SUPERMALLOC_THREADCACHE=0 ./$<
+
+check-test-malloc_test-w1: $(BLD)/test-malloc_test
+	SUPERMALLOC_THREADCACHE=0 $< -w1
+	SUPERMALLOC_THREADCACHE=1 $< -w1
+check-test-malloc_test-w2: $(BLD)/test-malloc_test
+	SUPERMALLOC_THREADCACHE=0 $< -w2
+	SUPERMALLOC_THREADCACHE=1 $< -w2
+check-test-malloc_test-w1-s4096: $(BLD)/test-malloc_test
+	SUPERMALLOC_THREADCACHE=0 $< -w1 -s 4096
+	SUPERMALLOC_THREADCACHE=0 $< -w1 -s 4096
+check-test-malloc_test-w1-s-1: $(BLD)/test-malloc_test
+	SUPERMALLOC_THREADCACHE=0 $< -w1 -s -1
+	SUPERMALLOC_THREADCACHE=0 $< -w1 -s -1
+
+OFILES = $(patsubst %, $(BLD)/%.o, $(LIBOBJECTS))
+
+$(LIB):
+	mkdir $(LIB)
+$(LIB)/libsupermalloc.so: $(OFILES) | $(LIB)
+	mkdir -p $(LIB)
+	$(CXX) $(CXXFLAGS) $^ -shared -o $@
+$(BLD)/supermalloc.a: $(OFILES)
+	ar cr $(BLD)/supermalloc.a $(OFILES)
+$(BLD)/%.o: $(SRC)/%.cc
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
+
+$(BLD)/%.o: $(TST)/%.c
+	$(CC) $(CFLAGS) $(CPPFLAGS) -I$(SRC) -c $< -o $@
+$(BLD)/%: $(BLD)/%.o
+	$(CXX) $(CXXFLAGS) $< $(LDFLAGS) $(IMPLEMENTATION_FILES) -o $@
+
+$(OFILES): $(wildcard $(SRC)/*.h) $(BLD)/generated_constants.h
+
+$(BLD)/generated_constants.h: $(BLD)/objsizes
+	./$< > $@
+
+$(BLD)/objsizes: $(SRC)/objsizes.cc $(SRC)/malloc_internal.h
+	$(CXX) $(CXXFLAGS) $< -o $@
+
+clean:
+	rm -f *.o $(TESTS) objsizes generated_constants.h $(IMPLEMENTATION_FILES)

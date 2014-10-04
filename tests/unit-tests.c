@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <errno.h>
-#include "../supermalloc.h"
-#include "../unit-tests.h"
+#include "supermalloc.h"
+#include "unit-tests.h"
 
 int main(int argc __attribute__((unused)), const char *argv[] __attribute__((unused))) {
   test_cache_early(); // this test should be done before any mallocs are done
