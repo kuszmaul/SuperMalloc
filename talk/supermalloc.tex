@@ -263,6 +263,38 @@ per cpu (cache getcpu, refresh/32) &     17.0ns \\
 \end{tabular}
 \end{frame}
 
+%% \begin{frame}
+%% \frametitle{Supermalloc Strategies}
+
+%% \begin{itemize}
+%% \item Virtual address space is $2^{48}$ bytes.  Real memory is typically $2^{33}$ up to $2^{41}$ bytes. 
+
+%% Don't waste real memory.  Do waste virtual memory.
+
+%% \item Locking uncontended locks is far cheaper than accessing contended cache lines.
+
+%% Use a per-CPU cache.
+
+%% \item Applications access their objects, incurring cache misses.
+
+%% Set the per-CPU cache to be smaller than L3.
+
+%% \item Thread cache reduces locking costs.
+
+%% Thread cache holds only about 10 objects.
+
+%% \item HTM likes simple data structures.
+
+%% Use arrays instead of red-black trees.
+
+%% \item Associativity conflicts cause trouble.
+
+%% Object sizes should be a prime number of cache lines.
+
+%% \end{itemize}
+%% \end{frame}
+
+
 \begin{frame}
 \frametitle{Supermalloc Strategies}
 
@@ -297,10 +329,26 @@ There are only $2^{27}$ possible chunks.  Use 32 bits of information
 per chunk, for $2^{29}$ bytes.
 
 A program that uses $128$ GiB of allocated data needs only $65,536$
-chunks.
+chunks.  Used half a gigabyte of address space, but only a quarter
+megabyte of RSS.
 
 It happens that \mintinline{c}{mmap()} returns data in a contiguous region.
 
+Determining the size of an object takes 1 memory reference.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Page Heap}
+
+Insert cost is $O(1)$.  Remove cost is amortized $O(1)$, but worst
+case $O(d)$ where $d$ is the number of items that fit into a page.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Fullest-Page Heap}
+\input{small-number-heap_pdftex}
 \end{frame}
 
 % What causes HTM to fail.
