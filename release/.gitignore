@@ -4,6 +4,7 @@ generated_constants.h
 new-malloc-test
 new-malloc-test-dlmalloc
 new-malloc-test-hoard
+new-malloc-test-jemalloc
 new-malloc-test-libc
 posix_memalign
 test-malloc_test

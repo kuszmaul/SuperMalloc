@@ -81,5 +81,8 @@ $(BLD)/generated_constants.h: $(BLD)/objsizes
 $(BLD)/objsizes: $(SRC)/objsizes.cc $(SRC)/malloc_internal.h
 	$(CXX) $(CXXFLAGS) $< -o $@
 
+%.pdf: %.gnuplot %.data
+	gnuplot $<
+
 clean:
 	rm -f *.o $(TESTS) objsizes generated_constants.h $(IMPLEMENTATION_FILES)
