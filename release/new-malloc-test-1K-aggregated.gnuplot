@@ -17,7 +17,7 @@ unset clip points
 set clip one
 unset clip two
 set bar 1.000000 front
-set border 31 front linetype -1 linewidth 1.000
+set border 3 front linetype -1 linewidth 1.000
 set timefmt z "%d/%m/%y,%H:%M"
 set zdata 
 set timefmt y "%d/%m/%y,%H:%M"
@@ -94,9 +94,9 @@ set mztics default
 set mx2tics default
 set my2tics default
 set mcbtics default
-set xtics border in scale 1,0.5 mirror norotate  offset character 0, 0, 0 autojustify
+set xtics border in scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 set xtics autofreq  norangelimit
-set ytics border in scale 1,0.5 mirror norotate  offset character 0, 0, 0 autojustify
+set ytics border in scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 set ytics autofreq  norangelimit
 set ztics border in scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 set ztics autofreq  norangelimit
@@ -115,17 +115,17 @@ set rrange [ * : * ] noreverse nowriteback
 set trange [ * : * ] noreverse nowriteback
 set urange [ * : * ] noreverse nowriteback
 set vrange [ * : * ] noreverse nowriteback
-set xlabel "" 
+set xlabel "thread count"
 set xlabel  offset character 0, 0, 0 font "" textcolor lt -1 norotate
 set x2label "" 
 set x2label  offset character 0, 0, 0 font "" textcolor lt -1 norotate
 set xrange [ 0.8 : 8.4 ] noreverse nowriteback
 set x2range [ * : * ] noreverse nowriteback
-set ylabel "" 
+set ylabel "malloc()'s per second" 
 set ylabel  offset character 0, 0, 0 font "" textcolor lt -1 rotate by -270
 set y2label "" 
 set y2label  offset character 0, 0, 0 font "" textcolor lt -1 rotate by -270
-set yrange [ * : * ] noreverse nowriteback
+set yrange [ 0 : * ] noreverse nowriteback
 set y2range [ * : * ] noreverse nowriteback
 set zlabel "" 
 set zlabel  offset character 0, 0, 0 font "" textcolor lt -1 norotate

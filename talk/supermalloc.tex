@@ -2,6 +2,7 @@
 \beamertemplatenavigationsymbolsempty%Turn off the navbar
 \usepackage{geometry}
 \usepackage{minted}
+\usepackage{graphicx}
 
 \begin{document}
 \title{SuperMalloc}
@@ -151,7 +152,103 @@ two others.  ``Speed'' is mallocs per second.
 \end{frame}
 
 \begin{frame}
-\frametitle{How is Hoard so Fast?}
+\frametitle{DLmalloc suffers an 8-byte/object overhead}
+
+Since each object is preceeded by an 8-byte size, there is a 100\%
+overhead on 8-byte objects.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{DLmalloc suffers fragmentation}
+
+\begin{itemize}
+\item DLmalloc, in the past, implemented first-fit, but does not appear to do so now.
+
+\item DLmalloc maintains ``bins'' of objects of particular size ranges.
+
+\item Small objects end up next to large objects.
+
+\item Pages can seldom be returned to the operating system.
+
+\item Compared to Hoard or jemalloc, dlmalloc results in twice the
+  resident set size (RSS) for long-lived applications, such as
+  servers.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{How Hoard runs faster than dlmalloc}
+
+\begin{itemize}
+\item dlmalloc uses a monolithic lock.
+\item Hoard employs per-thread caches, to reduce lock-acquisition frequency.
+\item jemalloc uses many of the same tricks.  I'll focus on jemalloc
+  from here on, since it seems faster, and I understand it better.
+\item Each thread has a cache of allocated objects.
+\item Each thread has an ``arena'' comprising chunks of each possible size.  When the thread cache is empty, the thread allocates out of its arena.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{How jemalloc runs smaller than dlmalloc}
+
+\begin{itemize}
+\item Allocate 4MiB chunks using \mintinline{c}{mmap()}.
+\item Objects within a chunk are all the same size. 
+\item The system suffers $1$-bit overhead per object.
+\item Use a red-black tree indexed on the chunk number, \mintinline{c}{p >> 22}, to find a chunk's object size.
+\item jemalloc allocates the object with the smallest address in an arena,
+which tends to empty out pages.
+\item Hoard is similar, except that it appears to allocate the object from the fullest page in the arena.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Returning Pages to the Operating system}
+
+\begin{itemize}
+\item Empty pages can be released using
+\mintinline{c}{madvise(p, MADV_DONTNEED, ...)}, which zeros the page while keeping the virtual address valid.
+
+\item jemalloc includes much complexity to overcome the high cost of
+  \mintinline{c}{DONTNEED}.
+
+\item Supermalloc may not suffer as much.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Performance of returning memory}
+
+\begin{itemize}
+
+\item On linux, avoid calling \mintinline{c}{munmap()}, which pokes
+  holes in the virtual address space.  Linux has a slow algorithm for
+  finding contiguous free virtual addresses.
+
+\item BSD offers \mintinline{c}{madvise(p, MADV_FREE, ...)} which
+  gives the kernel permission to free memory.  In future, the memory
+  might be zero, or it might be the old value.
+  \mintinline{c}{MADV_FREE} is much faster, since it often avoids both
+  deallocating memory and subsequently reallocating it.
+
+\item Supermalloc may not care.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Large objects}
+\begin{itemize}
+\item For objects $>$ 4MiB, round up to a 4MiB boundary.
+\item If you \mintinline{c}{malloc(1+(1<<22)} (slightly more than 4MiB), the system allocates 8MiB.  
+\item This allocation uses up virtual memory space, but not RSS\@.
+  The operating system doesn't \textit{commit} physical memory for a
+  page until the application reads or writes the page.  Since the page
+  size is 4KiB, in this example, the RSS would end up be 4MiB+4KiB.
+\end{itemize}
 \end{frame}
 
 \begin{frame}
@@ -165,7 +262,11 @@ per cpu (cache getcpu, refresh/32) &     17.0ns \\
                                                   local in stack &      3.1ns \\
 \end{tabular}
 \end{frame}
-\end{document}
+
+\begin{frame}
+\frametitle{Performance Comparison}
+\hspace*{-.7cm}\includegraphics{new-malloc-test-1K-aggregated.pdf}
+\end{frame}
 
 \end{document}
 
