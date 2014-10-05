@@ -264,6 +264,23 @@ per cpu (cache getcpu, refresh/32) &     17.0ns \\
 \end{frame}
 
 \begin{frame}
+\frametitle{Supermalloc Strategies}
+
+\begin{itemize}
+\item Use up address space, it's $2^{48}$ bytes.
+\item Don't use up RSS ($2^{40}$ bytes on big machines).
+\item Contention costs dearly, not locking.  Use a per-CPU cache.
+\item Make per-CPU cache smaller than L3 cache, since the application
+  has cache misses anyway.
+\item Thread cache should be just big enough to reduce locking overhead.  About 10 objects.
+\item Hardware transactional memory wins with simpler data structures.
+\item Object sizes should be a prime number of cache lines to avoid associativity conflicts.
+\end{itemize}
+\end{frame}
+
+% What causes HTM to fail.
+
+\begin{frame}
 \frametitle{Performance Comparison}
 \hspace*{-.7cm}\includegraphics{new-malloc-test-1K-aggregated.pdf}
 \end{frame}
