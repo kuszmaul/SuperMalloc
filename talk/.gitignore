@@ -8,3 +8,5 @@
 *.snm
 *.toc
 *.vrb
+*.fig.bak
+*_pdftex.tex

@@ -278,6 +278,31 @@ per cpu (cache getcpu, refresh/32) &     17.0ns \\
 \end{itemize}
 \end{frame}
 
+\begin{frame}
+\frametitle{x86-64 Address Space}
+
+\input{x86-addresses_pdftex}
+\end{frame}
+
+\begin{frame}
+\frametitle{Chunk Map}
+
+Chunks are 2MiB (the medium page size on x86.)
+
+To convert a pointer to a chunk number, divide by $2^{21}$.
+
+Don't use a table, use an array.
+
+There are only $2^{27}$ possible chunks.  Use 32 bits of information
+per chunk, for $2^{29}$ bytes.
+
+A program that uses $128$ GiB of allocated data needs only $65,536$
+chunks.
+
+It happens that \mintinline{c}{mmap()} returns data in a contiguous region.
+
+\end{frame}
+
 % What causes HTM to fail.
 
 \begin{frame}
