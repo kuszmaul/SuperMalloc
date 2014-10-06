@@ -64,6 +64,14 @@ I hate tunability. Just make it good.
 \end{frame}
 
 \begin{frame}
+\frametitle{Worst Case Time is Bad}
+
+For jemalloc, once per day \mintinline{c}{free()} takes 3 seconds.
+
+I suspect it's lock convoying, but it's tough to observe.
+\end{frame}
+
+\begin{frame}
 \frametitle{DLmalloc}
 
 Linux libc employs Doug Lea's malloc, which dates from 1987.
@@ -339,19 +347,242 @@ Determining the size of an object takes 1 memory reference.
 \end{frame}
 
 \begin{frame}
-\frametitle{Page Heap}
-
-Insert cost is $O(1)$.  Remove cost is amortized $O(1)$, but worst
-case $O(d)$ where $d$ is the number of items that fit into a page.
-
-\end{frame}
-
-\begin{frame}
 \frametitle{Fullest-Page Heap}
 \input{small-number-heap_pdftex}
 \end{frame}
 
-% What causes HTM to fail.
+\begin{frame}
+\frametitle{To Allocate}
+
+
+\begin{enumerate}
+\item Determine which \textit{size bin} to use.
+\item Look in the per-thread and per-CPU caches.
+\item Else, Atomically 
+  \begin{enumerate}
+  \item Find the fullest page in that bin with a free slot.
+  \item Find a free slot in the bitmap for the page.
+  \item Set the bit.
+  \item Change the page's position in the fullest-page heap.
+  \end{enumerate}
+\item Else (nothing was found), allocate a new chunk.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}
+\frametitle{To Free}
+\begin{enumerate}
+\item If the thread cache and cpu cache are full, 
+
+ Atomically
+ \begin{enumerate}
+ \item Clear the bit in the free map.
+ \item Change the page's position in the fullest-page heap.
+ \end{enumerate}
+\item Otherwise 
+ \begin{enumerate}
+ \item Insert the object to the thread cache.
+ \item If the thread cache is full, move several objects to the per-cpu cache (in $O(1)$ time).
+ \end{enumerate}
+\end{enumerate}
+\end{frame}
+
+\begin{frame}
+\frametitle{Size Bins Introduce Associativity Conflicts}
+\input{associativity-conflicts_pdftex}
+\end{frame}
+
+\begin{frame}
+\frametitle{Odd-sized Bins}
+
+Solution (due to Dave Dice).  Make object sizes be a prime number of cache lines.
+
+\url{https://blogs.oracle.com/dave/entry/malloc_for_haswell_hardware_transactional}
+
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Odd-sized bins performance issues}
+
+\begin{itemize}
+\item Calculating bin number from size.
+\item Calculating bitmap index from a pointer.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Supermalloc Bin sizes}
+
+Four size categories: small, medium, large, huge.
+
+\begin{description}
+\item[Small:] sizes are of the form $\frac{2^k}{1}$, $\frac{5 \cdot 2^k}{4}$, $\frac{3 \cdot 2^k}{2}$, $\frac{7 \cdot 2^k}{4}$.  
+(For example, 8, 10, 12, 14.)  (These admit fast calculation of bin numbers.)
+
+\item[Medium:] prime numbers of cache lines: 5, 7, 11, 13, 17, 23,
+  $\ldots$ cache lines.  (Simply search for bin numbers.)
+
+ To avoid fragmentation, use ``pages'' of 64 objects.  These large
+ ``pages'' are called \textit{folios}.
+
+\item[Large:] page allocated plus a random offset.
+
+\item[Huge:] allocated via mmap plus a random offet.
+\end{description}
+
+Aligned allocations have their own bins.
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Calculating Bitmap Indexes}
+
+Given a pointer $p$:
+
+\begin{tabular}{ll}
+ Chunk number is & \mintinline{c}{C = p / chunksize}. \\
+ Bin is          & \mintinline{c}{B = chunkinfos[C]}.  \\
+ Folio size is   & \mintinline{c}{FS = foliosizes[B]}. \\
+ Folio number is & \mintinline{c}{FN = (p%chunksize)/FS}. \\
+ Object size is  & \mintinline{c}{OS = objectsizes[B]}. \\
+ Object number is& \mintinline{c}{ON = ((p%chunksize)%FS)/OS}.
+\end{tabular}
+
+Division by \mintinline{c}{chunksize}, a constant power of two, is
+easy.  Division by \mintinline{c}{FS} and \mintinline{c}{OS} could be
+slow.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Division via Multiplication-and-Shift}
+
+Division is slow.  Multiplication is fast.
+
+It turns out that for 32-bit values of \mintinline{c}{x},
+\begin{center}
+\mintinline{c}{x / 320 == (x*6871947674lu)>>41}
+\end{center}
+
+How to calculate these magic numbers? 
+\end{frame}
+
+\begin{frame}
+\frametitle{Magic Numbers for Division}
+
+Problem: divide by \mintinline{c}{D} using multiply and shift.
+
+Idea:  For real numbers, $\frac{x (2^{32}/D)}{2^{32}} = \frac{x}{D}$.
+
+For integer arithmetic use:
+\begin{eqnarray*}
+S & = & 32+\lceil \log_2 D \rceil \\
+M & = & (D-1+2^S)/D 
+\end{eqnarray*}
+in which case for $x<2^{32}$,
+\[
+\lfloor x/D \rfloor = \lfloor (xM)/2^S \rfloor.
+\]
+
+A metaprogram computes all the sizes and the magic constants.
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Per-Thread PRNG With No Initialization}
+
+\begin{minted}[mathescape]{c}
+// Mix64 is a hash function
+static uint64_t Mix64 (uint64_t);
+
+// per-thread pseudorandom number generator.
+uint64_t prandnum() {
+  static __thread uint64_t rv = 0;
+  return Mix64(++rv + (uint64_t)&rv);
+}
+\end{minted}
+
+(Due to Dave Dice:
+\url{https://blogs.oracle.com/dave/entry/a_simple_prng_idiom})
+
+I'm skeptical of this.  Different threads may be too correlated.  Can
+it be fixed up?
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Using Hardware Transactional Memory}
+
+\begin{minted}[mathescape]{c}
+while (1) {
+  if (_xbegin() == _XBEGIN_STARTED) {
+    if (lock) _xabort(); // subscribe to lock
+    critical_section();
+    _xend();
+    break;
+  }
+  if (!try_again()) {
+    acquire_lock(&lock);
+    critical_section();
+    release_lock(&lock);
+    break;
+} }
+\end{minted}
+\end{frame}
+
+\begin{frame}
+\frametitle{Why does an HTM transaction fail?}
+\begin{itemize}
+\item Interrupts (such as time-slice).
+\item Cache capacity (read set must fit in L2.  Write set must fit in L1).
+\item Actual conflicts (two concurrent transactions have a race).
+\item Conflicts with the fallback code.
+\item Other random failures.  The HTM failure codes seem useless.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Improving the Odds}
+
+\begin{minted}[mathescape]{c}
+while (1) {
+  // prewait for the lock.
+  while (lock) _mm_pause(); // save power.
+  // prefetch needed data:
+  predo_critical_section()
+  if (_xbegin() == _XBEGIN_STARTED) {
+    critical_section();
+    if (lock) _xabort(); // late subscription.
+    _xend();
+    break;
+  }
+  if (!try_again()) {
+    acquire_lock(&lock);
+    critical_section();
+    release_lock(&lock);
+    break;
+  }
+}
+\end{minted}
+\end{frame}
+
+\begin{frame}
+\frametitle{What Works?}
+
+\begin{itemize}
+\item Prewaiting for the lock is a big win.
+\item Preloading the cache seems not to help.
+\item Late lock subscription does not help much, and is dangerous.  
+
+The transaction may be running between two arbitrary instructions of
+the critical section protected by the lock.  How do you know that
+we'll successfully get the abort?
+
+I'll probably get rid of late lock subscription.
+\item Lock fallback needed less than 0.03\% of the time.
+\end{itemize}
+\end{frame}
 
 \begin{frame}
 \frametitle{Performance Comparison}
