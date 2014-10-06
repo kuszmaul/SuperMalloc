@@ -6,7 +6,7 @@ LIB = $(BLD)/lib
 C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC -mrtm $(COVERAGE)
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
-CPPFLAGS += $(STATS) $(LOGCHECK) $(TESTING)
+CPPFLAGS += $(STATS) $(LOGCHECK) $(TESTING) -I$(BLD)
 
 LIBOBJECTS = malloc makechunk rng huge_malloc large_malloc small_malloc cache bassert footprint stats
 default: tests
@@ -68,8 +68,9 @@ $(BLD)/supermalloc.a: $(OFILES)
 $(BLD)/%.o: $(SRC)/%.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
+$(BLD)/%.o: CPPFLAGS += -I$(SRC) 
 $(BLD)/%.o: $(TST)/%.c
-	$(CC) $(CFLAGS) $(CPPFLAGS) -I$(SRC) -c $< -o $@
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
 $(BLD)/%: $(BLD)/%.o
 	$(CXX) $(CXXFLAGS) $< $(LDFLAGS) $(IMPLEMENTATION_FILES) -o $@
 

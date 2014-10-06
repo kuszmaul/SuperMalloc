@@ -272,7 +272,16 @@ done_small:
 
   printf("static binnumber_t size_2_bin(size_t size) __attribute((unused)) __attribute((const));\n");
   printf("static binnumber_t size_2_bin(size_t size) {\n");
+  printf("  if (size <= 8) return 0;\n");
+  printf("  if (size <= 320) {\n");
+  printf("    // bit hacking to calculate the bin number for the first group of small bins.\n");
+  printf("    int nzeros = __builtin_clzl(size);\n");
+  printf("    size_t roundup = size + (1ul<<(61-nzeros)) -1;\n");
+  printf("    int nzeros2 = __builtin_clzl(roundup);\n");
+  printf("    return 4*(60-nzeros2)+ ((roundup>>(61-nzeros2))&3);\n");
+  printf("  }\n");
   for (binnumber_t b = 0; b < first_huge_bin; b++) {
+    if (static_bins[b].object_size <= 320) printf("  //");
     printf("  if (size <= %d) return %d;\n", static_bins[b].object_size, b);
   }
   printf("  return %u + ceil(size-%lu, %lu);\n", first_huge_bin-1, largest_large, pagesize);
@@ -280,8 +289,9 @@ done_small:
 
   printf("static size_t bin_2_size(binnumber_t bin) __attribute((unused)) __attribute((const));\n");
   printf("static size_t bin_2_size(binnumber_t bin) {\n");
+  printf("  if (bin < %d) return static_bin_info[bin].object_size;\n", first_huge_bin);
   for (binnumber_t b = 0; b < first_huge_bin; b++) {
-    printf("  if (bin == %d) return %u;\n", b, static_bins[b].object_size);
+    printf("  // if (bin == %d) return %u;\n", b, static_bins[b].object_size);
   }
   printf("  return (bin-%d)*pagesize + %lu;\n", first_huge_bin-1, largest_large);
   printf("}\n\n");
