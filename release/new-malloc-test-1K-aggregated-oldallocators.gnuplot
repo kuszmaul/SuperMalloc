@@ -12,7 +12,7 @@
 #    	faq, bugs, etc:   type "help FAQ"
 #    	immediate help:   type "help"  (plot window: hit 'h')
 set terminal pdfcairo dashed transparent fontscale 0.5 size 5.00in, 3.00in 
-set output 'new-malloc-test-1K-aggregated.pdf'
+set output 'new-malloc-test-1K-aggregated-oldallocators.pdf'
 unset clip points
 set clip one
 unset clip two
@@ -160,19 +160,15 @@ set style line 5 lt 3 lc rgb "#00008B" lw 1 pt 0
 set style line 6 lt 1 lc rgb "#CF00CF" lw 1 pt 0
 set style line 7 lt 2 lc rgb "#CF00CF" lw 1 pt 0
 set style line 8 lt 3 lc rgb "#CF00CF" lw 1 pt 0
-set label 1 "nothreadcache" at 3.3,1.95e7       right  textcolor rgb "#FF0000"
-set label 2 "rtm(predo)"    at 3,4.4e7     right textcolor rgb "#006400"
-set label 4 "rtm(nopredo)"  at 3.2,4.1e7   left  textcolor rgb "#006400"
-set label 3 "lock(predo)"   at 4.5,3.1e7   right textcolor rgb "#00008B"
-set label 5 "lock(nopredo)" at 2.3,2.5e7   left  textcolor rgb "#00008B"
-set label 6 "dlmalloc"      at 5,5e6       right textcolor rgb "#CF00CF"
-set label 7 "Hoard"         at 7,1.2e7     right textcolor rgb "#CF00CF"
-set label 8 "jemalloc"      at 8,3.2e7     right  textcolor rgb "#CF00CF"
-plot 'new-malloc-test-1K-aggregated.data' using 1:2:3:4 with errorbars title "nothreadcache" ls 1,      'new-malloc-test-1K-aggregated.data' using 1:2 with lines notitle ls 1,\
-     'new-malloc-test-1K-aggregated.data' using ($1+.05):5:6:7 with errorbars title "rtm" ls 2,         'new-malloc-test-1K-aggregated.data' using ($1+.05):5 with lines notitle ls 2,\
-     'new-malloc-test-1K-aggregated.data' using ($1+.10):8:9:10 with errorbars title "lock" ls 3,       'new-malloc-test-1K-aggregated.data' using ($1+.10):8 with lines notitle ls 3,\
-     'new-malloc-test-1K-aggregated.data' using ($1+.15):11:12:13 with errorbars title "rtm-nopredo"  ls 4,  'new-malloc-test-1K-aggregated.data' using ($1+.15):11 with lines notitle ls 4,\
-     'new-malloc-test-1K-aggregated.data' using ($1+.20):14:15:16 with errorbars title "lock-nopredo" ls 5, 'new-malloc-test-1K-aggregated.data' using ($1+.20):14 with lines notitle ls 5,\
+# set label 1 "nothreadcache" at 1.8,1.04e7  left  textcolor rgb "#FF0000"
+# set label 2 "rtm(predo)"    at 3.9,1.7e7   right textcolor rgb "#006400"
+# set label 4 "rtm(nopredo)"  at 4.2,1.55e7  left  textcolor rgb "#006400"
+# set label 3 "lock(predo)"   at 3.5,1.3e7   right textcolor rgb "#00008B"
+# set label 5 "lock(nopredo)" at 3.65,1.35e7 left  textcolor rgb "#00008B"
+set label 6 "dlmalloc"      at 5,4.5e6       right textcolor rgb "#CF00CF"
+set label 7 "Hoard"         at 5,1.4e7     right textcolor rgb "#CF00CF"
+set label 8 "jemalloc"      at 7.5,3e7   right  textcolor rgb "#CF00CF"
+plot \
      'new-malloc-test-1K-aggregated.data' using ($1+.25):17:18:19 with errorbars title "dlmalloc" ls 6,   'new-malloc-test-1K-aggregated.data' using ($1+.25):17 with lines notitle ls 6,\
      'new-malloc-test-1K-aggregated.data' using ($1+.30):20:21:22 with errorbars title "hoard"    ls 7,      'new-malloc-test-1K-aggregated.data' using ($1+.30):20 with lines notitle ls 7,\
      'new-malloc-test-1K-aggregated.data' using ($1+.35):23:24:25 with errorbars title "jemalloc" ls 8, 'new-malloc-test-1K-aggregated.data' using ($1+.35):23 with lines notitle ls 8

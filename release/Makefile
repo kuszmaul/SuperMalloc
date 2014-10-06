@@ -48,4 +48,5 @@ new-malloc-test-1K.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc 
 
 new-malloc-test-1K-aggregated.pdf: new-malloc-test-1K-aggregated.data
 new-malloc-test-1K-aggregated.data: ../paper/aggregate_error_bars
-	./$< < new-malloc-test-1K.data > $@
+	./$< < new-malloc-test-1K-lutestring.data > $@
+new-malloc-test-1K-aggregated-oldallocators.pdf: new-malloc-test-1K-aggregated.data

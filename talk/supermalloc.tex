@@ -6,6 +6,8 @@
 
 \begin{document}
 \title{SuperMalloc}
+\subtitle{A fast HTM-friendly memory allocator with a small footprint}
+
 \author{Bradley C. Kuszmaul}
 \date{Supertech Meeting Oct 6, 2014}
 \frame{\titlepage}
@@ -22,7 +24,7 @@ Effect: Allocate and return a pointer to a block of memory containing at least $
 void free(void *p);
 \end{minted}
 
-Effect: $p$ is a pointer to a block of memory returned by \mintinline{c}{malloc()}.  Return the block of memory of memory to the system.
+Effect: $p$ is a pointer to a block of memory returned by \mintinline{c}{malloc()}.  Deallocate the block.
 \end{frame}
 
 \begin{frame}[fragile]
@@ -43,32 +45,23 @@ Requires: \mintinline{c}{a} is a power of two.
 \end{frame}
 
 \begin{frame}
-\frametitle{Goals For Malloc (Doug Lea)}
+\frametitle{Doug Lea's Goals For Malloc}
 
-Maximize
+\begin{columns}
+\hspace*{-.3cm}
+\begin{column}{1.15 \textwidth}
 \begin{description}[Error Detection:]
 \item[Compatibility:] POSIX API.
-
-\item[Portability:] SuperMalloc isn't.
+\item[Portability:] SuperMalloc now works only on x86-64/Linux (and likes Haswell).
 \item[Space:] SuperMalloc wins.
-\item[Time:] Average? Worst-case?  
-
-SuperMalloc wins on average.
-\item[Tunability:]
-
-I hate tunability. Just make it good.
-\item[Locality:] SuperMalloc doesn't.
-\item[Error Detection:] SuperMalloc doesn't.
-\item[Anomalies:] ???
+\item[Time:] SuperMalloc wins on average time.  Difficult to measure worst case.
+\item[Tunability:] I hate tunability.
+\item[Locality:] Objects allocated at the same time should be near each other.  Nobody seems to care.
+\item[Error Detection:] SuperMalloc performs little checking.
+\item[Anomalies:] I'm hopeful.
 \end{description}
-\end{frame}
-
-\begin{frame}
-\frametitle{Worst Case Time is Bad}
-
-For jemalloc, once per day \mintinline{c}{free()} takes 3 seconds.
-
-I suspect it's lock convoying, but it's tough to observe.
+\end{column}
+\end{columns}
 \end{frame}
 
 \begin{frame}
@@ -86,8 +79,51 @@ To address these problems, allocators such as Hoard, TCmalloc, JEmalloc have app
 \end{frame}
 
 \begin{frame}
+\frametitle{The Malloc-test Benchmark}
+
+\begin{itemize}
+\item Benchmark due to Lever, Boreham, and Eder.
+\textit{\mintinline{c}{malloc()} Performance in a Multithreaded Linux
+  Environment}, USENIX 2000.
+
+\item $k$ allocator threads, $k$ deallocator threads.
+
+\item Each allocator thread calls \mintinline{c}{malloc()} as fast as it can and hands the object to a deallocator thread, which calls \mintinline{c}{free()} as fast as it can.
+
+\item It's a tough benchmark, because per-thread caches don't work well.
+
+\item The code is racy, and produces noisy data.  I sped it up by a factor of two, and de-noised it.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Malloc-test on Some Existing Allocators}
+\hspace*{-.7cm}\includegraphics{new-malloc-test-1K-aggregated-oldallocators.pdf}
+\end{frame}
+
+\begin{frame}
+\frametitle{Worst Case Time is Bad}
+
+My motivation: jemalloc seems to be the best allocator right now.  It
+is much faster than dlmalloc, and its memory footprint is half for
+long-lived processes (such as database servers).
+
+\vfill
+However: In jemalloc, once per day \mintinline{c}{free()} takes 3 seconds.
+
+\vfill
+I suspect lock convoying, but it's tough to observe.
+\end{frame}
+
+\begin{frame}
 \frametitle{DLmalloc Employs Bins}
 A bin is a doubly linked list of free objects that are all close to the same size.
+
+\vfill
+
+For example, dlmalloc employs 32 ``small'' bins of size 8, 16, 24, 32,
+\ldots, 256 bytes respectively.  If you allocate 12 bytes, you get a 16-byte object.
 
 \end{frame}
 
@@ -95,20 +131,19 @@ A bin is a doubly linked list of free objects that are all close to the same siz
 \frametitle{DLmalloc Employs Boundary Tags}
 
 Put the size before every object and after every free object.  The
-size also indicates the status of the object and the previous
-object. (``status'' means free or in-use.)
+tag also indicates whether the object and previous object are free or in use.
 
 \begin{center}
 \begin{tabular}{l|l|}
                                                     \hline
-an allocated chunk & size                         \\ \cline{2-2}
+an allocated chunk & size (this in use)                \\ \cline{2-2}
                    & $\ldots$ user data $\ldots$ \\ \hline
-a free chunk       & size                         \\ \cline{2-2}
+a free chunk       & size (this free, prev in use)     \\ \cline{2-2}
                    & pointer to next chunk in bin \\ \cline{2-2}
                    & pointer to prev chunk in bin \\ \cline{2-2}
                    & $\ldots$ unused space $\ldots$ \\ \cline{2-2}
                    & size                        \\ \hline
-an allocated chunk & size                        \\ \cline{2-2}
+an allocated chunk & size (this in use, prev free)    \\ \cline{2-2}
                    & $\ldots$ user data $\ldots$ \\ \hline
 \end{tabular}
 \end{center}
@@ -127,7 +162,9 @@ an allocated chunk & size                        \\ \cline{2-2}
 They kept the bins sorted (but maintaining a heap in each bin would
 have been enough).
 
-\item Now first-fit has been thrown out.
+\item Now it's more complex.
+
+\item Operation complexity is $O(\mbox{\mintinline{c}{sizeof(size_t)}})$.
 \end{itemize}
 \end{frame}
   
@@ -568,11 +605,19 @@ while (1) {
 \end{frame}
 
 \begin{frame}
+\frametitle{Performance Comparison}
+\hspace*{-.7cm}\includegraphics{new-malloc-test-1K-aggregated.pdf}
+
+{\small 8 runs on i7-4770: 3.4GHz, 4 cores, 2 HT/core, no turboboost.}
+\end{frame}
+
+\begin{frame}
 \frametitle{What Works?}
 
 \begin{itemize}
+\item HTM wins over spin locks for high thread counts.  Maybe need better locks?
 \item Prewaiting for the lock is a big win.
-\item Preloading the cache seems not to help.
+\item Preloading the cache little, if any, win.
 \item Late lock subscription does not help much, and is dangerous.  
 
 The transaction may be running between two arbitrary instructions of
@@ -582,11 +627,6 @@ we'll successfully get the abort?
 I'll probably get rid of late lock subscription.
 \item Lock fallback needed less than 0.03\% of the time.
 \end{itemize}
-\end{frame}
-
-\begin{frame}
-\frametitle{Performance Comparison}
-\hspace*{-.7cm}\includegraphics{new-malloc-test-1K-aggregated.pdf}
 \end{frame}
 
 \end{document}
