@@ -113,7 +113,7 @@ long-lived processes (such as database servers).
 However: In jemalloc, once per day \mintinline{c}{free()} takes 3 seconds.
 
 \vfill
-I suspect lock convoying, but it's tough to observe.
+I suspect lock-holder preemption, but it's tough to observe.
 \end{frame}
 
 \begin{frame}
@@ -186,7 +186,7 @@ have been enough).
 dlmalloc &    6,281 &  3.0M/s \\
 hoard    &   16,948 &  5.2M/s \\
 jemalloc    & 22,230 & \\
-supermalloc & 3,571 & 15.1M/s \\
+SuperMalloc & 3,571 & 15.1M/s \\
 \end{tabular}
 
 \vfill
@@ -232,7 +232,7 @@ overhead on 8-byte objects.
 \item jemalloc uses many of the same tricks.  I'll focus on jemalloc
   from here on, since it seems faster, and I understand it better.
 \item Each thread has a cache of allocated objects.
-\item Each thread has an ``arena'' comprising chunks of each possible size.  When the thread cache is empty, the thread allocates out of its arena.
+\item Each thread has an ``arena'' comprising chunks of each possible size.  When the thread cache is empty, the thread allocates out of its arena, using a per-arena lock.
 \end{itemize}
 
 \end{frame}
@@ -243,9 +243,9 @@ overhead on 8-byte objects.
 \begin{itemize}
 \item Allocate 4MiB chunks using \mintinline{c}{mmap()}.
 \item Objects within a chunk are all the same size. 
-\item The system suffers $1$-bit overhead per object.
+\item The system suffers only $1$-bit/object overhead.
 \item Use a red-black tree indexed on the chunk number, \mintinline{c}{p >> 22}, to find a chunk's object size.
-\item jemalloc allocates the object with the smallest address in an arena,
+\item Allocates the object with the smallest address in an arena,
 which tends to empty out pages.
 \item Hoard is similar, except that it appears to allocate the object from the fullest page in the arena.
 \end{itemize}
@@ -261,7 +261,7 @@ which tends to empty out pages.
 \item jemalloc includes much complexity to overcome the high cost of
   \mintinline{c}{DONTNEED}.
 
-\item Supermalloc may not suffer as much.
+\item SuperMalloc may not suffer as much.
 \end{itemize}
 \end{frame}
 
@@ -269,38 +269,57 @@ which tends to empty out pages.
 \frametitle{Performance of returning memory}
 
 \begin{itemize}
-
 \item On linux, avoid calling \mintinline{c}{munmap()}, which pokes
-  holes in the virtual address space.  Linux has a slow algorithm for
-  finding contiguous free virtual addresses.
+  holes in the virtual address space.  When many holes exist, Linux is slow to
+  find a free range.
 
-\item BSD offers \mintinline{c}{madvise(p, MADV_FREE, ...)} which
-  gives the kernel permission to free memory.  In future, the memory
-  might be zero, or it might be the old value.
-  \mintinline{c}{MADV_FREE} is much faster, since it often avoids both
-  deallocating memory and subsequently reallocating it.
+\item BSD offers \mintinline{c}{MADV_FREE}, which
+  gives the kernel \textit{permission} to free memory, without \textit{requiring} it. The memory retains its old value, but can be zero'd at any time.
+  The OS frees physical memory asynchronously, only when there is memory pressure, and often avoids the cost of
+  deallocating/reallocation.
 
-\item Supermalloc may not care.
+\item Kernel should deliver an event to the application when memory is tight.
+
+\item Don't yet know if this is important for SuperMalloc.
 \end{itemize}
 \end{frame}
 
 \begin{frame}
-\frametitle{Large objects}
+\frametitle{Large Objects in jemalloc}
 \begin{itemize}
 \item For objects $>$ 4MiB, round up to a 4MiB boundary.
-\item If you \mintinline{c}{malloc(1+(1<<22)} (slightly more than 4MiB), the system allocates 8MiB.  
-\item This allocation uses up virtual memory space, but not RSS\@.
-  The operating system doesn't \textit{commit} physical memory for a
-  page until the application reads or writes the page.  Since the page
-  size is 4KiB, in this example, the RSS would end up be 4MiB+4KiB.
+\item If you \mintinline{c}{malloc(1+(1<<22))} (slightly more than 4MiB), the system allocates 8MiB.  
+\item This allocation uses up virtual space, but not RSS\:.
+  The OS \textit{commits} physical memory for a
+  page only when the application reads or writes the page.  Since the page
+  size is 4KiB, in this example, at most 4MiB+4KiB of RSS is allocated.
 \end{itemize}
 \end{frame}
+\begin{frame}
+\frametitle{SuperMalloc Strategies}
+
+\begin{itemize}
+\item Can waste virtual space: it's $2^{48}$ bytes.
+\item Don't waste RSS ($2^{40}$ bytes on big machines).
+\item Contention costs dearly, not locking.  Use a per-CPU cache.
+\item Make per-CPU cache smaller than L3 cache, since the application
+  has cache misses anyway.
+\item Thread cache should be just big enough to reduce locking overhead.  (About 10 objects.)
+\item Use Hardware transactional memory (HTM).
+\item HTM likes simple data structures.
+\item Object sizes should be a prime number of cache lines to avoid associativity conflicts.
+\end{itemize}
+\end{frame}
+
+
 
 \begin{frame}
 \frametitle{Costs of Locking vs. Cache Contention}
 
+I measured the cost of updating a variable in a multithreaded code.
+
 \begin{tabular}{rr}
-                                                     global list &    193.6ns \\
+                                                  global variable &    193.6ns \\
             per cpu (always call \mintinline{c}{sched_getcpu()})  &     30.2ns \\
 per cpu (cache getcpu, refresh/32) &     17.0ns \\
                                                       per thread &      3.1ns \\
@@ -341,45 +360,32 @@ per cpu (cache getcpu, refresh/32) &     17.0ns \\
 
 
 \begin{frame}
-\frametitle{Supermalloc Strategies}
-
-\begin{itemize}
-\item Use up address space, it's $2^{48}$ bytes.
-\item Don't use up RSS ($2^{40}$ bytes on big machines).
-\item Contention costs dearly, not locking.  Use a per-CPU cache.
-\item Make per-CPU cache smaller than L3 cache, since the application
-  has cache misses anyway.
-\item Thread cache should be just big enough to reduce locking overhead.  About 10 objects.
-\item Hardware transactional memory wins with simpler data structures.
-\item Object sizes should be a prime number of cache lines to avoid associativity conflicts.
-\end{itemize}
-\end{frame}
-
-\begin{frame}
 \frametitle{x86-64 Address Space}
 
 \input{x86-addresses_pdftex}
 \end{frame}
 
-\begin{frame}
+\begin{frame}[fragile]
 \frametitle{Chunk Map}
 
-Chunks are 2MiB (the medium page size on x86.)
+\begin{itemize}
+\item Chunks are 2MiB (the medium page size on x86.)
 
-To convert a pointer to a chunk number, divide by $2^{21}$.
+\item To convert a pointer to a chunk number divide by $2^{21}$ and mask $27$ bits.
 
-Don't use a table, use an array.
+\item Don't use a tree, use an array.
 
-There are only $2^{27}$ possible chunks.  Use 32 bits of information
-per chunk, for $2^{29}$ bytes.
+\item There are only $2^{27}$ possible chunks.  Need 32 bits per chunk, for
+$2^{29}$ bytes.
 
-A program that uses $128$ GiB of allocated data needs only $65,536$
-chunks.  Used half a gigabyte of address space, but only a quarter
-megabyte of RSS.
+\item E.g., a program that uses $128$ GiB of allocated data needs only
+  $65,536$ chunks.  The table consumes 512MiB of address space, but
+  only a 256KiB of RSS.
 
-It happens that \mintinline{c}{mmap()} returns data in a contiguous region.
+\item \mintinline{c}{mmap()} mostly returns adjacent blocks.
 
-Determining the size of an object takes 1 memory reference.
+\item Determining an object's size requires $O(1)$ cache misses.
+\end{itemize}
 
 \end{frame}
 
@@ -449,7 +455,7 @@ Solution (due to Dave Dice).  Make object sizes be a prime number of cache lines
 \end{frame}
 
 \begin{frame}
-\frametitle{Supermalloc Bin sizes}
+\frametitle{SuperMalloc Bin sizes}
 
 Four size categories: small, medium, large, huge.
 
@@ -627,6 +633,22 @@ we'll successfully get the abort?
 I'll probably get rid of late lock subscription.
 \item Lock fallback needed less than 0.03\% of the time.
 \end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Wishlist and To-Do}
+
+\begin{itemize}
+\item I want \mintinline{c}{MADV_FREE}, which makes it cheap to give memory to the OS\@.  BSD has it.
+\item I want \mintinline{c}{schedctl()}, which advises the kernel to defer
+  involuntary preemption briefly, reducing lock-holder preemption.  Solaris has it.
+\item Why can't I get rid of those last 0.03\% of the lock fallbacks.
+\item Better understand when late lock subscription is safe.
+\item Better method for writing code to preload cache.
+\item Measure SuperMalloc in real workloads.  (Or at least some of the
+  common malloc benchmarks.)
+\end{itemize}
+
 \end{frame}
 
 \end{document}
