@@ -54,6 +54,11 @@ struct chunk_info *chunk_infos;
 
 uint32_t n_cores;
 
+atomic_stats_s atomic_stats;
+static void print_atomic_stats() {
+  fprintf(stderr, "Critical sections: %ld, locked %ld\n", atomic_stats.atomic_count, atomic_stats.locked_count);
+}
+
 #ifdef ENABLE_STATS
 static void print_stats() {
   print_cache_stats();
@@ -77,6 +82,7 @@ static
 extern "C"
 #endif
 void initialize_malloc() {
+  atexit(print_atomic_stats);
 #ifdef ENABLE_STATS
   atexit(print_stats);
 #endif

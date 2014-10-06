@@ -62,26 +62,32 @@ extern bool do_predo;
 #define have_rtm use_transactions
 #endif
 
+struct atomic_stats_s {
+  uint64_t atomic_count __attribute__((aligned(64)));
+  uint64_t locked_count;
+};
+extern struct atomic_stats_s atomic_stats;
+
 template<typename ReturnType, typename... Arguments>
 static inline ReturnType atomically(volatile unsigned int *mylock,
 			            void (*predo)(Arguments... args),
 				    ReturnType (*fun)(Arguments... args),
 				    Arguments... args) {
-
+  __sync_fetch_and_add(&atomic_stats.atomic_count, 1);
   if (have_rtm) {
     // Be a little optimistic: try to run the function without the predo if we the lock looks good
     if (*mylock == 0) {
       unsigned int xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
-	ReturnType r = fun(args...);
 	if (*mylock) _xabort(XABORT_LOCK_HELD);
+	ReturnType r = fun(args...);
 	_xend();
 	return r;
       }
     }
 
     int count = 0;
-    while (count < 20) {
+    while (count < 10) {
       mylock_wait(mylock);
       if (do_predo) predo(args...);
       while (mylock_wait(mylock)) {
@@ -110,6 +116,7 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
     }
   }
   // We finally give up and acquire the lock.
+  __sync_fetch_and_add(&atomic_stats.locked_count, 1);
   if (do_predo) predo(args...);
   mylock_raii mr(mylock);
   ReturnType r = fun(args...);
