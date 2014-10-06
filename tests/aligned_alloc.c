@@ -29,9 +29,9 @@ main(void)
 	alignment = 0;
 	set_errno(0);
 	p = aligned_alloc(alignment, 1);
-	if (p != NULL || get_errno() != EINVAL) {
-		malloc_printf(
-		    "Expected error for invalid alignment %zu\n", alignment);
+	if (p == NULL && get_errno() == EINVAL) {
+	  if (0) malloc_printf(
+		  "Happy: Expected error for invalid alignment %zu\n", alignment);
 	} else {
 	  malloc_printf("Didn't get error on alignment %zu\n", alignment);
 	  abort();
