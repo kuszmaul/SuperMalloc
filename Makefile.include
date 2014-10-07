@@ -8,7 +8,7 @@ CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 CPPFLAGS += $(STATS) $(LOGCHECK) $(TESTING) -I$(BLD)
 
-LIBOBJECTS = malloc makechunk rng huge_malloc large_malloc small_malloc cache bassert footprint stats
+LIBOBJECTS = malloc makechunk rng huge_malloc large_malloc small_malloc cache bassert footprint stats generated_constants
 default: tests
 .PHONY: default
 
@@ -76,8 +76,8 @@ $(BLD)/%: $(BLD)/%.o
 
 $(OFILES): $(wildcard $(SRC)/*.h) $(BLD)/generated_constants.h
 
-$(BLD)/generated_constants.h: $(BLD)/objsizes
-	./$< > $@
+$(BLD)/generated_constants.h $(BLD)/generated_constants.cc: $(BLD)/objsizes
+	./$< $(BLD)/generated_constants.cc > $(BLD)/generated_constants.h
 
 $(BLD)/objsizes: $(SRC)/objsizes.cc $(SRC)/malloc_internal.h
 	$(CXX) $(CXXFLAGS) $< -o $@
@@ -86,4 +86,4 @@ $(BLD)/objsizes: $(SRC)/objsizes.cc $(SRC)/malloc_internal.h
 	gnuplot $<
 
 clean:
-	rm -f *.o $(TESTS) objsizes generated_constants.h $(IMPLEMENTATION_FILES)
+	rm -f *.o $(TESTS) $(BLD)/objsizes $(BLD)/generated_constants.h $(BLD)/generated_constants.cc $(IMPLEMENTATION_FILES) 
