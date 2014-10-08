@@ -1,6 +1,7 @@
 aligned_alloc
 calloc
 generated_constants.h
+generated_constants.cc
 new-malloc-test
 new-malloc-test-dlmalloc
 new-malloc-test-hoard

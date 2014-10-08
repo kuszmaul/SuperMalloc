@@ -14,10 +14,6 @@ tests_default: libsupermalloc.so
 	cd tests;$(MAKE) default
 
 
-# While compiling malloc or any of its .o files, compile with -DTESTING
-libsupermalloc.so: malloc.o makechunk.o rng.o huge_malloc.o large_malloc.o small_malloc.o cache.o bassert.o footprint.o stats.o
-	$(CXX) $(CXXFLAGS) $^ -shared -o $@
-
 malloc.o: cpucores.h
 objsizes: OPTFLAGS=-O0
 objsizes: COVERAGE=
