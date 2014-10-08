@@ -92,37 +92,40 @@ static bool do_small_malloc_add_pages_from_new_chunk(binnumber_t bin,
 static void predo_small_malloc(binnumber_t bin,
 			       uint32_t dsbi_offset,
 			       uint32_t o_size __attribute__((unused))) {
-  uint32_t fullest = dsbi.fullest_offset[bin]; // we'll want to reread this in the transaction, so let's do it now even without the atomicity.
+  uint32_t fullest = atomic_load(&dsbi.fullest_offset[bin]);
+  if (fullest == 0) return; // A chunk must be allocated.
   uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
-  if (fullest != 0)  {
-    per_folio *result_pp = dsbi.lists.b[dsbi_offset + fullest];
-    if (result_pp) {
-      per_folio *next = result_pp->next;
-      if (next) {
-	per_folio *ignore __attribute__((unused)) = atomic_load(&next->prev);
-	prefetch_write(&next->prev);
+  per_folio *result_pp = dsbi.lists.b[dsbi_offset + fullest];
+  if (result_pp == NULL) return; // Can happen only because predo isn't done atomically.
+
+  per_folio *next = result_pp->next;
+  if (next) {
+    load_and_prefetch_write(&next->prev);
+  }
+  prefetch_write(&dsbi.lists.b[dsbi_offset + fullest]); // previously fetched, so just make it writeable
+  per_folio *old_h_below = atomic_load(&dsbi.lists.b[dsbi_offset + fullest -1]);
+  prefetch_write(&dsbi.lists.b[dsbi_offset + fullest -1]); // previously fetched
+  if (old_h_below) {
+    load_and_prefetch_write(&old_h_below->prev);
+  }
+
+  // set the new fullest
+  prefetch_write(&dsbi.fullest_offset[bin]);            // previously fetched
+
+  if (fullest <= 1) {
+    for (uint32_t new_fullest = 1; new_fullest <= o_per_folio; new_fullest++) {
+      if (atomic_load(&dsbi.lists.b[dsbi_offset + new_fullest])) {
+	break;
       }
-      prefetch_write(&dsbi.lists.b[dsbi_offset + fullest]);
-      prefetch_write(&result_pp->next);
-      per_folio *old_h_below = dsbi.lists.b[dsbi_offset + fullest -1];
-      if (old_h_below) {
-	per_folio *ignore __attribute__((unused)) = atomic_load(&old_h_below->prev);
-	prefetch_write(&old_h_below->prev);
-      }
-      prefetch_write(&dsbi.lists.b[dsbi_offset + fullest -1]);
-      prefetch_write(&dsbi.fullest_offset[bin]);
-      if (fullest == 0) {
-	for (uint32_t new_fullest = 1; new_fullest <= o_per_folio; new_fullest++) {
-	  if (atomic_load(&dsbi.lists.b[dsbi_offset + new_fullest]))
-	    break;
-	}
-      }
-      for (uint32_t w = 0; w < ceil(o_per_folio, 64); w++) {
-	uint64_t bw = result_pp->inuse_bitmap[w];
-	if (bw != UINT64_MAX) {
-	  prefetch_write(&result_pp->inuse_bitmap[w]);
-	}
-      }
+    }
+  }
+
+  // prefetch the bitmap
+  for (uint32_t w = 0; w < ceil(o_per_folio, 64); w++) {
+    uint64_t bw = atomic_load(&result_pp->inuse_bitmap[w]);
+    if (bw != UINT64_MAX) {
+      prefetch_write(&result_pp->inuse_bitmap[w]);
+      break;
     }
   }
 }  
@@ -132,11 +135,10 @@ static void* do_small_malloc(binnumber_t bin,
 			     uint32_t dsbi_offset,
 			     uint32_t o_size) {
 
-  uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
-
-  uint32_t fullest = dsbi.fullest_offset[bin]; // we'll want to reread this in the transaction, so let's do it now even without the atomicity.
+  uint32_t fullest = dsbi.fullest_offset[bin];
   if (fullest == 0) return NULL; // Indicating that a chunk must be allocated.
 
+  uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
   per_folio *result_pp = dsbi.lists.b[dsbi_offset + fullest];
 
   bassert(result_pp);
@@ -172,13 +174,14 @@ static void* do_small_malloc(binnumber_t bin,
   }
 
   // Now set the bitmap
-  for (uint32_t w = 0; w < ceil(static_bin_info[bin].objects_per_folio, 64); w++) {
+  uint32_t w_max = ceil(static_bin_info[bin].objects_per_folio, 64);
+  for (uint32_t w = 0; w < w_max; w++) {
     uint64_t bw = result_pp->inuse_bitmap[w];
     if (bw != UINT64_MAX) {
       // Found an empty bit.
       uint64_t bwbar = ~bw;
       int      bit_to_set = __builtin_ctzl(bwbar);
-      result_pp->inuse_bitmap[w] |= (1ul<<bit_to_set);
+      result_pp->inuse_bitmap[w] = bw | (1ul<<bit_to_set);
 
       if (0) printf("result_pp  = %p\n", result_pp);
       if (0) printf("bit_to_set = %d\n", bit_to_set);
@@ -255,33 +258,38 @@ static void predo_small_free(binnumber_t bin,
 			     uint32_t dsbi_offset) {
   uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
   uint32_t old_count = 0;
-  for (uint32_t i = 0; i < ceil(static_bin_info[bin].objects_per_folio, 64); i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
-  uint64_t bm __attribute__((unused)) = atomic_load(&pp->inuse_bitmap[objnum/64]);
+  uint32_t imax = ceil(static_bin_info[bin].objects_per_folio, 64);
+  for (uint32_t i = 0; i < imax; i++) old_count += __builtin_popcountl(atomic_load(&pp->inuse_bitmap[i]));
+  // prefetch for clearing the bit.  We know it was just loaded, so we don't have to load it again.
+  bassert(objnum/64 < imax);
   prefetch_write(&pp->inuse_bitmap[objnum/64]);
 
   uint32_t old_offset_within = o_per_folio - old_count;
   uint32_t old_offset_dsbi = dsbi_offset + old_offset_within;
   uint32_t new_offset = old_offset_dsbi + 1;
 
-  per_folio *p_n __attribute__((unused)) = atomic_load(&pp->next);
-  per_folio *p_p                         = atomic_load(&pp->prev);
+  per_folio *pp_next = atomic_load(&pp->next);
+  per_folio *pp_prev = atomic_load(&pp->prev);
 
   prefetch_write(&pp->next);
   prefetch_write(&pp->prev);
-  if (p_p == NULL) {
-    prefetch_write(&dsbi.lists.b[old_offset_dsbi]);
+  if (pp_prev == NULL) {
+    load_and_prefetch_write(&dsbi.lists.b[old_offset_dsbi]);
   } else {
-    prefetch_write(&p_p->next);
+    load_and_prefetch_write(&pp_prev->next);
   }
-  if (p_n != NULL) {
-    prefetch_write(&p_n->prev);
+  if (pp_next != NULL) {
+    load_and_prefetch_write(&pp_next->prev);
   }
+  // prefetch for fixing up the count
+  uint32_t fullest_off = atomic_load(&dsbi.fullest_offset[bin]);
   if (old_offset_within == 0
-      || (p_n == NULL && dsbi.fullest_offset[bin] == old_offset_within)) {
+      || (pp_next == NULL && fullest_off == old_offset_within)) {
     prefetch_write(&dsbi.fullest_offset[bin]);
   }
-  if (dsbi.lists.b[new_offset]) {
-    prefetch_write(&dsbi.lists.b[new_offset]->prev);
+  per_folio *new_next = atomic_load(&dsbi.lists.b[new_offset]);
+  if (new_next) {
+    load_and_prefetch_write(&new_next->prev);
   }
   prefetch_write(&dsbi.lists.b[new_offset]);
 }
@@ -292,10 +300,12 @@ static bool do_small_free(binnumber_t bin,
 			  uint32_t dsbi_offset) {
   uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
   uint32_t old_count = 0;
-  for (uint32_t i = 0; i < ceil(static_bin_info[bin].objects_per_folio, 64); i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
+  uint32_t imax = ceil(static_bin_info[bin].objects_per_folio, 64);
+  for (uint32_t i = 0; i < imax; i++) old_count += __builtin_popcountl(pp->inuse_bitmap[i]);
   // clear the bit.
-  bassert(pp->inuse_bitmap[objnum/64] & (1ul << (objnum%64)));
-  pp->inuse_bitmap[objnum/64] &= ~ ( 1ul << (objnum%64 ));
+  uint64_t old_bits = pp->inuse_bitmap[objnum/64];
+  bassert(old_bits & (1ul << (objnum%64)));
+  pp->inuse_bitmap[objnum/64] = old_bits & ~ ( 1ul << (objnum%64 ));
   if (IS_TESTING) bassert(old_count > 0 && old_count <= o_per_folio);
 
   uint32_t old_offset_within = o_per_folio - old_count;
@@ -322,9 +332,10 @@ static bool do_small_free(binnumber_t bin,
     dsbi.fullest_offset[bin] = new_offset_within;
   }
   // Add to new list
+  per_folio *new_next = dsbi.lists.b[new_offset];
   pp->prev = NULL;
-  pp->next = dsbi.lists.b[new_offset];
-  if (dsbi.lists.b[new_offset]) {
+  pp->next = new_next;
+  if (new_next) {
     dsbi.lists.b[new_offset]->prev = pp;
   }
   dsbi.lists.b[new_offset] = pp;

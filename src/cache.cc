@@ -411,12 +411,24 @@ static void* try_get_cpu_cached(int processor,
 static void predo_get_global_cached(CacheForBin *cb,
 				    GlobalCacheForBin *gb,
 				    uint64_t siz __attribute__((unused))) {
-  int n = atomic_load(&gb->n_nonempty_caches);
+  uint8_t n = atomic_load(&gb->n_nonempty_caches);
   if (n > 0) {
-    prefetch_read(&gb->co[n-1]);
-    prefetch_write(gb);
-    prefetch_write(cb);
-    // That's probably enough.  Prefetrching allthe other details looks tricky.
+    linked_list *result = gb->co[n-1].head;
+    if (result == NULL) return;  // result could be NULL if we see things in an invalid state
+    linked_list *result_next = result->next;
+    if (result_next) {
+      cached_objects *co0 = &cb->co[0];
+      cached_objects *co1 = &cb->co[1];
+      cached_objects *co  = co0->bytecount < co1->bytecount ? co0 : co1;
+      if (co->head == NULL) {
+	linked_list *ignore __attribute__((unused)) = atomic_load(&gb->co[n-1].tail);
+	prefetch_write(&co->tail); // already fetched as part of co->head
+      } else {
+	load_and_prefetch_write(&gb->co[n-1].tail->next);
+      }
+      prefetch_write(&co->head);
+    }
+    prefetch_write(&gb->n_nonempty_caches);
   }
 }
 
@@ -434,10 +446,11 @@ static void* do_get_global_cached(CacheForBin *cb,
       cached_objects *co1 = &cb->co[1];
       cached_objects *co  = co0->bytecount < co1->bytecount ? co0 : co1;
 
-      if (co->head == NULL) {
+      linked_list *co_head = co->head;
+      if (co_head == NULL) {
 	co->tail = gb->co[n-1].tail;
       } else {
-	gb->co[n-1].tail->next = co->head;
+	gb->co[n-1].tail->next = co_head;
       }
       co->head = result_next;
       co->bytecount = gb->co[n-1].bytecount - siz;

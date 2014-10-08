@@ -55,10 +55,25 @@ struct chunk_info *chunk_infos;
 uint32_t n_cores;
 
 atomic_stats_s atomic_stats;
+
+volatile unsigned int    failed_counts_mutex = 0;
+int    failed_counts_n = 0;
+struct failed_counts_s failed_counts[max_failed_counts];
+
+int compare_failed_counts(const void *a_v, const void *b_v) {
+  const failed_counts_s *a = reinterpret_cast<const failed_counts_s*>(a_v);
+  const failed_counts_s *b = reinterpret_cast<const failed_counts_s*>(b_v);
+  int r = strcmp(a->name, b->name);
+  if (r!=0) return r;
+  if (a->code < b->code) return -1;
+  if (a->code > b->code) return +1;
+  return 0;
+}
 static void print_atomic_stats() {
   fprintf(stderr, "Critical sections: %ld, locked %ld\n", atomic_stats.atomic_count, atomic_stats.locked_count);
+  qsort(failed_counts, failed_counts_n, sizeof(failed_counts[0]), compare_failed_counts);
   for (int i = 0; i < failed_counts_n; i++) {
-    fprintf(stderr, " %38s: %5ld\n", failed_counts[i].name, failed_counts[i].count);
+    fprintf(stderr, " %38s: 0x%08x %5ld\n", failed_counts[i].name, failed_counts[i].code, failed_counts[i].count);
   }
 }
 
@@ -510,6 +525,3 @@ void* object_base(void *ptr) {
 // even at the beginning, since it probably means a single page table
 // entry for this table.
 
-volatile unsigned int    failed_counts_mutex = 0;
-int    failed_counts_n = 0;
-struct failed_counts_s failed_counts[max_failed_counts];

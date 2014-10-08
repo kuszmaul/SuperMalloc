@@ -71,6 +71,7 @@ extern struct atomic_stats_s atomic_stats;
 
 struct failed_counts_s {
   const char *name;
+  unsigned int  code;
   uint64_t count;
 };
 extern volatile unsigned int    failed_counts_mutex;
@@ -85,10 +86,11 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
 				    ReturnType (*fun)(Arguments... args),
 				    Arguments... args) {
   __sync_fetch_and_add(&atomic_stats.atomic_count, 1);
+  unsigned int xr = 0xfffffff2;
   if (have_rtm) {
     // Be a little optimistic: try to run the function without the predo if we the lock looks good
     if (*mylock == 0) {
-      unsigned int xr = _xbegin();
+      xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
 	if (*mylock) _xabort(XABORT_LOCK_HELD);
 	ReturnType r = fun(args...);
@@ -105,7 +107,7 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
 	// If the lock was held for a long time, then do the predo code again.
 	if (do_predo) predo(args...);
       }
-      unsigned int xr = _xbegin();
+      xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
 	ReturnType r = fun(args...);
 	if (*mylock) _xabort(XABORT_LOCK_HELD);
@@ -130,13 +132,13 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
   {
     mylock_raii m(&failed_counts_mutex);
     for (int i = 0; i < failed_counts_n; i++) {
-      if (failed_counts[i].name == name) {
+      if (failed_counts[i].name == name && failed_counts[i].code == xr) {
 	failed_counts[i].count++;
 	goto didit;
       }
     }
     bassert(failed_counts_n < max_failed_counts);
-    failed_counts[failed_counts_n++] = (struct failed_counts_s){name, 0};
+    failed_counts[failed_counts_n++] = (struct failed_counts_s){name, xr, 1};
  didit:;
   }
 
@@ -156,6 +158,7 @@ struct lock {
 
 #define prefetch_read(addr) __builtin_prefetch(addr, 0, 3)
 #define prefetch_write(addr) __builtin_prefetch(addr, 1, 3)
+#define load_and_prefetch_write(addr) ({ __typeof__(*addr) ignore __attribute__((unused)) = atomic_load(addr); prefetch_write(addr); })
 
 static inline void fetch_and_max(uint64_t * ptr, uint64_t val) {
   while (1) {
