@@ -40,7 +40,7 @@ static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
     return mmap_chunk_aligned_block(n_chunks);
   } else {
     // Do this atomically.
-    return atomically(&huge_lock, pre_add_to_free_chunks, do_add_to_free_chunks, f);
+    return atomically(&huge_lock, "huge:add_to_free_chunks", pre_add_to_free_chunks, do_add_to_free_chunks, f);
   }
 }
 

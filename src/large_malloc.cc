@@ -76,6 +76,7 @@ void* large_malloc(size_t size)
 	// becomes empty (so that we go around and do chunk allocation again).
 
 	h = atomically(&large_lock,
+		       "large_malloc_pop",
 		       predo_large_malloc_pop,
 		       do_large_malloc_pop,
 		       free_head);

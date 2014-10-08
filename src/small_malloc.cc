@@ -227,7 +227,7 @@ void* small_malloc(binnumber_t bin)
 	sch->ll[i].prev = (i   == 0)                ? NULL : &sch->ll[i-1];
 	sch->ll[i].next = (i+1 == folios_per_chunk) ? NULL : &sch->ll[i+1];
       }
-      atomically(&small_lock.l,
+      atomically(&small_lock.l, "small_malloc_add_pages_from_new_chunk",
 		 predo_small_malloc_add_pages_from_new_chunk,
 		 do_small_malloc_add_pages_from_new_chunk,
 		 bin, dsbi_offset, sch);
@@ -237,7 +237,8 @@ void* small_malloc(binnumber_t bin)
     if (0) printf("There's one somewhere\n");
     
     verify_small_invariants();
-    void *result = atomically(&small_lock.l, predo_small_malloc, do_small_malloc,
+    void *result = atomically(&small_lock.l, "small_malloc",
+			      predo_small_malloc, do_small_malloc,
 			      bin, dsbi_offset, o_size);
 
     verify_small_invariants();
@@ -351,7 +352,8 @@ void small_free(void* p) {
   if (IS_TESTING) bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
   uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
 
-  atomically(&small_lock.l, predo_small_free, do_small_free,
+  atomically(&small_lock.l, "small_free",
+	     predo_small_free, do_small_free,
 	     bin, pp, objnum, dsbi_offset);
   bin_stats_note_free(bin);
   verify_small_invariants();

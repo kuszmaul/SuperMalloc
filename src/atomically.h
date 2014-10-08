@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <immintrin.h>
 
+#include "bassert.h"
 #include "rng.h"
 
 
@@ -68,8 +69,18 @@ struct atomic_stats_s {
 };
 extern struct atomic_stats_s atomic_stats;
 
+struct failed_counts_s {
+  const char *name;
+  uint64_t count;
+};
+extern volatile unsigned int    failed_counts_mutex;
+static const int max_failed_counts = 100;
+extern int    failed_counts_n;
+extern struct failed_counts_s failed_counts [max_failed_counts];
+
 template<typename ReturnType, typename... Arguments>
 static inline ReturnType atomically(volatile unsigned int *mylock,
+				    const char *name,
 			            void (*predo)(Arguments... args),
 				    ReturnType (*fun)(Arguments... args),
 				    Arguments... args) {
@@ -116,6 +127,19 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
     }
   }
   // We finally give up and acquire the lock.
+  {
+    mylock_raii m(&failed_counts_mutex);
+    for (int i = 0; i < failed_counts_n; i++) {
+      if (failed_counts[i].name == name) {
+	failed_counts[i].count++;
+	goto didit;
+      }
+    }
+    bassert(failed_counts_n < max_failed_counts);
+    failed_counts[failed_counts_n++] = (struct failed_counts_s){name, 0};
+ didit:;
+  }
+
   __sync_fetch_and_add(&atomic_stats.locked_count, 1);
   if (do_predo) predo(args...);
   mylock_raii mr(mylock);
