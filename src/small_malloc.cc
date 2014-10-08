@@ -6,7 +6,7 @@
 lock small_lock;
 
 static struct {
-  dynamic_small_bin_info lists;
+  dynamic_small_bin_info lists __attribute__((aligned(4096)));
 
  // 0 means all pages are full (all the pages are in slot 0).
  // Else 1 means there's a page with 1 free slot, and some page is in slot 1.
@@ -95,14 +95,14 @@ static void predo_small_malloc(binnumber_t bin,
   uint32_t fullest = atomic_load(&dsbi.fullest_offset[bin]);
   if (fullest == 0) return; // A chunk must be allocated.
   uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
-  per_folio *result_pp = dsbi.lists.b[dsbi_offset + fullest];
+  per_folio *result_pp = atomic_load(&dsbi.lists.b[dsbi_offset + fullest]);
+  prefetch_write(&dsbi.lists.b[dsbi_offset + fullest]); // previously fetched, so just make it writeable
   if (result_pp == NULL) return; // Can happen only because predo isn't done atomically.
 
   per_folio *next = result_pp->next;
   if (next) {
     load_and_prefetch_write(&next->prev);
   }
-  prefetch_write(&dsbi.lists.b[dsbi_offset + fullest]); // previously fetched, so just make it writeable
   per_folio *old_h_below = atomic_load(&dsbi.lists.b[dsbi_offset + fullest -1]);
   prefetch_write(&dsbi.lists.b[dsbi_offset + fullest -1]); // previously fetched
   if (old_h_below) {
@@ -140,14 +140,16 @@ static void* do_small_malloc(binnumber_t bin,
 
   uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
   per_folio *result_pp = dsbi.lists.b[dsbi_offset + fullest];
+  prefetch_write(&dsbi.lists.b[dsbi_offset + fullest]);
 
   bassert(result_pp);
   // update the linked list.
   per_folio *next = result_pp->next;
+  dsbi.lists.b[dsbi_offset + fullest] = next; // this line is causing most of the trouble. It looks like it's a real conflict problem
+
   if (next) {
     next->prev = NULL;
   }
-  dsbi.lists.b[dsbi_offset + fullest] = next;
   
   // Add the item to the next list down.
   

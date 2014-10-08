@@ -118,7 +118,8 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
 	continue;
       } else {
 	count++;
-	for (int i = 1; i < count; i++) {
+	//int backoff = (prandnum()%16) << count;
+	for (int i = 1; i < (1<<count); i++) {
 	  if (0 == (prandnum()&1023)) {
 	    sched_yield();
 	  } else {
