@@ -10,35 +10,38 @@
 
 
 static inline bool mylock_wait(volatile unsigned int *mylock) {
-  bool too_long = false;
-  while (*mylock) {
-    if (0==(prandnum()&(1024-1))) {
-      sched_yield();
-      too_long = true;
-    } else {
-        _mm_pause();
+  if (1) {
+    const int pause_count = 30;
+    for (int i = 0; i < pause_count; i++) {
+      if (*mylock == 0) return false;
+      _mm_pause();
     }
+    while (1) {
+      sched_yield();
+      if (*mylock == 0) return true;
+    }
+  } else {
+    bool too_long = false;
+    while (*mylock) {
+      if (0==(prandnum()&(1024-1))) {
+	sched_yield();
+	too_long = true;
+      } else {
+        _mm_pause();
+      }
+    }
+    return too_long;
   }
-  return too_long;
-}
-
-static inline unsigned int xchg(volatile unsigned int *addr, unsigned int newval) {
-  unsigned int result;
-  __asm__ volatile("lock xchgl %0, %1" :
-		   "+m"(*addr), "=a" (result) :
-		   "1" (newval) :
-		   "cc");
-  return result;
 }
 
 static inline void mylock_acquire(volatile unsigned int *mylock) {
   do {
     mylock_wait(mylock);
-  } while (xchg(mylock, 1));
+  } while (__sync_lock_test_and_set(mylock, 1));
 }
 
 static inline void mylock_release(volatile unsigned int *mylock) {
-  *mylock = 0;
+  __sync_lock_release(mylock);
 }
 
 class mylock_raii {
