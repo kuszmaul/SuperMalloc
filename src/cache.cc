@@ -53,7 +53,7 @@ struct linked_list {
 };
 
 struct cached_objects {
-  uint64_t bytecount;
+  uint64_t bytecount __attribute__((aligned(32)));
   linked_list *head;
   linked_list *tail;
 };
@@ -76,7 +76,7 @@ static CacheForCpu cache_for_cpu[cpulimit];
 static const int global_cache_depth = 8;
 
 struct GlobalCacheForBin {
-  uint8_t n_nonempty_caches;
+  uint8_t n_nonempty_caches __attribute__((aligned(64)));
   cached_objects co[global_cache_depth];
 };
 
@@ -555,7 +555,7 @@ static bool predo_try_put_into_cpu_cache_part(linked_list *obj,
 					      cached_objects *cco) {
   uint64_t old_cco_bytecount = cco->bytecount;
   if (old_cco_bytecount < per_cpu_cache_bytecount_limit) {
-    prefetch_write(obj);
+    obj->next = tco->head; // obj is private to the thread at this point, so we can write to it.
     prefetch_write(tco->tail);
     prefetch_write(tco);
     prefetch_write(cco);
@@ -608,11 +608,19 @@ static bool do_put_into_cpu_cache(linked_list *obj,
   return false;
 }
 
+__attribute__((optimize("unroll-loops")))
 static void predo_put_one_into_cpu_cache(linked_list *obj,
 					 CacheForBin *cc,
 					 uint64_t siz __attribute__((unused))) {
-  prefetch_write(obj);
-  prefetch_write(cc);
+  for (int i = 0; i < 2; i++) {
+    uint64_t old_bytecount = cc->co[i].bytecount;
+    if (old_bytecount < per_cpu_cache_bytecount_limit) {
+      linked_list *old_head = cc->co[i].head;
+      obj->next = old_head; // obj is private, so we can write to it.
+      prefetch_write(&cc->co[i].bytecount);
+      return;
+    }
+  }
 }
 
 __attribute__((optimize("unroll-loops")))
@@ -665,8 +673,10 @@ static void predo_put_into_global_cache(linked_list *obj,
 					GlobalCacheForBin *gb,
 					uint64_t siz __attribute__((unused))) {
   uint8_t gnum = atomic_load(&gb->n_nonempty_caches);
-  if (gnum < global_cache_depth ) {
-    prefetch_write(obj);
+  uint64_t old_bytecount = atomic_load(&cb->co[0].bytecount);
+  if (gnum < global_cache_depth && old_bytecount >= per_cpu_cache_bytecount_limit) {
+    obj->next = cb->co[0].head; // obj->next is private, so we can write to it.
+    uint64_t ignore __attribute__((unused)) = atomic_load(&gb->co[gnum].bytecount);
     prefetch_write(&gb->co[gnum]);
     prefetch_write(&cb->co[0]);
     prefetch_write(&gb->n_nonempty_caches);
