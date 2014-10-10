@@ -8,21 +8,70 @@
 #include "bassert.h"
 #include "rng.h"
 
+//#define USE_PTHREAD_MUTEXES
+#ifdef USE_PTHREAD_MUTEXES
+#include <pthread.h>
 
-static inline bool mylock_wait(volatile unsigned int *mylock) {
+typedef pthread_mutex_t lock_t;
+#define LOCK_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+/* static inline void mylock_acquire(lock_t *mylock) { */
+/*   int r = pthread_mutex_lock(mylock); */
+/*   assert(r==0); */
+/* } */
+/* static inline void mylock_release(lock_t *mylock) { */
+/*   int r = pthread_mutex_unlock(mylock); */
+/*   assert(r==0); */
+/* } */
+/* static inline bool mylock_subscribe(lock_t *mylock) { */
+/*   return mylock->_data.__lock == 0; */
+/* } */
+/* static inline bool mylock_wait(lock_t *mylock) { */
+/*   if (mylock_subscribe(mylock)) return false; */
+/*   mylock_ */
+/* } */
+
+class mylock_raii {
+  lock_t *mylock;
+public:
+  mylock_raii(lock_t *mylock) : mylock(mylock) {
+    pthread_mutex_lock(mylock);
+  }
+  ~mylock_raii() {
+    pthread_mutex_unlock(mylock);
+  }
+};
+
+
+template<typename ReturnType, typename... Arguments>
+static inline ReturnType atomically(lock_t *mylock,
+				    const char *name __attribute__((unused)),
+			            void (*predo)(Arguments... args) __attribute__((unused)),
+				    ReturnType (*fun)(Arguments... args),
+				    Arguments... args) {
+  mylock_raii m(mylock);
+  ReturnType r = fun(args...);
+  return r;
+}
+
+#else
+struct lock_s { volatile unsigned int l __attribute__((aligned(64))); };
+typedef struct lock_s lock_t;
+#define LOCK_INITIALIZER {0}
+
+static inline bool mylock_wait(lock_t *mylock) {
   if (1) {
     const int pause_count = 30;
     for (int i = 0; i < pause_count; i++) {
-      if (*mylock == 0) return false;
+      if (mylock->l == 0) return false;
       _mm_pause();
     }
     while (1) {
       sched_yield();
-      if (*mylock == 0) return true;
+      if (mylock->l == 0) return true;
     }
   } else {
     bool too_long = false;
-    while (*mylock) {
+    while (mylock->l) {
       if (0==(prandnum()&(1024-1))) {
 	sched_yield();
 	too_long = true;
@@ -34,20 +83,24 @@ static inline bool mylock_wait(volatile unsigned int *mylock) {
   }
 }
 
-static inline void mylock_acquire(volatile unsigned int *mylock) {
+static inline void mylock_acquire(lock_t *mylock) {
   do {
     mylock_wait(mylock);
-  } while (__sync_lock_test_and_set(mylock, 1));
+  } while (__sync_lock_test_and_set(&mylock->l, 1));
 }
 
-static inline void mylock_release(volatile unsigned int *mylock) {
-  __sync_lock_release(mylock);
+static inline void mylock_release(lock_t *mylock) {
+  __sync_lock_release(&mylock->l);
+}
+
+static inline bool mylock_subscribe(lock_t *mylock) {
+  return mylock->l == 0;
 }
 
 class mylock_raii {
-  volatile unsigned int *mylock;
+  lock_t *mylock;
 public:
-  mylock_raii(volatile unsigned int *mylock) : mylock(mylock) {
+  mylock_raii(lock_t *mylock) : mylock(mylock) {
     mylock_acquire(mylock);
   }
   ~mylock_raii() {
@@ -77,13 +130,13 @@ struct failed_counts_s {
   unsigned int  code;
   uint64_t count;
 };
-extern volatile unsigned int    failed_counts_mutex;
+extern lock_t  failed_counts_mutex;
 static const int max_failed_counts = 100;
 extern int    failed_counts_n;
 extern struct failed_counts_s failed_counts [max_failed_counts];
 
 template<typename ReturnType, typename... Arguments>
-static inline ReturnType atomically(volatile unsigned int *mylock,
+static inline ReturnType atomically(lock_t *mylock,
 				    const char *name,
 			            void (*predo)(Arguments... args),
 				    ReturnType (*fun)(Arguments... args),
@@ -92,10 +145,10 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
   unsigned int xr = 0xfffffff2;
   if (have_rtm) {
     // Be a little optimistic: try to run the function without the predo if we the lock looks good
-    if (*mylock == 0) {
+    if (mylock->l == 0) {
       xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
-	if (*mylock) _xabort(XABORT_LOCK_HELD);
+	if (mylock->l) _xabort(XABORT_LOCK_HELD);
 	ReturnType r = fun(args...);
 	_xend();
 	return r;
@@ -113,7 +166,7 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
       xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
 	ReturnType r = fun(args...);
-	if (*mylock) _xabort(XABORT_LOCK_HELD);
+	if (mylock->l) _xabort(XABORT_LOCK_HELD);
 	_xend();
 	return r;
       } else if ((xr & _XABORT_EXPLICIT) && (_XABORT_CODE(xr) == XABORT_LOCK_HELD)) {
@@ -156,6 +209,8 @@ static inline ReturnType atomically(volatile unsigned int *mylock,
 struct lock {
   unsigned int l __attribute((aligned(64)));
 };
+#endif
+
 
 #define atomic_load(addr) __atomic_load_n(addr, __ATOMIC_CONSUME)
 #define atomic_store(addr, val) __atomic_store_n(addr, val, __ATOMIC_RELEASE)

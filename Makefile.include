@@ -21,7 +21,7 @@ TESTS_IN_DIR = $(patsubst %, $(BLD)/%, $(TESTS))
 ifeq ($LINKMODE,static)
  IMPLEMENTATION_FILES = $(patsubst %,$(BLD)/%.o, $(LIBOBJECTS))
 else
- IMPLEMENTATION_FILES = $(LIB)/libsupermalloc.so
+ IMPLEMENTATION_FILES = $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
  LDFLAGS += -L$(LIB) -Wl,-rpath,$(LIB)
 endif
 
@@ -57,16 +57,26 @@ check-test-malloc_test-w1-s-1: $(BLD)/test-malloc_test
 	SUPERMALLOC_THREADCACHE=0 $< -w1 -s -1
 
 OFILES = $(patsubst %, $(BLD)/%.o, $(LIBOBJECTS))
+PTHREAD_OFILES = $(patsubst %, $(BLD)/%_pthread.o, $(LIBOBJECTS))
 
 $(LIB):
 	mkdir -p $(LIB)
 $(LIB)/libsupermalloc.so: $(OFILES) | $(LIB)
 	mkdir -p $(LIB)
 	$(CXX) $(CXXFLAGS) $^ -shared -o $@
+$(LIB)/libsupermalloc_pthread.so: $(PTHREAD_OFILES) | $(LIB)
+	mkdir -p $(LIB)
+	$(CXX) $(CXXFLAGS) $^ -shared -o $@
+
 $(BLD)/supermalloc.a: $(OFILES)
 	ar cr $(BLD)/supermalloc.a $(OFILES)
 $(BLD)/%.o: $(SRC)/%.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
+
+$(BLD)/%_pthread.o: $(SRC)/%.cc
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DUSE_PTHREAD_MUTEXES -c $< -o $@
+$(BLD)/generated_constants_pthread.o: $(BLD)/generated_constants.cc
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DUSE_PTHREAD_MUTEXES -c $< -o $@
 
 $(BLD)/%.o: CPPFLAGS += -I$(SRC) 
 $(BLD)/%.o: $(TST)/%.c
@@ -74,7 +84,7 @@ $(BLD)/%.o: $(TST)/%.c
 $(BLD)/%: $(BLD)/%.o
 	$(CXX) $(CXXFLAGS) $< $(LDFLAGS) $(IMPLEMENTATION_FILES) -o $@
 
-$(OFILES): $(wildcard $(SRC)/*.h) $(BLD)/generated_constants.h
+$(PTHREAD_OFILES) $(OFILES): $(wildcard $(SRC)/*.h) $(BLD)/generated_constants.h
 
 $(BLD)/generated_constants.h $(BLD)/generated_constants.cc: $(BLD)/objsizes
 	./$< $(BLD)/generated_constants.cc > $(BLD)/generated_constants.h

@@ -89,7 +89,7 @@ static GlobalCache global_cache;
 static const uint64_t per_cpu_cache_bytecount_limit = 1024*1024;
 static const uint64_t thread_cache_bytecount_limit = 2*4096;
 
-volatile unsigned int cache_lock;
+lock_t cache_lock;
 
 static void* try_get_cached(cached_objects *co, uint64_t siz) {
   linked_list *result = co->head;

@@ -54,9 +54,10 @@ struct chunk_info *chunk_infos;
 
 uint32_t n_cores;
 
+#ifndef USE_PTHREAD_MUTEXES
 atomic_stats_s atomic_stats;
 
-volatile unsigned int    failed_counts_mutex = 0;
+lock_t failed_counts_mutex = LOCK_INITIALIZER;
 int    failed_counts_n = 0;
 struct failed_counts_s failed_counts[max_failed_counts];
 
@@ -76,6 +77,10 @@ static void print_atomic_stats() {
     fprintf(stderr, " %38s: 0x%08x %5ld\n", failed_counts[i].name, failed_counts[i].code, failed_counts[i].count);
   }
 }
+#else
+static void print_atomic_stats() {
+}
+#endif
 
 #ifdef ENABLE_STATS
 static void print_stats() {
