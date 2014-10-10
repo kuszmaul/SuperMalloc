@@ -17,7 +17,7 @@ $(BLD)/new-malloc-test-libc: $(BLD)/new-malloc-test.o
 	$(CXX) $< -pthread -o $@
 
 $(BLD)/new-malloc-test-supermalloc_pthread: $(BLD)/new-malloc-test.o
-	$(CXX) $< -lsupermalloc_pthread -Wl,rpath,$(LIB) -pthread -o $@
+	$(CXX) $< -lsupermalloc_pthread -Wl,-rpath,$(LIB) -pthread -o $@
 
 $(BLD)/new-malloc-test-dlmalloc: $(BLD)/new-malloc-test.o
 	$(CXX) $< -L$(DLMALLOC_DIR) -ldlmalloc -Wl,-rpath,$(DLMALLOC_DIR) -pthread -o $@
