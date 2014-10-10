@@ -46,7 +46,7 @@ new-malloc-test-1K.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc 
                         $$(./new-malloc-test-dlmalloc -w $$thread) \
                         $$(./new-malloc-test-hoard -w $$thread) \
                         $$(./new-malloc-test-jemalloc -w $$thread) \
-                        $$(./new-malloc-test-supermalloc_pthread -w $$(thread)) \
+                        $$(./new-malloc-test-supermalloc_pthread -w $$thread) \
               | tee -a $@ \
         ;done ;done
 
