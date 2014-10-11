@@ -54,6 +54,10 @@ static inline ReturnType atomically(lock_t *mylock,
 }
 
 #else
+
+
+#ifdef USE_OLD_MUTEXES
+
 struct lock_s { volatile unsigned int l __attribute__((aligned(64))); };
 typedef struct lock_s lock_t;
 #define LOCK_INITIALIZER {0}
@@ -96,6 +100,27 @@ static inline void mylock_release(lock_t *mylock) {
 static inline bool mylock_subscribe(lock_t *mylock) {
   return mylock->l == 0;
 }
+
+#else
+#include "futex_mutex.h"
+
+typedef futex_mutex_t lock_t;
+#define LOCK_INITIALIZER FUTEX_MUTEX_INITIALIZER
+static inline bool mylock_wait(lock_t *l) {
+  return futex_mutex_wait(l);
+}
+static inline void mylock_acquire(lock_t *l) {
+  futex_mutex_lock(l); // ignore the result.
+}
+static inline void mylock_release(lock_t *l) {
+  futex_mutex_unlock(l);
+}
+static inline bool mylock_subscribe(lock_t *l) {
+  return futex_mutex_subscribe(l);
+}
+
+#endif
+
 
 class mylock_raii {
   lock_t *mylock;
@@ -145,10 +170,10 @@ static inline ReturnType atomically(lock_t *mylock,
   unsigned int xr = 0xfffffff2;
   if (have_rtm) {
     // Be a little optimistic: try to run the function without the predo if we the lock looks good
-    if (mylock->l == 0) {
+    if (mylock_subscribe(mylock) == 0) {
       xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
-	if (mylock->l) _xabort(XABORT_LOCK_HELD);
+	if (mylock_subscribe(mylock)) _xabort(XABORT_LOCK_HELD);
 	ReturnType r = fun(args...);
 	_xend();
 	return r;
@@ -166,7 +191,7 @@ static inline ReturnType atomically(lock_t *mylock,
       xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
 	ReturnType r = fun(args...);
-	if (mylock->l) _xabort(XABORT_LOCK_HELD);
+	if (mylock_subscribe(mylock)) _xabort(XABORT_LOCK_HELD);
 	_xend();
 	return r;
       } else if ((xr & _XABORT_EXPLICIT) && (_XABORT_CODE(xr) == XABORT_LOCK_HELD)) {

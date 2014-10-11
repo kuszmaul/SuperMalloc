@@ -17,10 +17,10 @@ static long sys_futex(void *addr1, int op, int val1, struct timespec *timeout, v
   return syscall(SYS_futex, addr1, op, val1, timeout, addr2, val3);
 }
 
-static long futex_wait(futex_mutex *addr, int val) {
+static long futex_wait(futex_mutex_t *addr, int val) {
   return sys_futex((void*)addr, FUTEX_WAIT_PRIVATE, val, NULL, NULL, 0);
 }
-static long futex_wake1(futex_mutex *addr) {
+static long futex_wake1(futex_mutex_t *addr) {
   return sys_futex((void*)addr, FUTEX_WAKE_PRIVATE, 1,   NULL, NULL, 0);
 }
 
@@ -28,7 +28,7 @@ static const int lock_spin_count = 100;
 static const int unlock_spin_count = 200;
 
 // Return 0 if it's a fast acquiistion, 1 if slow
-int futex_mutex_lock(futex_mutex *m) {
+int futex_mutex_lock(futex_mutex_t *m) {
   int count = 0;
   while (count < lock_spin_count) {
     int old_c = *m;
@@ -64,7 +64,7 @@ int futex_mutex_lock(futex_mutex *m) {
   }
 }   
   
-void futex_mutex_unlock(futex_mutex *m) {
+void futex_mutex_unlock(futex_mutex_t *m) {
   while (1) {
     int old_m = *m;
     if (__sync_bool_compare_and_swap(m, old_m, old_m & ~1)) {
@@ -74,40 +74,40 @@ void futex_mutex_unlock(futex_mutex *m) {
   }
   // Spin a little, hoping that someone takes the lock.
   for (int i = 0; i < unlock_spin_count; i++) {
-    if (*m & 1) return;
+    if (*m & 1) return; // someone else took the lock, so that guy will call futex_wake1() when it's done.
     _mm_pause();
   }
   // No one took it, so we have to wake someone up.
   futex_wake1(m);
 }
 
-int futex_mutex_subscribe(futex_mutex *m) {
+int futex_mutex_subscribe(futex_mutex_t *m) {
   return (*m)&1;
 }
 
-bool futex_mutex_wait(futex_mutex *m) {
+bool futex_mutex_wait(futex_mutex_t *m) {
   for (int count = 0; count < lock_spin_count; count++) {
     if (*m == 0) return false; // it was quick
     _mm_pause();
   }
   // So we resign ourselves to waiting
   __sync_fetch_and_add(m, 2);
-  bool futexed = false;
   while (1) {
     int old_c = *m;
     if ((old_c & 1) == 1) {
       // someone else has the lock
       futex_wait(m, old_c); // we don't care if the futex fails because old_c changed, we'll just go again anyway.
-      futexed = true;
     } else {
       __sync_fetch_and_add(m, -2);
-      return futexed;
+      // We must wake someone else up too.
+      futex_wake1(m);
+      return true;
     }
   }
 }
   
 #ifdef TESTING
-futex_mutex m;
+futex_mutex_t m;
 static void foo() {
   futex_mutex_lock(&m);
   printf("foo sleep\n");
