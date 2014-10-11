@@ -175,6 +175,7 @@ plot 'new-malloc-test-1K-aggregated.data' using 1:2:3:4 with errorbars title "no
      'new-malloc-test-1K-aggregated.data' using ($1+.20):14:15:16 with errorbars title "lock-nopredo" ls 5, 'new-malloc-test-1K-aggregated.data' using ($1+.20):14 with lines notitle ls 5,\
      'new-malloc-test-1K-aggregated.data' using ($1+.25):17:18:19 with errorbars title "dlmalloc" ls 6,   'new-malloc-test-1K-aggregated.data' using ($1+.25):17 with lines notitle ls 6,\
      'new-malloc-test-1K-aggregated.data' using ($1+.30):20:21:22 with errorbars title "hoard"    ls 7,      'new-malloc-test-1K-aggregated.data' using ($1+.30):20 with lines notitle ls 7,\
-     'new-malloc-test-1K-aggregated.data' using ($1+.35):23:24:25 with errorbars title "jemalloc" ls 8, 'new-malloc-test-1K-aggregated.data' using ($1+.35):23 with lines notitle ls 8
+     'new-malloc-test-1K-aggregated.data' using ($1+.35):23:24:25 with errorbars title "jemalloc" ls 8, 'new-malloc-test-1K-aggregated.data' using ($1+.35):23 with lines notitle ls 8,\
+     'new-malloc-test-1K-aggregated.data' using ($1+.40):26:27:28 with errorbars title "supermalloc-pthreads" ls 8, 'new-malloc-test-1K-aggregated.data' using ($1+.35):26 with lines notitle ls 9,\
 
 #    EOF
