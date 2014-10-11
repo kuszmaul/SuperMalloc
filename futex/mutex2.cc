@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <linux/futex.h>
 #include <sys/syscall.h>
 #include <limits.h>
@@ -5,9 +6,10 @@
 #include <immintrin.h>
 #include <errno.h>
 #include <thread>
+#include <time.h>
 
 // The mutex is 0 if unlocked, otherwise is 1 + 2*number waiting.
-typedef volatile int mutex;
+typedef volatile int mutex __attribute__((aligned(64)));
 
 static long sys_futex(void *addr1, int op, int val1, struct timespec *timeout, void *addr2, int val3)
 {
@@ -24,7 +26,8 @@ static long futex_wake1(mutex *addr) {
 static const int lock_spin_count = 100;
 static const int unlock_spin_count = 200;
 
-void mutex_lock(mutex *m) {
+// Return 0 if it's a fast acquiistion, 1 if slow
+int mutex_lock(mutex *m) {
   int count = 0;
   while (count < lock_spin_count) {
     int old_c = *m;
@@ -34,7 +37,7 @@ void mutex_lock(mutex *m) {
       count++;
     } else if (__sync_bool_compare_and_swap(m, old_c, old_c | 1)) {
       // No one else had the lock, and we successfully grabbed it.
-      return;
+      return 0;
     } else {
       // Someone else modified old_c while we were running.  So we just want to try again, without incrementing count or pausing
       continue;
@@ -52,7 +55,7 @@ void mutex_lock(mutex *m) {
       futex_wait(m, old_c); // we don't care if the futex fails because old_c changed, we'll just go again anyway.
     } else if (__sync_bool_compare_and_swap(m, old_c, old_c -1)) {
       // No one else had the lock, and we managed to grab it (decrementing by 1 has the effect of subtracting 2 (to indicate that we are no longe rwaiting) and setting the lock bit.
-      return;
+      return 1;
     } else {
       // No one else had the lock, but someone modified it while we were trying to lock, so just try again without pausing
       continue;
@@ -102,3 +105,93 @@ bool mutex_wait(mutex *m) {
   }
 }
   
+mutex m;
+static void foo() {
+  mutex_lock(&m);
+  printf("foo sleep\n");
+  sleep(2);
+  printf("foo slept\n");
+  mutex_unlock(&m);
+}
+
+static void simple_test() {
+  std::thread a(foo);
+  std::thread b(foo);
+  std::thread c(foo);
+  a.join();
+  b.join();
+  c.join();
+}
+
+static bool time_less(const struct timespec &a, const struct timespec &b) {
+  if (a.tv_sec < b.tv_sec) return true;
+  if (a.tv_sec > b.tv_sec) return false;
+  return a.tv_nsec < b.tv_nsec;
+}
+
+volatile int exclusive_is_locked=0;
+volatile uint64_t exclusive_count=0;
+
+static void stress() {
+  struct timespec start, end;
+  clock_gettime(CLOCK_MONOTONIC, &start);
+  start.tv_sec ++;
+  uint64_t locked_fast=0, locked_slow=0, sub_locked=0, sub_unlocked=0, wait_long=0, wait_short=0;
+  while (1) {
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    if (time_less(start, end)) break;
+    for (uint64_t i = 0; i < 100; i++) {
+      switch (i%3) {
+	case 0: {
+	  int lock_kind = mutex_lock(&m);
+	  if (0) {
+	    assert(!exclusive_is_locked);
+	    exclusive_is_locked=1;
+	    exclusive_count++;
+	    assert(exclusive_is_locked);	  
+	    exclusive_is_locked=0;
+	  }
+	  mutex_unlock(&m);
+	  if (lock_kind==0) locked_fast++;
+	  else              locked_slow++;
+	  break;
+	}
+	case 1:
+	  if (mutex_subscribe(&m)) {
+	    sub_locked++;
+	  } else {
+	    sub_unlocked++;
+	  }
+	  break;
+	case 2:
+	  break;
+	  if  (mutex_wait(&m)) {
+	    wait_long++;
+	  } else {
+	    wait_short++;
+	  }
+	  break;
+      }
+    }
+  }
+  printf("locked_fast=%8ld locked_slow=%8ld sub_locked=%8ld sub_unlocked=%8ld wait_long=%8ld wait_short=%8ld\n", locked_fast, locked_slow, sub_locked, sub_unlocked, wait_long, wait_short);
+}
+
+static void stress_test() {
+  const int n = 8;
+  std::thread x[n];
+  for (int i = 0; i < n; i++) { 
+    x[i] = std::thread(stress);
+  }
+  for (int i = 0; i < n; i++) {
+    x[i].join();
+  }
+}
+  
+
+int main (int argc __attribute__((unused)), char *argv[] __attribute__((unused))) {
+  stress_test();
+  simple_test();
+  return 0;
+}
+

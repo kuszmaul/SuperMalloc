@@ -16,7 +16,7 @@
 // When unlocking:  if the ls indicates that we are the only waiter, then if (sw) wake(sw);
 //                  else if the ls indicates that someone else is waiting, we wake(ls)
 //
-// When waiting:    if ls is nonzero, then set sw, check ls, and wait(sw).   
+// When waiting:    if ls is 1, then set sw, and wait(sw).   
 
 typedef struct mutex_s {
   volatile int lock_state; // This is also a futex.  Low order bit indicates unlocked, other bits are how many are waiting.
