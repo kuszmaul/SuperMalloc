@@ -136,7 +136,7 @@ static void stress() {
   struct timespec start, end;
   clock_gettime(CLOCK_MONOTONIC, &start);
   start.tv_sec ++;
-  uint64_t locked_fast=0, locked_slow=0, sub_locked=0, sub_unlocked=0, wait_long=0, wait_short=0;
+  uint64_t locked_fast=0, locked_slow=0, sub_locked=0, sub_unlocked=0, wait_long=0, wait_short=0, wait_was_one=0, wait_was_zero=0;
   while (1) {
     clock_gettime(CLOCK_MONOTONIC, &end);
     if (time_less(start, end)) break;
@@ -164,17 +164,21 @@ static void stress() {
 	  }
 	  break;
 	case 2:
-	  break;
 	  if  (mutex_wait(&m)) {
 	    wait_long++;
 	  } else {
 	    wait_short++;
 	  }
+	  if (m & 1) {
+	    wait_was_one++;
+	  } else {
+	    wait_was_zero++;
+	  }
 	  break;
       }
     }
   }
-  printf("locked_fast=%8ld locked_slow=%8ld sub_locked=%8ld sub_unlocked=%8ld wait_long=%8ld wait_short=%8ld\n", locked_fast, locked_slow, sub_locked, sub_unlocked, wait_long, wait_short);
+  printf("locked_fast=%8ld locked_slow=%8ld sub_locked=%8ld sub_unlocked=%8ld wait_long=%8ld wait_short=%8ld was1=%8ld was0=%ld\n", locked_fast, locked_slow, sub_locked, sub_unlocked, wait_long, wait_short, wait_was_one, wait_was_zero);
 }
 
 static void stress_test() {
