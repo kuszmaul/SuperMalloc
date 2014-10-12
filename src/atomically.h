@@ -144,6 +144,8 @@ extern bool do_predo;
 #define have_rtm use_transactions
 #endif
 
+//#define DO_FAILED_COUNTS
+#ifdef DO_FAILED_COUNTS
 struct atomic_stats_s {
   uint64_t atomic_count __attribute__((aligned(64)));
   uint64_t locked_count;
@@ -159,14 +161,17 @@ extern lock_t  failed_counts_mutex;
 static const int max_failed_counts = 100;
 extern int    failed_counts_n;
 extern struct failed_counts_s failed_counts [max_failed_counts];
+#endif
 
 template<typename ReturnType, typename... Arguments>
 static inline ReturnType atomically(lock_t *mylock,
-				    const char *name,
+				    const char *name __attribute__((unused)),
 			            void (*predo)(Arguments... args),
 				    ReturnType (*fun)(Arguments... args),
 				    Arguments... args) {
+#ifdef DO_FAILED_COUNTS
   __sync_fetch_and_add(&atomic_stats.atomic_count, 1);
+#endif
   unsigned int xr = 0xfffffff2;
   if (have_rtm) {
     // Be a little optimistic: try to run the function without the predo if we the lock looks good
@@ -211,6 +216,7 @@ static inline ReturnType atomically(lock_t *mylock,
     }
   }
   // We finally give up and acquire the lock.
+#ifdef DO_FAILED_COUNTS
   {
     mylock_raii m(&failed_counts_mutex);
     for (int i = 0; i < failed_counts_n; i++) {
@@ -224,7 +230,8 @@ static inline ReturnType atomically(lock_t *mylock,
  didit:;
   }
 
-  __sync_fetch_and_add(&atomic_stats.locked_count, 1);
+   __sync_fetch_and_add(&atomic_stats.locked_count, 1);
+#endif
   if (do_predo) predo(args...);
   mylock_raii mr(mylock);
   ReturnType r = fun(args...);

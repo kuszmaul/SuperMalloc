@@ -55,6 +55,7 @@ struct chunk_info *chunk_infos;
 uint32_t n_cores;
 
 #ifndef USE_PTHREAD_MUTEXES
+#ifdef DO_FAILED_COUNTS
 atomic_stats_s atomic_stats;
 
 lock_t failed_counts_mutex = LOCK_INITIALIZER;
@@ -70,12 +71,15 @@ int compare_failed_counts(const void *a_v, const void *b_v) {
   if (a->code > b->code) return +1;
   return 0;
 }
+#endif
 static void print_atomic_stats() {
+#ifdef DO_FAILED_COUNTS
   fprintf(stderr, "Critical sections: %ld, locked %ld\n", atomic_stats.atomic_count, atomic_stats.locked_count);
   qsort(failed_counts, failed_counts_n, sizeof(failed_counts[0]), compare_failed_counts);
   for (int i = 0; i < failed_counts_n; i++) {
     fprintf(stderr, " %38s: 0x%08x %5ld\n", failed_counts[i].name, failed_counts[i].code, failed_counts[i].count);
   }
+#endif
 }
 #else
 static void print_atomic_stats() {
