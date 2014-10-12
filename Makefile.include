@@ -86,8 +86,15 @@ $(BLD)/%: $(BLD)/%.o
 
 $(PTHREAD_OFILES) $(OFILES): $(wildcard $(SRC)/*.h) $(BLD)/generated_constants.h
 
-$(BLD)/generated_constants.h $(BLD)/generated_constants.cc: $(BLD)/objsizes
-	./$< $(BLD)/generated_constants.cc > $(BLD)/generated_constants.h
+# The rule below with a pattern is preferable to the one commented out below because the commented out one will cause ./objsizes to be run twice (which is wrong and racy).  
+# A pattern rule, on the other hand, when it has multiple targets, is understood to produce all the outputs with a single run.
+# What a hack...
+
+#$(BLD)/generated_constants.h $(BLD)/generated_constants.cc: $(BLD)/objsizes
+#	./$< $(BLD)/generated_constants.cc > $(BLD)/generated_constants.h
+
+%/generated_constants.h %/generated_constants.cc: %/objsizes
+	./$< $(patsubst %/objsizes, %/generated_constants.cc, $<) > $(patsubst %/objsizes, %/generated_constants.h, $<)
 
 $(BLD)/objsizes: $(SRC)/objsizes.cc $(SRC)/malloc_internal.h
 	$(CXX) $(CXXFLAGS) $< -o $@
