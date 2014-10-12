@@ -13,45 +13,26 @@ static const int unlock_spin_count = 200;
 
 // Return 0 if it's a fast acquiistion, 1 if slow
 extern "C" int futex_mutex_lock(futex_mutex_t *m) {
-  pthread_mutex_lock(&m->mutex);
-  m->n_locking++;
-  while (m->locked) {
-    pthread_cond_wait(&m->locking, &m->mutex);
-  }
-  m->n_locking--;
-  m->locked = true;
-  pthread_mutex_unlock(&m->mutex);
+  pthread_mutex_lock(&m->pmutex);
   return 0;
 }
  
 extern "C" void futex_mutex_unlock(futex_mutex_t *m) {
-  pthread_mutex_lock(&m->mutex);
-  m->locked = 0;
-  if (m->n_locking) {
-    pthread_cond_signal(&m->locking);
-  } else if (m->n_waiting) {
-    pthread_cond_broadcast(&m->waiting);
-  }
-  pthread_mutex_unlock(&m->mutex);
+  pthread_mutex_unlock(&m->pmutex);
 }
 
 extern "C" int futex_mutex_subscribe(futex_mutex_t *m) {
-  return m->locked;
+  return m->pmutex.__data.__lock;
 }
 
 extern "C" int futex_mutex_wait(futex_mutex_t *m) {
   for (int i = 0; i < lock_spin_count; i++) {
-    if (!m->locked) return 0; //  We can be a little opportunistic here.
+    if (m->pmutex.__data.__lock == 0) return 0; //  We can be a little opportunistic here.
     _mm_pause();
   }
   // Now we have to do the relatively heavyweight thing.
-  pthread_mutex_lock(&m->mutex);
-  m->n_waiting++;
-  while (m->locked) {
-    pthread_cond_wait(&m->waiting, &m->mutex);
-  }
-  m->n_waiting--;
-  pthread_mutex_unlock(&m->mutex);
+  pthread_mutex_lock(&m->pmutex);
+  pthread_mutex_unlock(&m->pmutex);
   return 1;
 }
   
@@ -120,7 +101,7 @@ static void stress() {
 	  } else {
 	    wait_short++;
 	  }
-	  if (m.locked) {
+	  if (futex_mutex_subscribe(&m)) {
 	    wait_was_one++;
 	  } else {
 	    wait_was_zero++;
