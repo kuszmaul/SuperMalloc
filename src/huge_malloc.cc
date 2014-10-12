@@ -117,7 +117,7 @@ void test_huge_malloc(void) {
   void *b = huge_malloc(largest_large + 2);
   bassert(offset_in_chunk(b) == 0);
   chunknumber_t b_n = address_2_chunknumber(b);
-  if (print) printf("b=%p diff=0x%lx\n", b, (char*)a-(char*)b);
+  if (print) printf("b=%p diff=0x%lx a_n-b_n=%d\n", b, (char*)a-(char*)b, (int)a_n-(int)b_n);
   bassert(abs((int)a_n - (int)b_n) == 1);
   bassert(chunk_infos[b_n].bin_number == first_huge_bin_number);
 

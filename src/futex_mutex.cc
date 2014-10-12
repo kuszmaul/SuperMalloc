@@ -104,20 +104,18 @@ extern "C" int futex_mutex_subscribe(futex_mutex_t *m) {
 }
 
 extern "C" int futex_mutex_wait(futex_mutex_t *m) {
-again:
-  for (int count = 0; count < lock_spin_count; count++) {
-    if ((m->lock & 1) == 0) return false; // it was quick
-    _mm_pause();
-  }
-  // So we resign ourselves to waiting
   while (1) {
+    for (int count = 0; count < lock_spin_count; count++) {
+      if ((m->lock & 1) == 0) return false; // it was quick
+      _mm_pause();
+    }
+    // So we resign ourselves to waiting
+    
     if ((m->lock & 2) == 0) {
       __sync_fetch_and_or(&m->lock, 2); // tell the lock I'm waiting
     }
     m->wait = 1;
-    if (futex_wait(&m->wait, 1)) {
-      goto again;
-    }
+    futex_wait(&m->wait, 1);
   }
 }
   

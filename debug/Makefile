@@ -1,6 +1,6 @@
 ROOT      = ..
 BUILD     = debug
-OPTFLAGS  = -O1
+OPTFLAGS  = -O0
 UNITTESTS = unit-tests
 TESTING   = -DTESTING
 LINKMODE  = static

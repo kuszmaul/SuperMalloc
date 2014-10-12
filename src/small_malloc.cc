@@ -140,7 +140,6 @@ static void* do_small_malloc(binnumber_t bin,
 
   uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
   per_folio *result_pp = dsbi.lists.b[dsbi_offset + fullest];
-  prefetch_write(&dsbi.lists.b[dsbi_offset + fullest]);
 
   bassert(result_pp);
   // update the linked list.

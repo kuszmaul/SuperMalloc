@@ -5,9 +5,8 @@
 #include "futex_mutex.h"
 
 int main(int argc __attribute__((unused)), const char *argv[] __attribute__((unused))) {
-  test_futex();
-  test_cache_early(); // this test should be done before any mallocs are done
   initialize_malloc();
+  test_cache_early(); // this test should be done before any mallocs are done
   test_hyperceil();
   test_size_2_bin();
   test_makechunk();
@@ -32,6 +31,8 @@ int main(int argc __attribute__((unused)), const char *argv[] __attribute__((unu
     assert(errno=ENOMEM);
     free(y);
   }
+
+  test_futex();
 
   return 0;
 }
