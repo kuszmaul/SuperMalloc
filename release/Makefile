@@ -35,7 +35,7 @@ timings-simple:
 	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-dlmalloc -w 2 -t 10
 	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-hoard -w 2 -t 10
 
-new-malloc-test-lutestring-1K.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
+new-malloc-test-1Kd-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
 	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc supermalloc_pthread | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
           echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -w $$thread) \
