@@ -2,8 +2,10 @@
 #include <errno.h>
 #include "supermalloc.h"
 #include "unit-tests.h"
+#include "futex_mutex.h"
 
 int main(int argc __attribute__((unused)), const char *argv[] __attribute__((unused))) {
+  test_futex();
   test_cache_early(); // this test should be done before any mallocs are done
   initialize_malloc();
   test_hyperceil();
