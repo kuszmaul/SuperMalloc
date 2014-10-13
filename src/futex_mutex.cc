@@ -1,4 +1,6 @@
 #include <assert.h>
+#include <linux/futex.h>
+#include <sys/syscall.h>
 #include <limits.h>
 #include <unistd.h>
 #include <immintrin.h>
@@ -8,32 +10,84 @@
 
 #include "futex_mutex.h"
 
-static const int lock_spin_count = 100;
-static const int unlock_spin_count = 200;
+// The lock field is the mutex as described in "futexes are tricky"
+// The wait field is 1 if someone is waiting for the lock to zero (with the intention of running a transaction)
+
+static long sys_futex(void *addr1, int op, int val1, struct timespec *timeout, void *addr2, int val3)
+{
+  return syscall(SYS_futex, addr1, op, val1, timeout, addr2, val3);
+}
+
+static long futex_wait(volatile int *addr, int val) {
+  return sys_futex((void*)addr, FUTEX_WAIT_PRIVATE, val, NULL, NULL, 0);
+}
+static long futex_wake1(volatile int *addr) {
+  return sys_futex((void*)addr, FUTEX_WAKE_PRIVATE, 1,   NULL, NULL, 0);
+}
+static long futex_wakeN(volatile int *addr) {
+  return sys_futex((void*)addr, FUTEX_WAKE_PRIVATE, INT_MAX,   NULL, NULL, 0);
+}
+
+static const int lock_spin_count = 20;
+static const int unlock_spin_count = 20;
 
 // Return 0 if it's a fast acquiistion, 1 if slow
 extern "C" int futex_mutex_lock(futex_mutex_t *m) {
-  pthread_mutex_lock(&m->pmutex);
-  return 0;
+  {
+    int count = 0;
+    while (count < lock_spin_count) {
+      int old_c = m->lock;
+      if (old_c != 0) {
+	// someone else has the lock, so spin.
+	_mm_pause();
+	count++;
+      } else if (__sync_bool_compare_and_swap(&m->lock, 0, 1)) {
+	// got it
+	return 0;
+      } else {
+	continue; // Don't pause, we were in a tight race on the compare-and-swap
+      }
+    }
+  }
+  // We got here without getting the lock, so we must do the futex thing.
+  int c = __sync_val_compare_and_swap(&m->lock, 0, 1);
+  if (c == 0)  return 0;
+  if (c == 1) {
+    c = __atomic_exchange_n(&m->lock, 2, __ATOMIC_SEQ_CST);
+  }
+  while (c != 0) {
+    futex_wait(&m->lock, 2);
+    c = __atomic_exchange_n(&m->lock, 2, __ATOMIC_SEQ_CST);
+  }
+  return 1;
 }
  
 extern "C" void futex_mutex_unlock(futex_mutex_t *m) {
-  pthread_mutex_unlock(&m->pmutex);
+  if (__sync_fetch_and_add(&m->lock, -1) != 1) {
+    m->lock = 0;
+    futex_wake1(&m->lock);
+  }
+  if (m->wait) {
+    m->wait = 0;
+    futex_wakeN(&m->wait);
+  }
 }
-
 extern "C" int futex_mutex_subscribe(futex_mutex_t *m) {
-  return m->pmutex.__data.__lock;
+  return m->lock;
 }
 
 extern "C" int futex_mutex_wait(futex_mutex_t *m) {
-  for (int i = 0; i < lock_spin_count; i++) {
-    if (m->pmutex.__data.__lock == 0) return 0; //  We can be a little opportunistic here.
-    _mm_pause();
+  int did_futex = 0;
+  while (1) {
+    for (int i = 0; i < lock_spin_count; i++) {
+      if (m->lock == 0) return did_futex;
+      _mm_pause();
+    }
+    // Now we have to do the relatively heavyweight thing.
+    m->wait = 1;
+    futex_wait(&m->wait, 1);
+    did_futex = 1;
   }
-  // Now we have to do the relatively heavyweight thing.
-  pthread_mutex_lock(&m->pmutex);
-  pthread_mutex_unlock(&m->pmutex);
-  return 1;
 }
   
 #ifdef TESTING

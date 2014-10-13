@@ -12,10 +12,11 @@ extern "C" {
 
 // See futex_mutex.cc for the meaning of these fields.
 typedef struct futex_mutex_s {
-  pthread_mutex_t  pmutex __attribute__((aligned(64)));
+  int lock;
+  int wait;
 } futex_mutex_t;
 
-#define FUTEX_MUTEX_INITIALIZER {PTHREAD_MUTEX_INITIALIZER}
+#define FUTEX_MUTEX_INITIALIZER {0,0}
 int futex_mutex_lock(futex_mutex_t *m); // return 0 if it's a fast lock, 1 if it's slow.
 void futex_mutex_unlock(futex_mutex_t *m);
 int futex_mutex_subscribe(futex_mutex_t *m); // (return 0 if it is unlocked)
