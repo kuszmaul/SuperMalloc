@@ -12,7 +12,7 @@ extern "C" {
 
 // See futex_mutex.cc for the meaning of these fields.
 typedef struct futex_mutex_s {
-  pthread_mutex_t  pmutex;
+  pthread_mutex_t  pmutex __attribute__((aligned(64)));
 } futex_mutex_t;
 
 #define FUTEX_MUTEX_INITIALIZER {PTHREAD_MUTEX_INITIALIZER}
