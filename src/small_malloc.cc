@@ -3,7 +3,7 @@
 #include "generated_constants.h"
 #include "malloc_internal.h"
 
-lock_t small_lock = LOCK_INITIALIZER;
+lock_t small_locks[first_large_bin_number] = { REPEAT_FOR_SMALL_BINS(LOCK_INITIALIZER) };
 
 static struct {
   dynamic_small_bin_info lists __attribute__((aligned(4096)));
@@ -26,14 +26,17 @@ struct small_chunk_header {
 
 static inline void verify_small_invariants() {
   return;
-  mylock_raii mr(&small_lock);
-  if (0 && dsbi.fullest_offset[27] == 0) {
-    for (unsigned int i = 1; i<static_bin_info[27].objects_per_folio; i++) {
-      bassert(dsbi.lists.b27[i]==NULL);
+  {
+    mylock_raii mr(&small_locks[27]);
+    if (0 && dsbi.fullest_offset[27] == 0) {
+      for (unsigned int i = 1; i<static_bin_info[27].objects_per_folio; i++) {
+	bassert(dsbi.lists.b27[i]==NULL);
+      }
     }
   }
   //  return;
   for (binnumber_t bin = 0; bin < first_large_bin_number; bin++) {
+    mylock_raii mr(&small_locks[bin]);
     uint16_t fullest_off = dsbi.fullest_offset[bin];
     int start       = dynamic_small_bin_offset(bin);
     objects_per_folio_t opp = static_bin_info[bin].objects_per_folio;
@@ -231,7 +234,7 @@ void* small_malloc(binnumber_t bin)
 	sch->ll[i].prev = (i   == 0)                ? NULL : &sch->ll[i-1];
 	sch->ll[i].next = (i+1 == folios_per_chunk) ? NULL : &sch->ll[i+1];
       }
-      atomically(&small_lock, "small_malloc_add_pages_from_new_chunk",
+      atomically(&small_locks[bin], "small_malloc_add_pages_from_new_chunk",
 		 predo_small_malloc_add_pages_from_new_chunk,
 		 do_small_malloc_add_pages_from_new_chunk,
 		 bin, dsbi_offset, sch);
@@ -241,7 +244,7 @@ void* small_malloc(binnumber_t bin)
     if (0) printf("There's one somewhere\n");
     
     verify_small_invariants();
-    void *result = atomically(&small_lock, "small_malloc",
+    void *result = atomically(&small_locks[bin], "small_malloc",
 			      predo_small_malloc, do_small_malloc,
 			      bin, dsbi_offset, o_size);
 
@@ -364,7 +367,7 @@ void small_free(void* p) {
   if (IS_TESTING) bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
   uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
 
-  atomically(&small_lock, "small_free",
+  atomically(&small_locks[bin], "small_free",
 	     predo_small_free, do_small_free,
 	     bin, pp, objnum, dsbi_offset);
   bin_stats_note_free(bin);

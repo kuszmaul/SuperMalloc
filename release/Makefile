@@ -50,6 +50,21 @@ new-malloc-test-1K-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-tes
               | tee -a $@ \
         ;done ;done
 
+new-malloc-test-vK-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
+	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc supermalloc_pthread | tee $@
+	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
+          echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -s -1 -w $$thread) \
+                        $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -s -1 -w $$thread) \
+                        $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -s -1 -w $$thread) \
+                        $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=0 SUPERMALLOC_THREADCACHE=1 ./$< -s -1 -w $$thread) \
+                        $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=0 SUPERMALLOC_THREADCACHE=1 ./$< -s -1 -w $$thread) \
+                        $$(./new-malloc-test-dlmalloc -s -1 -w $$thread) \
+                        $$(./new-malloc-test-hoard -s -1 -w $$thread) \
+                        $$(./new-malloc-test-jemalloc -s -1 -w $$thread) \
+                        $$(./new-malloc-test-supermalloc_pthread -s -1 -w $$thread) \
+              | tee -a $@ \
+        ;done ;done
+
 new-malloc-test-1K-aggregated.pdf: new-malloc-test-1K-aggregated.data
 new-malloc-test-1K-aggregated.data: ../paper/aggregate_error_bars new-malloc-test-1K-lutestring.data
 	./$< < new-malloc-test-1K-lutestring.data > $@

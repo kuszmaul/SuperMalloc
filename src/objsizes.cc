@@ -233,6 +233,10 @@ done_small:
   printf("static const binnumber_t first_huge_bin_number   = %u;\n", first_huge_bin);
   //  printf("static const uint64_t    slot_size               = %u;\n", slot_size);
   
+  printf("#define REPEAT_FOR_SMALL_BINS(x) ");
+  for (int b = 0; b < first_large_bin;  b++ ) { if (b>0) printf(","); printf("x"); }
+  printf("\n");
+
   printf("struct per_folio; // Forward decl needed here.\n");
   printf("struct dynamic_small_bin_info {\n");
   printf("  union {\n");
