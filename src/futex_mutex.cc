@@ -87,7 +87,7 @@ extern "C" int futex_mutex_subscribe(futex_mutex_t *m) {
   return atomic_load(&m->lock) & 1;
 }
 
-__thread int last_futex_wait_result = 0;
+__thread int last_futex_wait_result = 0, last_m_wait;
 
 extern "C" int futex_mutex_wait(futex_mutex_t *m) {
   for (int i = 0; i < lock_spin_count; i++) {
@@ -103,6 +103,7 @@ extern "C" int futex_mutex_wait(futex_mutex_t *m) {
     __atomic_thread_fence(__ATOMIC_SEQ_CST);
     // Make this be an atomic fetch, just to make sure.
     if (atomic_load(&m->lock) == 0) return did_futex;
+    atomic_store(&last_m_wait, atomic_load(&m->wait));
     last_futex_wait_result = futex_wait(&m->wait, 1);
     did_futex = 1;
   }
