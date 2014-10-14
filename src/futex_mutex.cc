@@ -98,6 +98,7 @@ extern "C" int futex_mutex_wait(futex_mutex_t *m) {
     // This one must be an atomic_store instead of a store, otherwise, the compiler reorders the store and the fetch of m->lock.
     // All the others are just to be safe.
     atomic_store(&m->wait, 1);  // m->wait = 1;
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
     // Make this be an atomic fetch, just to make sure.
     if (atomic_load(&m->lock) == 0) return did_futex;
     futex_wait(&m->wait, 1);
