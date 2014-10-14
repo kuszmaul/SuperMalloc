@@ -67,11 +67,12 @@ extern "C" int futex_mutex_lock(futex_mutex_t *m) {
  
 extern "C" void futex_mutex_unlock(futex_mutex_t *m) {
   int old_c = __sync_fetch_and_add(&m->lock, -1);
-  if (old_c != 0) {
+  if (old_c > 1) {
     // Some implementations wait around to see if someone else will grab the lock.  We're not doing that, we're going straight to the wakeup if needed.
+    // There were multiple waiting
     futex_wake1(&m->lock);
   } else {
-    // If old_c == 0, then maybe someone is waiting.  Wake up all the waiters.
+    // If old_c == 1, then maybe someone is waiting to run a transaction.  Wake up all the waiters.
     if (m->wait) {
       m->wait = 0;
       futex_wakeN(&m->wait);
@@ -84,14 +85,15 @@ extern "C" int futex_mutex_subscribe(futex_mutex_t *m) {
 }
 
 extern "C" int futex_mutex_wait(futex_mutex_t *m) {
+  for (int i = 0; i < lock_spin_count; i++) {
+    if (m->lock == 0) return false;
+    _mm_pause();
+  }
   int did_futex = 0;
   while (1) {
-    for (int i = 0; i < lock_spin_count; i++) {
-      if (m->lock == 0) return did_futex;
-      _mm_pause();
-    }
     // Now we have to do the relatively heavyweight thing.
     m->wait = 1;
+    if (m->lock == 0) return did_futex;
     futex_wait(&m->wait, 1);
     did_futex = 1;
   }
@@ -103,7 +105,29 @@ extern "C" int futex_mutex_wait(futex_mutex_t *m) {
 //   then the unlock sets the lock to 0, sets wait to 0, and then issues a wakeN (to the empty set)
 //   then the wait sets wait to 1 and hangs forever.
 
-
+// What if wait first sets wait (as in the code above), checks the lock and then waits on the futex.  Leaving the extra wait doesn't really cost anything if the lock happens to clear.
+//
+//   So we have   waiter        unlocker
+//                wait:=1
+//                1==lock
+//                             lock:=0
+//                             check wait (seeing the wait)
+//                             wait:=0
+//                             wake(wait)
+//                -1==wait(wait)                                the futex fails since wait has been changed
+//                wait:=1
+//                0==lock                                       done!
+//
+// Another interleaving
+//   So we have   waiter        unlocker
+//                wait:=1
+//                1==lock
+//                wait
+//                             lock:=0
+//                             check wait (seeing the wait)
+//                             wait:=0
+//                             wake(wait)
+//                returns                                       done!
 
 #ifdef TESTING
 futex_mutex_t m;
