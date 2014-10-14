@@ -87,7 +87,7 @@ extern "C" int futex_mutex_subscribe(futex_mutex_t *m) {
   return atomic_load(&m->lock) & 1;
 }
 
-__thread int last_futex_wait_result = 0, last_m_wait;
+__thread int last_futex_wait_result = 0, last_m_wait, last_errno;
 
 extern "C" int futex_mutex_wait(futex_mutex_t *m) {
   for (int i = 0; i < lock_spin_count; i++) {
@@ -103,7 +103,6 @@ extern "C" int futex_mutex_wait(futex_mutex_t *m) {
     __atomic_thread_fence(__ATOMIC_SEQ_CST);
     // Make this be an atomic fetch, just to make sure.
     if (atomic_load(&m->lock) == 0) return did_futex;
-    atomic_store(&last_m_wait, atomic_load(&m->wait));
     last_futex_wait_result = futex_wait(&m->wait, 1);
     did_futex = 1;
   }
@@ -160,7 +159,11 @@ extern "C" int futex_mutex_wait(futex_mutex_t *m) {
 //                          wake(w)
 //       
 //       futex_wait(w==1)                  fails since w==0
-
+//
+// Some instrumentation shows that we have just had a failure from futex_wait
+// with EWOULDBLOCK (11 which is also EAGAIN)
+//   So it goes around and sets m->wait to 1 again
+//   but now m->lock is 1 so it does another futex wait.
 
 
 
