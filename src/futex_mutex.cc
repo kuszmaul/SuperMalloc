@@ -87,6 +87,8 @@ extern "C" int futex_mutex_subscribe(futex_mutex_t *m) {
   return atomic_load(&m->lock) & 1;
 }
 
+__thread int last_futex_wait_result = 0;
+
 extern "C" int futex_mutex_wait(futex_mutex_t *m) {
   for (int i = 0; i < lock_spin_count; i++) {
     if (atomic_load(&m->lock) == 0) return false;
@@ -101,7 +103,7 @@ extern "C" int futex_mutex_wait(futex_mutex_t *m) {
     __atomic_thread_fence(__ATOMIC_SEQ_CST);
     // Make this be an atomic fetch, just to make sure.
     if (atomic_load(&m->lock) == 0) return did_futex;
-    futex_wait(&m->wait, 1);
+    last_futex_wait_result = futex_wait(&m->wait, 1);
     did_futex = 1;
   }
 }
@@ -137,10 +139,29 @@ extern "C" int futex_mutex_wait(futex_mutex_t *m) {
 //      returns                                       done!
 //
 // I've observed lock=0, wait=1 and the futex_mutex_wait stalled.  How could that have happened?
-// Maybe with a fence?
+// Even with everything made atomic and adding a fence between the store to wait and the load from lock in mutex_wait
 // Another interleaving
+//       waiter             unlocker
 //
-// This assumes that wait and lock are sequentially consistent.  But they are different locations.  But if I put them on the same cache line, they won't be.
+//       futex_wait(w==1)
+//                          l:=0
+//                          observe w==1
+//                          set w:=0 (that's not what we saw)
+//
+// So it must be that the l:=0 happens before
+//       waiter             unlocker
+//
+//       w:=1
+//       observe(l!=0)
+//                          l:=0
+//                          observe w==1
+//                          w:=0
+//                          wake(w)
+//       
+//       futex_wait(w==1)                  fails since w==0
+
+
+
 
 #ifdef TESTING
 futex_mutex_t m;
