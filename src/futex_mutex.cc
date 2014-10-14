@@ -10,6 +10,9 @@
 
 #include "futex_mutex.h"
 
+#define atomic_load(addr) __atomic_load_n(addr, __ATOMIC_CONSUME)
+#define atomic_store(addr, val) __atomic_store_n(addr, val, __ATOMIC_RELEASE)
+
 // The lock field is the 2*number who currently wait to lock the lock + 1 if the lock is locked.
 // The wait field is 1 if someone is waiting for the lock to zero (with the intention of running a transaction)
 
@@ -35,7 +38,7 @@ static const int unlock_spin_count = 20;
 extern "C" int futex_mutex_lock(futex_mutex_t *m) {
   int count = 0;
   while (count < lock_spin_count) {
-    int old_c = m->lock;
+    int old_c = atomic_load_n(&m->lock);
     if ((old_c & 1) == 1) {
       // someone else has the lock, so spin
       _mm_pause();
@@ -51,7 +54,7 @@ extern "C" int futex_mutex_lock(futex_mutex_t *m) {
   __sync_fetch_and_add(&m->lock, 2); // increase the count.
   int did_futex = 0;
   while (1) {
-    int old_c = m->lock;
+    int old_c = atomic_load_n(&m->lock);
     if ((old_c & 1) == 1) {
       futex_wait(&m->lock, old_c);
       did_futex = 1;
@@ -73,27 +76,30 @@ extern "C" void futex_mutex_unlock(futex_mutex_t *m) {
     futex_wake1(&m->lock);
   } else {
     // If old_c == 1, then maybe someone is waiting to run a transaction.  Wake up all the waiters.
-    if (m->wait) {
-      m->wait = 0;
+    if (atomic_load_n(&m->wait)) {
+      atomic_store_n(&m->wait, 0);
       futex_wakeN(&m->wait);
     }
   }
 }
 
 extern "C" int futex_mutex_subscribe(futex_mutex_t *m) {
-  return m->lock & 1;
+  return atomic_load_n(&m->lock) & 1;
 }
 
 extern "C" int futex_mutex_wait(futex_mutex_t *m) {
   for (int i = 0; i < lock_spin_count; i++) {
-    if (m->lock == 0) return false;
+    if (atomic_load_n(&m->lock) == 0) return false;
     _mm_pause();
   }
   int did_futex = 0;
   while (1) {
     // Now we have to do the relatively heavyweight thing.
-    m->wait = 1;
-    if (m->lock == 0) return did_futex;
+    // This one must be an atomic_store instead of a store, otherwise, the compiler reorders the store and the fetch of m->lock.
+    // All the others are just to be safe.
+    atomic_store(&m->wait, 1);  // m->wait = 1;
+    // Make this be an atomic fetch, just to make sure.
+    if (atomic_load(&m->lock) == 0) return did_futex;
     futex_wait(&m->wait, 1);
     did_futex = 1;
   }
@@ -128,6 +134,10 @@ extern "C" int futex_mutex_wait(futex_mutex_t *m) {
 //                   wait:=0
 //                   wake(wait)
 //      returns                                       done!
+//
+// I've observed lock=0, wait=1 and the futex_mutex_wait stalled.  How could that have happened?
+// Maybe with a fence?
+// Another interleaving
 //
 // This assumes that wait and lock are sequentially consistent.  But they are different locations.  But if I put them on the same cache line, they won't be.
 
