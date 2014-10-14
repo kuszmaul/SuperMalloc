@@ -38,7 +38,7 @@ static const int unlock_spin_count = 20;
 extern "C" int futex_mutex_lock(futex_mutex_t *m) {
   int count = 0;
   while (count < lock_spin_count) {
-    int old_c = atomic_load_n(&m->lock);
+    int old_c = atomic_load(&m->lock);
     if ((old_c & 1) == 1) {
       // someone else has the lock, so spin
       _mm_pause();
@@ -54,7 +54,7 @@ extern "C" int futex_mutex_lock(futex_mutex_t *m) {
   __sync_fetch_and_add(&m->lock, 2); // increase the count.
   int did_futex = 0;
   while (1) {
-    int old_c = atomic_load_n(&m->lock);
+    int old_c = atomic_load(&m->lock);
     if ((old_c & 1) == 1) {
       futex_wait(&m->lock, old_c);
       did_futex = 1;
@@ -76,20 +76,20 @@ extern "C" void futex_mutex_unlock(futex_mutex_t *m) {
     futex_wake1(&m->lock);
   } else {
     // If old_c == 1, then maybe someone is waiting to run a transaction.  Wake up all the waiters.
-    if (atomic_load_n(&m->wait)) {
-      atomic_store_n(&m->wait, 0);
+    if (atomic_load(&m->wait)) {
+      atomic_store(&m->wait, 0);
       futex_wakeN(&m->wait);
     }
   }
 }
 
 extern "C" int futex_mutex_subscribe(futex_mutex_t *m) {
-  return atomic_load_n(&m->lock) & 1;
+  return atomic_load(&m->lock) & 1;
 }
 
 extern "C" int futex_mutex_wait(futex_mutex_t *m) {
   for (int i = 0; i < lock_spin_count; i++) {
-    if (atomic_load_n(&m->lock) == 0) return false;
+    if (atomic_load(&m->lock) == 0) return false;
     _mm_pause();
   }
   int did_futex = 0;
