@@ -12,7 +12,7 @@ extern "C" {
 
 // See futex_mutex.cc for the meaning of these fields.
 typedef struct futex_mutex_s {
-  int lock;
+  int lock __attribute__((aligned(64)));
   int wait;
 } futex_mutex_t;
 

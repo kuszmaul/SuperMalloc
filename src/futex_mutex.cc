@@ -107,27 +107,29 @@ extern "C" int futex_mutex_wait(futex_mutex_t *m) {
 
 // What if wait first sets wait (as in the code above), checks the lock and then waits on the futex.  Leaving the extra wait doesn't really cost anything if the lock happens to clear.
 //
-//   So we have   waiter        unlocker
-//                wait:=1
-//                1==lock
-//                             lock:=0
-//                             check wait (seeing the wait)
-//                             wait:=0
-//                             wake(wait)
-//                -1==wait(wait)                                the futex fails since wait has been changed
-//                wait:=1
-//                0==lock                                       done!
+//      waiter        unlocker
+//      wait:=1
+//      1==lock
+//                   lock:=0
+//                   check wait (seeing the wait)
+//                   wait:=0
+//                   wake(wait)
+//      -1==wait(wait)                                the futex fails since wait has been changed
+//      wait:=1
+//      0==lock                                       done!
 //
 // Another interleaving
-//   So we have   waiter        unlocker
-//                wait:=1
-//                1==lock
-//                wait
-//                             lock:=0
-//                             check wait (seeing the wait)
-//                             wait:=0
-//                             wake(wait)
-//                returns                                       done!
+//      waiter        unlocker
+//      wait:=1
+//      1==lock
+//      wait
+//                   lock:=0
+//                   check wait (seeing the wait)
+//                   wait:=0
+//                   wake(wait)
+//      returns                                       done!
+//
+// This assumes that wait and lock are sequentially consistent.  But they are different locations.  But if I put them on the same cache line, they won't be.
 
 #ifdef TESTING
 futex_mutex_t m;
