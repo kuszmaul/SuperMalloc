@@ -21,7 +21,7 @@ TESTS_IN_DIR = $(patsubst %, $(BLD)/%, $(TESTS))
 ifeq ($LINKMODE,static)
  IMPLEMENTATION_FILES = $(patsubst %,$(BLD)/%.o, $(LIBOBJECTS))
 else
- IMPLEMENTATION_FILES = $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
+ IMPLEMENTATION_FILES = $(LIB)/libsupermalloc.so
  LDFLAGS += -L$(LIB) -Wl,-rpath,$(LIB)
 endif
 
