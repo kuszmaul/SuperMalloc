@@ -14,7 +14,7 @@
 #define atomic_store(addr, val) __atomic_store_n(addr, val, __ATOMIC_RELEASE)
 
 // The lock field is the 2*number who currently wait to lock the lock + 1 if the lock is locked.
-// The wait field is 1 if someone is waiting for the lock to zero (with the intention of running a transaction)
+// The hold field is the number waiting for the lock to zero (with the intention of running a transaction)
 
 static long sys_futex(void *addr1, int op, int val1, struct timespec *timeout, void *addr2, int val3)
 {
@@ -79,21 +79,21 @@ extern "C" void futex_mutex_unlock(futex_mutex_t *m) {
   set_threadid();
   int old_c = __sync_fetch_and_add(&m->lock, -1);
   if (old_c > 1) {
-    // Some implementations wait around to see if someone else will grab the lock.  We're not doing that, we're going straight to the wakeup if needed.
     // There were multiple waiting
-    printf("%s:%d wake1()\n", __FILE__, __LINE__);
+    //
+    // Some implementations wait around to see if someone else will
+    // grab the lock.  We're not doing that, we're going straight to
+    // the wakeup if needed.
     futex_wake1(&m->lock);
   } else {
-    printf("%s:%d tid:%d m=%p about to load wait\n", __FILE__, __LINE__, threadid, m);
-    int old_hold = atomic_load(&m->hold);
-    // If old_c == 1, then maybe someone is waiting to run a transaction.  Wake up all the waiters.
-    printf("%s:%d tid:%d m=%p old_wait=%d\n", __FILE__, __LINE__, threadid, m, old_hold);
-    if (old_hold) {
-      atomic_store(&m->hold, 0);
-      __atomic_thread_fence(__ATOMIC_SEQ_CST);
-      if (1) printf("%s:%d tid:%d m=%p l=%d w=%d wakeN()\n", __FILE__, __LINE__, threadid, m, m->lock, m->hold);
-      int n_woke = futex_wakeN(&m->hold);
-      printf("%s:%d tid:%d m=%p l=%d w=%d woke %d\n", __FILE__, __LINE__, threadid, m, m->lock, m->hold, n_woke);
+    while (1) {
+      int old_hold = atomic_load(&m->hold);
+      // If old_c == n1, then maybe someone is waiting to run a transaction.  Wake up all the waiters.
+      if (old_hold) {
+	futex_wakeN(&m->hold);
+      } else {
+	break;
+      }
     }
   }
 }
@@ -103,33 +103,25 @@ extern "C" int futex_mutex_subscribe(futex_mutex_t *m) {
 }
 
 extern "C" int futex_mutex_hold(futex_mutex_t *m) {
-  set_threadid();
+  //set_threadid();
   for (int i = 0; i < lock_spin_count; i++) {
     if (atomic_load(&m->lock) == 0) return false;
     _mm_pause();
   }
   int did_futex = 0;
-  bool tracing = false;
+
+  // Now we have to do the relatively heavyweight thing.
+  __sync_fetch_and_add(&m->hold, 1);
   while (1) {
-    // Now we have to do the relatively heavyweight thing.
-    // This one must be an atomic_store instead of a store, otherwise, the compiler reorders the store and the fetch of m->lock.
-    // All the others are just to be safe.
-    if (tracing) printf("%s:%d tid:%d setting m->hold=1\n", __FILE__, __LINE__, threadid);
-    atomic_store(&m->hold, 1);  // m->hold = 1;
-    __atomic_thread_fence(__ATOMIC_SEQ_CST);
     // Make this be an atomic fetch, just to make sure.
     int was_locked = atomic_load(&m->lock);
-    if (true) printf("%s:%d tid:%d m=%p was_locked=%d, wait=%d\n", __FILE__, __LINE__, threadid, m, was_locked, m->hold);
     if (was_locked == 0) {
-      if (tracing) printf("%s:%d tid:%d returning:: %d\n", __FILE__, __LINE__, threadid, did_futex);
+      __sync_fetch_and_add(&m->hold, -1);
       return did_futex;
     }
-    usleep(1000); // putting in this sleep makes it fail a lot.
-    if (m->hold == 0) tracing = true;
-    if (true) printf("%s:%d tid:%d m=%p lock=%d wait=%d\n", __FILE__, __LINE__, threadid, m, m->lock, m->hold);
+    // usleep(1000); // putting in this sleep makes it fail a lot.
     last_futex_wait_result = futex_wait(&m->hold, 1);
     last_errno = errno;
-    if (tracing) printf("%s:%d tid:%d lock=%d wait=%d last_futex_wait=%d last_errno=%d \n", __FILE__, __LINE__, threadid, m->lock, m->hold, last_futex_wait_result, last_errno);
     did_futex = 1;
   }
 }
