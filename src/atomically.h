@@ -106,8 +106,8 @@ static inline bool mylock_subscribe(lock_t *mylock) {
 
 typedef futex_mutex_t lock_t;
 #define LOCK_INITIALIZER FUTEX_MUTEX_INITIALIZER
-static inline bool mylock_wait(lock_t *l) {
-  return futex_mutex_wait(l);
+static inline bool mylock_hold(lock_t *l) {
+  return futex_mutex_hold(l);
 }
 static inline void mylock_acquire(lock_t *l) {
   futex_mutex_lock(l); // ignore the result.
@@ -187,9 +187,9 @@ static inline ReturnType atomically(lock_t *mylock,
 
     int count = 0;
     while (count < 10) {
-      mylock_wait(mylock);
+      mylock_hold(mylock);
       if (do_predo) predo(args...);
-      while (mylock_wait(mylock)) {
+      while (mylock_hold(mylock)) {
 	// If the lock was held for a long time, then do the predo code again.
 	if (do_predo) predo(args...);
       }
