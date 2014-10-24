@@ -66,6 +66,6 @@ new-malloc-test-vK-x240.data new-malloc-test-vK-lutestring.data: $(BLD)/new-mall
         ;done ;done
 
 new-malloc-test-1K-aggregated.pdf: new-malloc-test-1K-aggregated.data
-new-malloc-test-1K-aggregated.data: ../paper/aggregate_error_bars new-malloc-test-1K-lutestring.data
+new-malloc-test-1K-aggregated.data: ../paper/aggregate_error_bars # new-malloc-test-1K-lutestring.data
 	./$< < new-malloc-test-1K-lutestring.data > $@
 new-malloc-test-1K-aggregated-oldallocators.pdf: new-malloc-test-1K-aggregated.data
