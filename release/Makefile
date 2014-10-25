@@ -35,7 +35,7 @@ timings-simple:
 	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-dlmalloc -w 2 -t 10
 	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-hoard -w 2 -t 10
 
-new-malloc-test-1K-tempo.data new-malloc-test-1K-x240.data new-malloc-test-1K-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
+new-malloc-test-1K-x240.data new-malloc-test-1K-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
 	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc supermalloc_pthread | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
           echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -w $$thread) \
@@ -50,7 +50,7 @@ new-malloc-test-1K-tempo.data new-malloc-test-1K-x240.data new-malloc-test-1K-lu
               | tee -a $@ \
         ;done ;done
 
-new-malloc-test-vK-tempo.data new-malloc-test-vK-x240.data new-malloc-test-vK-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
+new-malloc-test-vK-x240.data new-malloc-test-vK-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
 	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc supermalloc_pthread | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
           echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -s -1 -w $$thread) \
@@ -58,10 +58,10 @@ new-malloc-test-vK-tempo.data new-malloc-test-vK-x240.data new-malloc-test-vK-lu
                         $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -s -1 -w $$thread) \
                         $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=0 SUPERMALLOC_THREADCACHE=1 ./$< -s -1 -w $$thread) \
                         $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=0 SUPERMALLOC_THREADCACHE=1 ./$< -s -1 -w $$thread) \
-                        $$(./new-malloc-test-dlmalloc -s -1 -w $$thread) \
-                        $$(./new-malloc-test-hoard -s -1 -w $$thread) \
-                        $$(./new-malloc-test-jemalloc -s -1 -w $$thread) \
-                        $$(./new-malloc-test-supermalloc_pthread -s -1 -w $$thread) \
+                        $$(./new-malloc-test-dlmalloc                                                    -s -1 -w $$thread) \
+                        $$(./new-malloc-test-hoard                                                       -s -1 -w $$thread) \
+                        $$(./new-malloc-test-jemalloc                                                    -s -1 -w $$thread) \
+                        $$(./new-malloc-test-supermalloc_pthread                                         -s -1 -w $$thread) \
               | tee -a $@ \
         ;done ;done
 
@@ -69,3 +69,31 @@ new-malloc-test-1K-aggregated.pdf: new-malloc-test-1K-aggregated.data
 new-malloc-test-1K-aggregated.data: ../paper/aggregate_error_bars # new-malloc-test-1K-lutestring.data
 	./$< < new-malloc-test-1K-lutestring.data > $@
 new-malloc-test-1K-aggregated-oldallocators.pdf: new-malloc-test-1K-aggregated.data
+
+new-malloc-test-1K-tempo.data: NO_RTM=1
+new-malloc-test-1K-tempo.data:  $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc_pthread.so
+	echo threads dlmalloc hoard jemalloc supermalloc_pthread | tee $@
+	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
+          echo $$thread $$(./new-malloc-test-dlmalloc                                                          -w $$thread) \
+                        $$(./new-malloc-test-hoard                                                             -w $$thread) \
+                        $$(./new-malloc-test-jemalloc                                                          -w $$thread) \
+                        $$(./new-malloc-test-supermalloc_pthread                                               -w $$thread) \
+              | tee -a $@ \
+        ;done ;done
+
+new-malloc-test-vK-tempo.data: NO_RTM=1
+new-malloc-test-vK-tempo.data:  $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc_pthread.so
+	echo threads dlmalloc hoard jemalloc supermalloc_pthread | tee $@
+	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
+          echo $$thread $$(./new-malloc-test-dlmalloc                                                    -s -1 -w $$thread) \
+                        $$(./new-malloc-test-hoard                                                       -s -1 -w $$thread) \
+                        $$(./new-malloc-test-jemalloc                                                    -s -1 -w $$thread) \
+                        $$(./new-malloc-test-supermalloc_pthread                                         -s -1 -w $$thread) \
+              | tee -a $@ \
+        ;done ;done
+
+# Note: supermalloc doesn't compile with gcc 4.8.0, which is what's installed on Tempo.
+# I should make it work on tempo, but don't have time right now.
+# for now, compile on a machine with more modern gcc
+tempo: NO_RTM=1
+tempo: new-malloc-test-1K-tempo.data new-malloc-test-vK-tempo.data

@@ -335,7 +335,7 @@ static void* aligned_malloc_internal(size_t alignment, size_t size) {
 }
 
 
-extern "C" void* aligned_alloc(size_t alignment, size_t size) {
+extern "C" void* aligned_alloc(size_t alignment, size_t size) __THROW {
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
     return NULL;
