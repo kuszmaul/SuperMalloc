@@ -6,3 +6,4 @@ division-generated.cc: division
 	./division 13 > $@
 divtest: divtest.cc | division-generated.cc
 lock-overhead: CXXFLAGS += -pthread
+lock-overhead: LDLIBS += -lrt
