@@ -12,6 +12,7 @@ $ ./lock-overhead
     in_stack:  0.302764s
  */
 #include <cassert>
+#include <cstdio>
 #include <ctime>
 #include <thread>
 #include <immintrin.h>
