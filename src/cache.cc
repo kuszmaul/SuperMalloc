@@ -65,7 +65,9 @@ struct CacheForBin {
 } __attribute__((aligned(64)));  // it's OK if the cached objects are on the same cacheline as the lock, but we don't want the cached objects to cross a cache boundary.  Since the CacheForBin has gotten to be 48 bytes, we might as well just align the struct to the cache.
 
 struct CacheForCpu {
+#ifdef ENABLE_STATS
   uint64_t attempt_count, success_count;
+#endif
   CacheForBin cb[first_huge_bin_number];
 } __attribute__((aligned(64)));
 
@@ -474,8 +476,10 @@ static void* try_get_global_cached(int processor,
 		    siz);
 }
 
+#ifdef ENABLE_STATS
 uint64_t global_cache_attempt_count = 0;
 uint64_t global_cache_success_count = 0;
+#endif
 
 void* cached_malloc(binnumber_t bin)
 // Effect: Try the thread cache first.  Otherwise try the cpu cache
@@ -487,11 +491,15 @@ void* cached_malloc(binnumber_t bin)
   uint64_t siz = bin_2_size(bin);
 
   if (use_threadcache) {
+#ifdef ENABLE_STATS
     cache_for_thread.attempt_count++;
+#endif
     void *result = try_get_cached_both(&cache_for_thread.cb[bin],
 				       siz);
     if (result) {
+#ifdef ENABLE_STATS
       cache_for_thread.success_count++;
+#endif
       clog_command('a', result, siz);
       return result;
     }
@@ -499,12 +507,16 @@ void* cached_malloc(binnumber_t bin)
 
   // Still must access the cache atomically even though it's per processor.
   int p = getcpu() % cpulimit;
+#ifdef ENABLE_STATS
   __sync_fetch_and_add(&cache_for_cpu[p].attempt_count, 1);
+#endif
 
   {
     void *result = try_get_cpu_cached(p, bin, siz);
     if (result) {
+#ifdef ENABLE_STATS
       __sync_fetch_and_add(&cache_for_cpu[p].success_count, 1);
+#endif
       clog_command('a', result, siz);
       return result;
     }
@@ -514,7 +526,9 @@ void* cached_malloc(binnumber_t bin)
     __sync_fetch_and_add(&global_cache_attempt_count, 1);
     void *result = try_get_global_cached(p, bin, siz);
     if (result) {
+#ifdef ENABLE_STATS
       __sync_fetch_and_add(&global_cache_success_count, 1);
+#endif
       clog_command('a', result, siz);
       return result;
     }
