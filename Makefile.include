@@ -15,7 +15,7 @@ CFLAGS = $(C_CXX_FLAGS) -std=c11
 CPPFLAGS += $(STATS) $(LOGCHECK) $(TESTING) -I$(BLD)
 
 LIBOBJECTS = malloc makechunk rng huge_malloc large_malloc small_malloc cache bassert footprint stats futex_mutex generated_constants
-default: tests
+default: tests $(LIB)/libsupermalloc_pthread.so
 .PHONY: default
 
 #lib: $(LIB)/libsupermalloc.so
@@ -109,5 +109,4 @@ $(BLD)/objsizes: $(SRC)/objsizes.cc $(SRC)/malloc_internal.h
 	gnuplot $<
 
 clean:
-	rm -f *.o $(TESTS) $(BLD)/objsizes $(BLD)/generated_constants.h $(BLD)/generated_constants.cc $(IMPLEMENTATION_FILES) 
-
+	rm -f *.o $(TESTS) $(BLD)/objsizes $(BLD)/generated_constants.h $(BLD)/generated_constants.cc $(IMPLEMENTATION_FILES) $(LIB)/*.so

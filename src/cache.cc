@@ -89,7 +89,7 @@ static GlobalCache global_cache;
 static const uint64_t per_cpu_cache_bytecount_limit = 1024*1024;
 static const uint64_t thread_cache_bytecount_limit = 2*4096;
 
-lock_t cache_lock;
+lock_t cache_locks[first_huge_bin_number];
 
 static void* try_get_cached(cached_objects *co, uint64_t siz) {
   linked_list *result = co->head;
@@ -361,7 +361,7 @@ static void* try_get_cpu_cached(int processor,
 
     // Step 1
     cached_objects my_co;
-    atomically(&cache_lock, "remove_a_cache_from_cpu",
+    atomically(&cache_locks[bin], "remove_a_cache_from_cpu",
 	       predo_remove_a_cache_from_cpu,
 	       do_remove_a_cache_from_cpu,
 	       cc,
@@ -391,7 +391,7 @@ static void* try_get_cpu_cached(int processor,
       // there's no point of trying to put stuff into the global cache (it
       // might be full too) and the prospect of freeing all those objects
       // sounds unappetizingly slow.  Just let the cpu cache get too big.
-      atomically(&cache_lock, "add_a_cache_to_cpu",
+      atomically(&cache_locks[bin], "add_a_cache_to_cpu",
 		 predo_add_a_cache_to_cpu,
 		 do_add_a_cache_to_cpu,
 		 cc,
@@ -400,7 +400,7 @@ static void* try_get_cpu_cached(int processor,
     return result;
   } else {
     // no threadcache.  Just try to get one thing out of the cpu cache and return it.
-    return atomically(&cache_lock, "fetch_one_from_cpu",
+    return atomically(&cache_locks[bin], "fetch_one_from_cpu",
 		      predo_fetch_one_from_cpu,
 		      do_fetch_one_from_cpu,
 		      &cache_for_cpu[processor].cb[bin],
@@ -466,7 +466,7 @@ static void* try_get_global_cached(int processor,
 				   binnumber_t bin,
 				   uint64_t siz) {
   // Try moving stuff from a global cache to a cpu cache.  Grab one of the objects while we are there.
-  return atomically(&cache_lock, "get_global_cached",
+  return atomically(&cache_locks[bin], "get_global_cached",
 		    predo_get_global_cached,
 		    do_get_global_cached,
 		    &cache_for_cpu[processor].cb[bin],
@@ -664,7 +664,7 @@ static bool try_put_into_cpu_cache(linked_list *obj,
 // Requires: the threadcache has stuff in it.
 {
   if (use_threadcache) {
-    return atomically(&cache_lock, "put_into_cpu_cache",
+    return atomically(&cache_locks[bin], "put_into_cpu_cache",
 		      predo_put_into_cpu_cache,
 		      do_put_into_cpu_cache,
 		      obj,
@@ -672,7 +672,7 @@ static bool try_put_into_cpu_cache(linked_list *obj,
 		      &cache_for_cpu[processor].cb[bin],
 		      siz);
   } else {
-    return atomically(&cache_lock,  "put_one_into_cpu_cache",
+    return atomically(&cache_locks[bin],  "put_one_into_cpu_cache",
 		      predo_put_one_into_cpu_cache,
 		      do_put_one_into_cpu_cache,
 		      obj,
@@ -726,7 +726,7 @@ static bool try_put_into_global_cache(linked_list *obj,
 				      int processor,
 				      binnumber_t bin,
 				      uint64_t siz) {
-  return atomically(&cache_lock, "put_into_global_cache",
+  return atomically(&cache_locks[bin], "put_into_global_cache",
 		    predo_put_into_global_cache,
 		    do_put_into_global_cache,
 		    obj,

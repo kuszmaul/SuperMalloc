@@ -12,7 +12,10 @@
 #ifdef USE_PTHREAD_MUTEXES
 #include <pthread.h>
 
-typedef pthread_mutex_t lock_t;
+struct lock_t {
+  pthread_mutex_t m __attribute__((aligned(64)));
+};
+
 #define LOCK_INITIALIZER PTHREAD_MUTEX_INITIALIZER
 /* static inline void mylock_acquire(lock_t *mylock) { */
 /*   int r = pthread_mutex_lock(mylock); */
@@ -34,10 +37,10 @@ class mylock_raii {
   lock_t *mylock;
 public:
   mylock_raii(lock_t *mylock) : mylock(mylock) {
-    pthread_mutex_lock(mylock);
+    pthread_mutex_lock(&mylock->m);
   }
   ~mylock_raii() {
-    pthread_mutex_unlock(mylock);
+    pthread_mutex_unlock(&mylock->m);
   }
 };
 
