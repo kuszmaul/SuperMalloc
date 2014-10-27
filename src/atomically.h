@@ -56,6 +56,19 @@ static inline ReturnType atomically(lock_t *mylock,
   return r;
 }
 
+template<typename ReturnType, typename... Arguments>
+static inline ReturnType atomically2(lock_t *lock0,
+				     lock_t *lock1,
+				     const char *name __attribute__((unused)),
+				     void (*predo)(Arguments... args) __attribute__((unused)),
+				    ReturnType (*fun)(Arguments... args),
+				     Arguments... args) {
+  mylock_raii m0(lock0);
+  mylock_raii m1(lock1);
+  ReturnType r = fun(args...);
+  return r;
+}
+
 #else
 
 
@@ -198,8 +211,8 @@ static inline ReturnType atomically(lock_t *mylock,
       }
       xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
-	ReturnType r = fun(args...);
 	if (mylock_subscribe(mylock)) _xabort(XABORT_LOCK_HELD);
+	ReturnType r = fun(args...);
 	_xend();
 	return r;
       } else if ((xr & _XABORT_EXPLICIT) && (_XABORT_CODE(xr) == XABORT_LOCK_HELD)) {
@@ -237,6 +250,85 @@ static inline ReturnType atomically(lock_t *mylock,
 #endif
   if (do_predo) predo(args...);
   mylock_raii mr(mylock);
+  ReturnType r = fun(args...);
+  return r;
+}
+
+template<typename ReturnType, typename... Arguments>
+static inline ReturnType atomically2(lock_t *lock0,
+				     lock_t *lock1,
+				     const char *name __attribute__((unused)),
+				     void (*predo)(Arguments... args),
+				     ReturnType (*fun)(Arguments... args),
+				     Arguments... args) {
+#ifdef DO_FAILED_COUNTS
+  __sync_fetch_and_add(&atomic_stats.atomic_count, 1);
+#endif
+  unsigned int xr = 0xfffffff2;
+  if (have_rtm) {
+    // Be a little optimistic: try to run the function without the predo if we the lock looks good
+    if (mylock_subscribe(lock0) == 0 &&
+	mylock_subscribe(lock1) == 0) {
+      xr = _xbegin();
+      if (xr == _XBEGIN_STARTED) {
+	if (mylock_subscribe(lock0) || mylock_subscribe(lock1)) _xabort(XABORT_LOCK_HELD);
+	ReturnType r = fun(args...);
+	_xend();
+	return r;
+      }
+    }
+
+    int count = 0;
+    while (count < 10) {
+      mylock_hold(lock0);
+      mylock_hold(lock1);
+      if (do_predo) predo(args...);
+      while (mylock_hold(lock0) || mylock_hold(lock1)) {
+	// If the lock was held for a long time, then do the predo code again.
+	if (do_predo) predo(args...);
+      }
+      xr = _xbegin();
+      if (xr == _XBEGIN_STARTED) {
+	if (mylock_subscribe(lock0) || mylock_subscribe(lock1)) _xabort(XABORT_LOCK_HELD);
+	ReturnType r = fun(args...);
+	_xend();
+	return r;
+      } else if ((xr & _XABORT_EXPLICIT) && (_XABORT_CODE(xr) == XABORT_LOCK_HELD)) {
+	count = 0; // reset the counter if we had an explicit lock contention abort.
+	continue;
+      } else {
+	count++;
+	//int backoff = (prandnum()%16) << count;
+	for (int i = 1; i < (1<<count); i++) {
+	  if (0 == (prandnum()&1023)) {
+	    sched_yield();
+	  } else {
+	    __asm__ volatile("pause");
+	  }
+	}
+      }
+    }
+  }
+  // We finally give up and acquire the lock.
+#ifdef DO_FAILED_COUNTS
+  {
+    mylock_raii m(&failed_counts_mutex);
+    for (int i = 0; i < failed_counts_n; i++) {
+      if (failed_counts[i].name == name && failed_counts[i].code == xr) {
+	failed_counts[i].count++;
+	goto didit;
+      }
+    }
+    bassert(failed_counts_n < max_failed_counts);
+    failed_counts[failed_counts_n++] = (struct failed_counts_s){name, xr, 1};
+ didit:;
+  }
+
+   __sync_fetch_and_add(&atomic_stats.locked_count, 1);
+#endif
+  if (do_predo) predo(args...);
+  mylock_raii mr0(lock0);
+  mylock_raii mr1(lock1);
   ReturnType r = fun(args...);
   return r;
 }
