@@ -71,7 +71,7 @@ new-malloc-test-1K-aggregated.data: ../paper/aggregate_error_bars # new-malloc-t
 new-malloc-test-1K-aggregated-oldallocators.pdf: new-malloc-test-1K-aggregated.data
 
 new-malloc-test-1K-tempo.data: NO_RTM=1
-new-malloc-test-1K-tempo.data:  $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc_pthread.so
+new-malloc-test-1K-tempo.data:
 	echo threads dlmalloc hoard jemalloc supermalloc_pthread | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
           echo $$thread $$(./new-malloc-test-dlmalloc                                                          -w $$thread) \
@@ -82,7 +82,7 @@ new-malloc-test-1K-tempo.data:  $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-mallo
         ;done ;done
 
 new-malloc-test-vK-tempo.data: NO_RTM=1
-new-malloc-test-vK-tempo.data:  $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc_pthread.so
+new-malloc-test-vK-tempo.data:  
 	echo threads dlmalloc hoard jemalloc supermalloc_pthread | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
           echo $$thread $$(./new-malloc-test-dlmalloc                                                    -s -1 -w $$thread) \
@@ -95,5 +95,8 @@ new-malloc-test-vK-tempo.data:  $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-mallo
 # Note: supermalloc doesn't compile with gcc 4.8.0, which is what's installed on Tempo.
 # I should make it work on tempo, but don't have time right now.
 # for now, compile on a machine with more modern gcc
-tempo: NO_RTM=1
-tempo: new-malloc-test-1K-tempo.data new-malloc-test-vK-tempo.data
+tempo_build: NO_RTM=1
+tempo_build: $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc_pthread.so
+tempo_install:
+	rsync -av . tempo.csail.mit.edu:./supermalloc/release
+tempo_data: new-malloc-test-1K-tempo.data new-malloc-test-vK-tempo.data
