@@ -68,6 +68,11 @@ new-malloc-test-vK-x240.data new-malloc-test-vK-lutestring.data: $(BLD)/new-mall
 new-malloc-test-1K-aggregated.pdf: new-malloc-test-1K-aggregated.data
 new-malloc-test-1K-aggregated.data: ../paper/aggregate_error_bars # new-malloc-test-1K-lutestring.data
 	./$< < new-malloc-test-1K-lutestring.data > $@
+
+new-malloc-test-vK-aggregated.pdf: new-malloc-test-vK-aggregated.data
+new-malloc-test-vK-aggregated.data: ../paper/aggregate_error_bars # new-malloc-test-vK-lutestring.data
+	./$< < new-malloc-test-vK-lutestring.data > $@
+
 new-malloc-test-1K-aggregated-oldallocators.pdf: new-malloc-test-1K-aggregated.data
 
 new-malloc-test-1K-tempo.data: NO_RTM=1
@@ -91,6 +96,14 @@ new-malloc-test-vK-tempo.data:
                         $$(./new-malloc-test-supermalloc_pthread                                         -s -1 -w $$thread) \
               | tee -a $@ \
         ;done ;done
+
+new-malloc-test-vK-tempo-aggregated.pdf: new-malloc-test-vK-tempo-aggregated.data
+new-malloc-test-vK-tempo-aggregated.data: ../paper/aggregate_error_bars # new-malloc-test-vK-tempo.data
+	./$< < new-malloc-test-vK-tempo.data > $@
+
+new-malloc-test-1K-tempo-aggregated.pdf: new-malloc-test-1K-tempo-aggregated.data
+new-malloc-test-1K-tempo-aggregated.data: ../paper/aggregate_error_bars # new-malloc-test-1K-tempo.data
+	./$< < new-malloc-test-1K-tempo.data > $@
 
 # Note: supermalloc doesn't compile with gcc 4.8.0, which is what's installed on Tempo.
 # I should make it work on tempo, but don't have time right now.
