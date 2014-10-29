@@ -2,3 +2,7 @@
 *.log
 *.pdf
 *.pyg
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls

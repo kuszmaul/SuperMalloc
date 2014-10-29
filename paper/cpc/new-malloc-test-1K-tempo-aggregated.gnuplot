@@ -11,7 +11,7 @@
 #    	gnuplot home:     http://www.gnuplot.info
 #    	faq, bugs, etc:   type "help FAQ"
 #    	immediate help:   type "help"  (plot window: hit 'h')
-set terminal cairolatex pdf colortext transparent size 3.00in, 1.90in font 'ptm,bx' 
+set terminal cairolatex pdf colortext transparent size 3.00in, 1.80in font 'ptm,bx' 
 set output 'new-malloc-test-1K-tempo-aggregated.tex'
 unset clip points
 set clip one
@@ -110,6 +110,7 @@ set cbtics autofreq  norangelimit
 set rtics axis in scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 set rtics autofreq  norangelimit
 set title "\\small 16-Core (2 sockets, 32 hardware threads) 2.4GHz Sandy Bridge " 
+set title ""
 set title  offset character 0, 0, 0 font "" norotate
 set timestamp bottom 
 set timestamp "" 
