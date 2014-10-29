@@ -14,7 +14,7 @@
 
 \begin{document}
 \special{papersize=8.5in,11in}% Still need this even with letterpaper
-\title{SuperMalloc: A Super Fast Multithreaded \texttt{malloc()} for x86 HTM}
+\title{SuperMalloc: A Super Fast Multithreaded \texttt{malloc()} for HTM}
 \author{Bradley C. Kuszmaul \hspace{0.2in} \texttt{bradley@mit.edu}}
 \date{}
 \vskip -2em
@@ -23,7 +23,7 @@
 
 SuperMalloc is an implementation of \texttt{malloc(3)} designed for
 x86 Hardware Transactional Memory (HTM).  It turns out that the same
-design also makes it fast even without HTM.  On high threadcount
+design also makes it fast even without HTM.  On high-threadcount
 workloads on Sandy Bridge (non-HTM) hardware, SuperMalloc outperforms
 the competition by about a factor of 3.5.
 
