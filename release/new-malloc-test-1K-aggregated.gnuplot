@@ -157,23 +157,23 @@ set style line 2 lt 1 lc rgb "#006400" lw 1 pt 0
 set style line 4 lt 3 lc rgb "#006400" lw 1 pt 0
 set style line 3 lt 1 lc rgb "#00008B" lw 1 pt 0
 set style line 5 lt 3 lc rgb "#00008B" lw 1 pt 0
-set style line 6 lt 1 lc rgb "#CF00CF" lw 1 pt 0
-set style line 7 lt 2 lc rgb "#CF00CF" lw 1 pt 0
-set style line 8 lt 3 lc rgb "#CF00CF" lw 1 pt 0
+set style line 6 lt 1 lc rgb "#000000" lw 1 pt 0
+set style line 7 lt 2 lc rgb "#000000" lw 1 pt 0
+set style line 8 lt 3 lc rgb "#000000" lw 1 pt 0
 # set label 1 "nothreadcache"    at 6,5e7       right  textcolor rgb "#FF0000"
 #set label 2 "rtm(predo)"      at 3,4.4e7     right textcolor rgb "#006400"
-set label 4 "SuperMalloc-rtm"  at 3.9,8e7   right  textcolor rgb "#006400"
+set label 4 "SuperMalloc"      at 3.7,8e7   right  textcolor rgb "#006400"
 #set label 3 "lock"            at 3.5,2.9e7   right textcolor rgb "#00008B"
 #set label 5 "lock(nopredo)"   at 2.3,2.5e7   left  textcolor rgb "#00008B"
-set label 6 "dlmalloc"         at 5,7e6       right textcolor rgb "#CF00CF"
-set label 7 "Hoard"            at 7,1.2e7     right textcolor rgb "#CF00CF"
-set label 8 "jemalloc"         at 8,3.2e7     right  textcolor rgb "#CF00CF"
-set label 9 "SuperMalloc-pthread-locks" at 4,7e7 left textcolor rgb "#CF00CF"
+set label 6 "dlmalloc"         at 5,7e6       right textcolor rgb "#000000"
+set label 7 "Hoard"            at 7,1.2e7     right textcolor rgb "#000000"
+set label 8 "jemalloc"         at 8,3.2e7     right  textcolor rgb "#000000"
+#set label 9 "SuperMalloc-pthread-locks" at 4,7e7 left textcolor rgb "#CF00CF"
 plot 'new-malloc-test-1K-aggregated.data' using ($1+.05):5:6:7 with errorbars title "rtm" ls 2,         'new-malloc-test-1K-aggregated.data' using ($1+.05):5 with lines notitle ls 2,\
-     'new-malloc-test-1K-aggregated.data' using ($1+.25):17:18:19 with errorbars title "dlmalloc" ls 6,   'new-malloc-test-1K-aggregated.data' using ($1+.25):17 with lines notitle ls 6,\
-     'new-malloc-test-1K-aggregated.data' using ($1+.30):20:21:22 with errorbars title "hoard"    ls 7,      'new-malloc-test-1K-aggregated.data' using ($1+.30):20 with lines notitle ls 7,\
+     'new-malloc-test-1K-aggregated.data' using ($1+.25):17:18:19 with errorbars title "dlmalloc" ls 6, 'new-malloc-test-1K-aggregated.data' using ($1+.25):17 with lines notitle ls 6,\
+     'new-malloc-test-1K-aggregated.data' using ($1+.30):20:21:22 with errorbars title "hoard"    ls 7, 'new-malloc-test-1K-aggregated.data' using ($1+.30):20 with lines notitle ls 7,\
      'new-malloc-test-1K-aggregated.data' using ($1+.35):23:24:25 with errorbars title "jemalloc" ls 8, 'new-malloc-test-1K-aggregated.data' using ($1+.35):23 with lines notitle ls 8,\
-     'new-malloc-test-1K-aggregated.data' using ($1+.40):26:27:28 with errorbars title "supermalloc-pthreads" ls 8, 'new-malloc-test-1K-aggregated.data' using ($1+.35):26 with lines notitle ls 9,\
+#     'new-malloc-test-1K-aggregated.data' using ($1+.40):26:27:28 with errorbars title "supermalloc-pthreads" ls 8, 'new-malloc-test-1K-aggregated.data' using ($1+.35):26 with lines notitle ls 9,\
 
 # plot 'new-malloc-test-1K-aggregated.data' using 1:2:3:4 with errorbars title "nothreadcache" ls 1,      'new-malloc-test-1K-aggregated.data' using 1:2 with lines notitle ls 1,\
 #     'new-malloc-test-1K-aggregated.data' using ($1+.05):5:6:7 with errorbars title "rtm" ls 2,         'new-malloc-test-1K-aggregated.data' using ($1+.05):5 with lines notitle ls 2,\

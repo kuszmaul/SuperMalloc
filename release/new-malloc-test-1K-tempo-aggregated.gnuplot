@@ -50,6 +50,7 @@ set key inside right top vertical Right noreverse enhanced autotitles nobox
 set key noinvert samplen 4 spacing 1 width 0 height 0 
 set key maxcolumns 0 maxrows 0
 set key noopaque
+unset key
 unset label
 unset arrow
 set style increment default
@@ -118,7 +119,7 @@ set xlabel ""
 set xlabel  offset character 0, 0, 0 font "" textcolor lt -1 norotate
 set x2label "" 
 set x2label  offset character 0, 0, 0 font "" textcolor lt -1 norotate
-set xrange [ * : * ] noreverse nowriteback
+set xrange [ 0 : 32 ] noreverse nowriteback
 set x2range [ * : * ] noreverse nowriteback
 set ylabel "" 
 set ylabel  offset character 0, 0, 0 font "" textcolor lt -1 rotate by -270
@@ -151,5 +152,16 @@ set fontpath
 set psdir
 set fit noerrorvariables
 GNUTERM = "wxt"
-plot "new-malloc-test-1K-tempo-aggregated.data" using 1:2:3:4 with errorbars title "dlmalloc", "new-malloc-test-1K-tempo-aggregated.data" using 1:2 with lines notitle, "new-malloc-test-1K-tempo-aggregated.data" using 1:5:6:7 with errorbars title "hoard", "new-malloc-test-1K-tempo-aggregated.data" using 1:5 with lines notitle, "new-malloc-test-1K-tempo-aggregated.data" using 1:8:9:10 with errorbars title "jemalloc", "new-malloc-test-1K-tempo-aggregated.data" using 1:8 with lines notitle, "new-malloc-test-1K-tempo-aggregated.data" using 1:11:12:13 with errorbars title "supermalloc", "new-malloc-test-1K-tempo-aggregated.data" using 1:11 with lines notitle
+set style line 2 lt 1 lc rgb "#006400" lw 1 pt 0
+set style line 6 lt 1 lc rgb "#000000" lw 1 pt 0
+set style line 7 lt 2 lc rgb "#000000" lw 1 pt 0
+set style line 8 lt 3 lc rgb "#000000" lw 1 pt 0
+set label 4 "SuperMalloc"      at 15,1.2e8    right textcolor rgb "#006400"
+set label 6 "dlmalloc"         at 18,6e6      right textcolor rgb "#000000"
+set label 7 "Hoard"            at 32,2.85e7      right textcolor rgb "#000000"
+set label 8 "jemalloc"         at 30,4.2e7    right textcolor rgb "#000000"
+plot "new-malloc-test-1K-tempo-aggregated.data" using 1:2:3:4 with errorbars title "dlmalloc" ls 6,  "new-malloc-test-1K-tempo-aggregated.data" using 1:2 with lines notitle ls 6,\
+     "new-malloc-test-1K-tempo-aggregated.data" using 1:5:6:7 with errorbars title "hoard"    ls 7,  "new-malloc-test-1K-tempo-aggregated.data" using 1:5 with lines notitle ls 7,\
+     "new-malloc-test-1K-tempo-aggregated.data" using 1:8:9:10 with errorbars title "jemalloc" ls 8, "new-malloc-test-1K-tempo-aggregated.data" using 1:8 with lines notitle ls 8,\
+     "new-malloc-test-1K-tempo-aggregated.data" using 1:11:12:13 with errorbars title "supermalloc" ls 2, "new-malloc-test-1K-tempo-aggregated.data" using 1:11 with lines notitle ls 2
 #    EOF
