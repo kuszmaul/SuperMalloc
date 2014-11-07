@@ -50,6 +50,7 @@ new-malloc-test-1K-x240.data new-malloc-test-1K-lutestring.data: $(BLD)/new-mall
                         $$(./new-malloc-test-dlmalloc -w $$thread) \
                         $$(./new-malloc-test-hoard -w $$thread) \
                         $$(./new-malloc-test-jemalloc -w $$thread) \
+                        $$(./new-malloc-test-tbbmalloc -w $$thread) \
                         $$(./new-malloc-test-supermalloc_pthread -w $$thread) \
               | tee -a $@ \
         ;done ;done
@@ -65,6 +66,7 @@ new-malloc-test-vK-x240.data new-malloc-test-vK-lutestring.data: $(BLD)/new-mall
                         $$(./new-malloc-test-dlmalloc                                                    -s -1 -w $$thread) \
                         $$(./new-malloc-test-hoard                                                       -s -1 -w $$thread) \
                         $$(./new-malloc-test-jemalloc                                                    -s -1 -w $$thread) \
+                        $$(./new-malloc-test-tbbmalloc                                                    -s -1 -w $$thread) \
                         $$(./new-malloc-test-supermalloc_pthread                                         -s -1 -w $$thread) \
               | tee -a $@ \
         ;done ;done
