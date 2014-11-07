@@ -1,0 +1,9 @@
+[bradley@30-87-232 manythreads]$ ulimit -u 2048
+[bradley@30-87-232 manythreads]$ ./manythreads 400
+maxrss=1020384
+[bradley@30-87-232 manythreads]$ LD_PRELOAD=../../release/lib/libsupermalloc.so ./manythreads 400
+maxrss=584836
+[bradley@30-87-232 manythreads]$ LD_PRELOAD=/home/bradley/malloc-implementations/jemalloc-3.6.0/lib/libjemalloc.so ./manythreads 400
+maxrss=1214340
+[bradley@30-87-232 manythreads]$ LD_PRELOAD=/home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release/libtbbmalloc_proxy.so.2:/home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release/libtbbmalloc.so.2 ./manythreads 400
+maxrss=3307264
