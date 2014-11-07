@@ -29,6 +29,10 @@ JEMALLOC_DIR = /home/bradley/malloc-implementations/jemalloc-3.6.0/lib
 $(BLD)/new-malloc-test-jemalloc:  $(BLD)/new-malloc-test.o
 	$(CXX) $< -L$(JEMALLOC_DIR) -ljemalloc -Wl,-rpath,$(JEMALLOC_DIR) -pthread -o $@
 
+TBBMALLOC_DIR = /home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release
+$(BLD)/new-malloc-test-tbbmalloc: $(BLD)/new-malloc-test.o
+	$(CXX) $< -L$(TBBMALLOC_DIR) -ltbbmalloc_proxy -ltbbmalloc -Wl,-rpath,$(TBBMALLOC_DIR) -pthread -o $@
+
 timings-simple:
 	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test -w 2 -t 10
 	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-libc -w 2 -t 10
@@ -82,6 +86,7 @@ new-malloc-test-1K-tempo.data:
           echo $$thread $$(./new-malloc-test-dlmalloc                                                          -w $$thread) \
                         $$(./new-malloc-test-hoard                                                             -w $$thread) \
                         $$(./new-malloc-test-jemalloc                                                          -w $$thread) \
+                        $$(./new-malloc-test-tbbmalloc                                                         -w $$thread) \
                         $$(./new-malloc-test-supermalloc_pthread                                               -w $$thread) \
               | tee -a $@ \
         ;done ;done
@@ -93,6 +98,7 @@ new-malloc-test-vK-tempo.data:
           echo $$thread $$(./new-malloc-test-dlmalloc                                                    -s -1 -w $$thread) \
                         $$(./new-malloc-test-hoard                                                       -s -1 -w $$thread) \
                         $$(./new-malloc-test-jemalloc                                                    -s -1 -w $$thread) \
+                        $$(./new-malloc-test-tbbmalloc                                                   -s -1 -w $$thread) \
                         $$(./new-malloc-test-supermalloc_pthread                                         -s -1 -w $$thread) \
               | tee -a $@ \
         ;done ;done
