@@ -7345,12 +7345,14 @@
 
 @inproceedings{LarsonKr98,
 	Address = {Vancouver, Canada},
-	Author = {Per-{\r{A}ke} Larson and Murali Krishnan},
+	Author = {Larson, Per-{\r{A}}ke and Murali Krishnan},
 	Booktitle = {Proceedings of the International Symposium on Memory Management (ISMM'98)},
 	Month = oct,
 	Pages = {176--185},
 	Title = {Memory Allocation for Long-Running Server Applications},
-	Year = 1998}
+	Year = 1998,
+        url = {http://dx.doi.org/10.1145/286860.286880}
+}
 
 @inproceedings{LarusRiVi94,
 	Address = {San Jose, California},
@@ -11817,7 +11819,9 @@
 @misc{Lea96,
 	Author = {Doug Lea},
 	URL = {http://g.oswego.edu/dl/html/malloc},
-	Title = {A Memory Allocator}}
+	Title = {A Memory Allocator},
+        year = 1996,
+        note = {Viewed Nov 3, 2014}}
 
 @inproceedings{LeightonNeRaSc89,
 	Author = {Tom Leighton and Mark Newman and Abhiram G. Ranade and Eric Schwabe},
@@ -14005,10 +14009,9 @@ PAGES = {53-62},
 
 @inproceedings{DiceMaSh14,
 	Author = {Dice, Dave and Marathe, Virendra J. and Shavit, Nir},
-	Booktitle = {SPAA},
+	crossref = {SPAA14},
 	Ee = {http://doi.acm.org/10.1145/2612669.2612703},
 	Title = {Brief Announcement: Persistent Unfairness Arising from Cache Residency Imbalance},
-	Year = {2014},
 	Bdsk-Url-1 = {http://dx.doi.org/10.1145/2612669.2612703}}
 
 @inproceedings{Solar-Lezama:2006:CSF:1168857.1168907,
@@ -14490,7 +14493,8 @@ pages={110-114},
 	title={A Scalable Concurrent \texttt{malloc(3)} Implementation for {F}ree{BSD}},
 	author={Evans, Jason},
 	booktitle={BSDCan},
-        longaddress = {Ottawa, Canada},
+        address = {Ottawa, Canada},
+        url = {http://people.freebsd.org/~jasone/jemalloc/bsdcan2006/jemalloc.pdf},
 	year=2006}
 
 @InProceedings{BergerMcBl00,
@@ -14504,7 +14508,8 @@ pages={110-114},
   month     = nov,
   year      = 2000,
   address   = {Cambridge, MA},
-  pages     = {117--128} 
+  pages     = {117--128} ,
+  url       = {http://www.cs.umass.edu/~emery/pubs/berger-asplos2000.pdf}
 }
 
 @Misc{Kuszmaul14
@@ -14522,6 +14527,7 @@ pages={110-114},
  ,address      = {San Diego, CA}
  ,year	       = 2000
  ,month        = JUN
+ ,url          = {https://www.usenix.org/legacy/events/usenix2000/freenix/full_papers/lever/lever.pdf}
  }
 
 @Misc{Intel15
@@ -14605,7 +14611,7 @@ pages={440-447},
 @InProceedings{Kuszmaul07
  ,author       = {Bradley C. Kuszmaul}
  ,title	       = {Brief Announcement: Cilk Provides the "Best Overall Productivity" for High Performance Computing (and Won the HPC Challenge Award to Prove It).}
- ,crossref     = {SPAA07},
+ ,crossref     = {SPAA07}
  ,pages	       = {299--300}
  }
 
@@ -15124,5 +15130,55 @@ pages={1-2},
  ,number       = 12
  ,month	       = DEC
  ,pages	       = {879--889}
+ }
+
+@Misc{Vyukov08
+ ,author       = {Dmitry Vyukov}
+ ,title	       = {Possible Problem in Scalable Allocator}
+ ,howpublished = {\url{https://software.intel.com/en-us/forums/topic/299796}}
+ ,year	       = 2008
+ ,month	       = NOV
+ ,note	       = {Viewed Nov 3, 2014}
+ ,annote       = {TBB can have unbounded space blowup.}
+ }
+
+@Misc{Gloger06
+ ,author       = {Wolfram Gloger}
+ ,title	       = {Wolfram Gloger's malloc Homepage}
+ ,howpublished = {\url{www.malloc.de/en/}}
+ ,year	       = 2006
+ ,month	       = MAY
+ ,note	       = {Viewed 9 November 2014}
+ }
+
+@Misc{Gloger12
+ ,author       = {Wolfram Gloger}
+ ,title	       = {Dynamic Memory Allocator Implementations in {L}inux System Libraries}
+ ,howpublished = {\url{http://www.dent.med.uni-muenchen.de/~wmglo/malloc-slides.html}, archived at \url{https://web.archive.org/web/20120809102642/http://www.dent.med.uni-muenchen.de/~wmglo/malloc-slides.html}}
+ ,year	       = 2012
+ ,month	       = SEP
+ ,note	       = {Viewed 9 November 2014}
+ }
+
+@InProceedings{SchneiderAnNi06
+ ,author       = {Scott Schneider and Christos D. Antonopoulos and Dimitrios S. Nikolopoulos}
+ ,title	       = {Scalable Locality-Conscious Multithreaded Memory Allocation}
+ ,booktitle    = {Proceedings of the 5th International Symposium on Memory Managment (ISMM)}
+ ,url          = {http://people.cs.vt.edu/~scschnei/papers/ismm06.pdf}
+ ,year	       = 2006
+ ,address      = {Ottawa, Canada}
+ ,month	       = JUN
+ ,pages	       = {84--94}
+ }
+
+@InProceedings{FengBe05
+ ,author       = {Yi Feng and Emery D. Berger}
+ ,title	       = {A Locality-Improving Dynamic Memory Allocator}
+ ,booktitle    = {Proceedings of the 2005 Workshiop on Memory Systems Perforamnce (MSP)}
+ ,url          = {https://people.cs.umass.edu/~emery/pubs/p33-feng.pdf}
+ ,year	       = 2005
+ ,address      = {Chicago, IL}
+ ,month	       = JUN
+ ,pages	       = {68--77}
  }
 

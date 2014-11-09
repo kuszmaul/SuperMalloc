@@ -6,6 +6,12 @@
 \usepackage{courier}            % standard fixed width font
 \usepackage[scaled]{helvet} % see www.ctan.org/get/macros/latex/required/psnfss/psnfss2e.pdf
 \usepackage{url}                  % format URLs
+% Try \usepackage[hyphens]{url}
+% or try this
+%% \makeatletter
+%% \g@addto@macro{\UrlBreaks}{\UrlOrds}
+%% \makeatother
+
 %\usepackage{listings}          % format code
 \usepackage{enumitem}      % adjust spacing in enums
 \usepackage[colorlinks=true,allcolors=blue,breaklinks,draft=false]{hyperref}   % hyperlinks, including DOIs and URLs in bibliography
@@ -32,11 +38,47 @@
 \maketitle
 \vskip -1.5em
 
+* Tradeoff: Code size and complexity, speed, footprint, variability.  Supermalloc appears to disprove this tradeoff.
+* Allocators use trees, buddy systems: supermalloc doesn't.
+* Work for HTM and locks.
+
 SuperMalloc is an implementation of \texttt{malloc(3)} designed for
 x86 Hardware Transactional Memory (HTM).  It turns out that the same
 design also makes it fast even without HTM.  On high-threadcount
 workloads on Sandy Bridge (non-HTM) hardware, SuperMalloc outperforms
 the competition by about a factor of 3.5.
+
+Notes: 
+\begin{itemize}
+\item \cite{ReinefeldDoSc13} shows the importance of malloc.
+\item \cite{Dementiev09} shows what?
+\item \cite{KukanovVo07}
+ it's pretty good (it's basically as fast as SuperMalloc)
+ thread-private heap
+ I claim: space blowup
+
+ Some notes:
+ \begin{itemize}
+   \item The paper says it never returns space to the OS (for small objects.  Large objects are different)
+   \item The code seems to allocate 16KB at a time into the local pools
+   \item A hacky priority bin ("empty enough blocks" are put into the linked list next to the currently active block so that they can be found quickly)
+   \item When returning a "foreign" block (one that was allocated by a different thread), they put it into a separate list.
+   \item their cross-test sounds similar to malloc-test
+ \end{itemize}
+\item \cite{Vyukov08} TBB can have unbounded space blowup.
+
+\item \cite{DetlefsDoZo94}
+\item \cite{HudsonSaAd06}
+\item \cite{Maged04}
+\item \cite{FengBe05}
+\item \cite{SchneiderAnNi06}: streamflow (worries about cache behavior by using segregated heaps).  Synchronization-free operations for local alloc/free, and non-blocking synch for remote deallocations.  [In contrast, SuperMalloc doesn't care as much about trying to get cache behavior to be local.  Perhaps wrongly so.  Supermalloc does worry about false sharing  ].  Does poorly on memory footprint on the Larson benchmark, but they didn't isolate the issue, since they ran Larson for a fixed time instad of a fixed amount of work.
+\item \cite{LarsonKr98} LKmalloc hashes the threadid (so it doesn't need so many arenas, but it still needs a lock.)  They say for servers the requirements are to be fast, high-memory utilization, size indenpendent, locality, scalable, thread independence, predictable speed, stability).  LKmalloc is similar DLmalloc in that it uses bins of free blocks, approx best fit, and immediate coaslescing.  LKmalloc improves on DLmalloc by providing a lock per free list, multiple subheaps (to reduce cache sloshing (a value migrating around), select subheap by hasing, and striping (4MB pieces allocated to a heap)
+\item \cite{Gloger12} presents measurements of several allocators, with an emphasis on ptmalloc.
+\item \cite{Gloger06} is the web page for ptmalloc, an allocator based on dlmalloc \cite{Lea96}.
+\item Dice blog
+\item \cite{knary} a benchmark we should use (since I helped write it...)
+\end{itemize}
+
 
 {\bf Background:} DLmalloc~\cite{Lea96} is the single-threaded
 allocator shipped with Linux.  It is simple and has been stable for

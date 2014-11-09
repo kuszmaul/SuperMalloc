@@ -2,7 +2,7 @@ default: supermalloc.pdf
 supermalloc.pdf: new-malloc-test-1K-tempo-aggregated.pdf
 supermalloc.pdf: Makefile allpapers.bib
 supermalloc.pdf: supermalloc.tex FORCE
-	latexmk -pdflatex="pdflatex --shell-escape" -pdf $<
+	latexmk -pdflatex="pdflatex --shell-escape" -pdf -bibtex $<
 .PHONY: FORCE
 FORCE:
 %.pdf: %.gnuplot %.data
