@@ -1,0 +1,300 @@
+%
+% LaTeX template for prepartion of submissions to PLDI'15
+%
+% Requires temporary version of sigplanconf style file provided on
+% PLDI'15 web site.
+% 
+\documentclass[pldi]{sigplanconf-pldi15}
+
+%
+% the following standard packages may be helpful, but are not required
+%
+\usepackage{SIunits}            % typset units correctly
+\usepackage{courier}            % standard fixed width font
+\usepackage[scaled]{helvet} % see www.ctan.org/get/macros/latex/required/psnfss/psnfss2e.pdf
+\usepackage{url}                  % format URLs
+\usepackage{listings}          % format code
+\usepackage{enumitem}      % adjust spacing in enums
+\usepackage[colorlinks=true,allcolors=blue,breaklinks,draft=false]{hyperref}   % hyperlinks, including DOIs and URLs in bibliography
+% known bug: http://tex.stackexchange.com/questions/1522/pdfendlink-ended-up-in-different-nesting-level-than-pdfstartlink
+\newcommand{\doi}[1]{doi:~\href{http://dx.doi.org/#1}{\Hurl{#1}}}   % print a hyperlinked DOI
+
+
+
+\begin{document}
+
+%
+% any author declaration will be ignored  when using 'plid' option (for double blind review)
+%
+
+\title{Instructions for Submission to PLDI'15}
+
+\maketitle
+\begin{abstract}
+  This document is intended to serve as a sample for submissions to PLDI'15,
+  the 36th Annual ACM SIGPLAN Conference on Programming Language
+  Design and Implementation.  We provide some guidelines
+  that authors should follow when submitting papers to the conference.
+\end{abstract}
+
+\section{Introduction}
+
+This document provides instructions for submitting papers to PLDI'15.
+In an effort to respect the efforts of reviewers and in the interest
+of fairness to all prospective authors, we request that all
+submissions to PLDI'15 follow the formatting and submission rules
+detailed below. \textbf{Submissions that violate these instructions
+  may not be reviewed}, at the discretion of the
+\href{mailto:steve.blackburn@anu.edu.au?subject=[PLDI'15]}{program
+  chair}, in order to maintain a review process that is fair to all
+potential authors.
+
+An example submission (formatted using the PLDI'15 submission format)
+that contains the submission and formatting guidelines can be
+downloaded
+\href{http://conf.researchr.org/getImage/pldi2015/orig/pldi15-template.pdf}{here}. The
+content of this document mirrors that of the submission instructions
+that appear on
+\href{http://conf.researchr.org/track/pldi2015/pldi2015-papers#Submission-Instructions}{this website},
+where the paper submission site will be linked online about four weeks
+prior to the paper submission deadline.
+
+\paragraph{Paper evaluation objectives}
+The committee will make every effort to judge each submitted paper on
+its own merits. There will be no target acceptance rate.  We expect to
+accept a wide range of papers with appropriate expectations for
+evaluation --- while papers that build on significant past work with
+strong evaluations are valuable, papers that open new areas with less
+rigorous evaluation are equally welcome and especially
+encouraged. \textbf{In either case, what is important is that the
+  paper's claims are no stronger than what is supported by the
+  evaluation.}  Given the wide range of topics covered by PLDI, every
+effort will be made to find expert reviewers.
+
+All questions regarding paper formatting and submission should be
+directed to the
+\href{mailto:steve.blackburn@anu.edu.au?subject=[PLDI'15]}{program
+  chair}.
+
+\paragraph{Highlights From This Document}
+\begin{itemize}[noitemsep]
+\item Paper must be submitted in printable PDF format.
+\item Text must be in a minimum \textbf{10\,pt font} (\emph{not} 9\,pt).
+\item Papers at most \textbf{11 pages}, not including references. 
+\item References in \textbf{author-year} style (as used by TOPLAS).
+\item There is no page limit for references. 
+\item Each reference must specify \textbf{all authors} (no \emph{et al.}). 
+\item The reviewing process will include two phases.
+  \begin{itemize}
+  \item All papers will receive three reviews in the first phase.
+  \item Those papers identified as most worthy of further consideration will proceed to the second phase and receive an additional two reviews.
+  \item Authors of papers eliminated in the first phase will be notified promptly.
+  \item Each phase will have an author response period.
+  \item Authors \emph{will not} be required, nor given the opportunity, to revise their submissions after phase one.
+  \end{itemize}
+\item Authors of \emph{all} accepted papers will be required to give a
+  lightning presentation (about 90\,s) in addition to
+  the regular conference talk.
+\item Proceedings may appear in the ACM digital library as early as as early as May 30, 2015.
+\end{itemize} 
+
+
+
+\section{Paper Preparation Instructions}
+
+\subsection{Paper Formatting}
+
+Papers must be submitted in printable PDF format and should contain a
+\textbf{maximum of 11 pages} of single-spaced two-column text,
+\textbf{not including references}.  In-text citations must follow the
+\textbf{ACM / TOPLAS author-year style (`[Smith 1990]')}, as in this
+document, \textbf{not the numerical style (`[1]') formerly used by
+  PLDI}.  The rationale for this change is that it improves
+readability, and space is less of a concern for published proceedings
+today than it once was.  You may include any number of pages for
+references.  If you are using
+\LaTeX~\cite{Lamport:94} to typeset your paper, then we suggest that
+you use this temporary version of the SIGPLAN 
+\LaTeX~\href{http://conf.researchr.org/getImage/pldi2015/orig/sigplanconf-pldi15.cls}{class
+  file} and
+\href{http://conf.researchr.org/getImage/pldi2015/orig/pldi15-template.tex}{template}.
+(\href{http://conf.researchr.org/getImage/pldi2015/orig/pldi15-template.pdf}{This
+  document} was prepared with that template.)  If you are using
+Microsoft Word, you may wish to use
+\href{http://conf.researchr.org/getImage/pldi2015/orig/pldi15-word-template.dot}{this}
+template.  \textbf{Whichever tool you use, please ensure you adhere to the
+guidelines given in Table~\ref{table:formatting}.}  The conference
+submission website will use the
+\href{https://www.usenix.org/legacy/event/wowcs08/tech/full_papers/voelker/voelker.pdf}{banal}
+format checker to \emph{advise} on formatting compliance.
+
+\begin{table}[t!]
+  \centering
+{  \sffamily\small % tabular data either 10pt times, or 9pt helvetica
+  \begin{tabular}{rl}
+    \textbf{Field} & \textbf{Value}\\
+    \hline
+    File format & PDF \\
+    Page limit & 11 pages, \textbf{excluding references}\\
+    Paper size & US Letter 8.5in $\times$ 11in\\
+    Top margin & 1in\\
+    Bottom margin & 1in\\
+    Left margin & 0.75in\\
+    Right margin & 0.75in\\
+    Body & 2-column, single-spaced\\
+    Column separation & 0.25in\\
+    Body font & 10pt\\
+    Tabular font & 10pt Times (or 9pt Helvetica)\\
+    Abstract font & 10pt\\
+    Section heading  & 12pt, bold\\
+    Subsection heading  & 10pt, bold\\
+    Caption font & 10pt\\
+    In-text citation & Author-year (`[Smith 1990]' \emph{\textbf{not}} `[3]') \\
+    References & 10pt, no page limit, list all authors' names\\
+  \end{tabular}
+}
+  \caption{Formatting guidelines for submission. }
+  \label{table:formatting}
+\end{table}
+
+For the \emph{convenience of reviewers}, all submissions will be
+automatically watermarked by the paper submission site
+(\href{http://conf.researchr.org/getImage/pldi2015/orig/pldi15-template-wm.pdf}{example
+  here}), so please \textbf{avoid adding any text in the margins or
+  headers} such as footers, headers, or banners, 
+other than the centered page number provided by the template (which is
+only for the author's convenience, since the watermarking adds page
+numbers).  The watermarking process strips the submitted pdf of all
+metadata (thereby removing information which might otherwise identify authors).
+
+\subsection{Content}
+
+\paragraph{Double Blind.}  Reviewing will be double blind; therefore,
+please do not include any author names on any submitted documents
+except in the space provided on the online submission form.  Please
+take time to read the
+\href{http://conf.researchr.org/track/pldi2015/pldi2015-papers#FAQ-on-Double-Blind-Reviewing}{PLDI
+  FAQ on Double Blind Reviewing}, which gives a more comprehensive and
+authoritative account than this short paragraph.  If you are improving
+upon your prior work, refer to your prior work in the third person and
+include a full citation for the work in the bibliography. For example,
+if you happened to be Collins and McCarthy, building on \emph{your
+  own} prior work, you might say something like: ``While prior work
+\cite{Backus:60,Collins:60,McCarthy:60} did X, Y, and Z, this paper
+additionally does W, and is therefore much better.''  \textbf{Do NOT omit or
+anonymize references for blind review}.
+
+\paragraph{Figures and Tables.} Ensure that the figures and tables
+are legible.  Please also ensure that you refer to your figures in the main
+text.  Many reviewers print the papers in gray-scale. Therefore, if you use
+colors for your figures, ensure that the different colors are highly
+distinguishable in gray-scale.
+
+\paragraph{References.}  There is no length limit for references.
+\textbf{Each reference must explicitly list all authors of the paper.}
+  Papers not meeting this requirement will be rejected. Authors of
+NSF proposals should be familiar with this requirement. Knowing all
+authors of related work will help find the best reviewers. Since there
+is no length limit for the number of pages used for references, there
+is no need to save space here.
+
+\section{Paper Submission Instructions}
+
+\subsection{Declaring Authors}
+
+Enter all authors of the paper into the online paper submission tool
+upfront. Addition/removal of authors once the paper is accepted will
+have to be approved by the \href{mailto:steve.blackburn@anu.edu.au?subject=[PLDI'15]}{program chair}, since it potentially
+undermines the goal of eliminating conflicts for reviewer assignment.
+
+\subsection{Supplementary Material}
+
+The paper submission website will allow authors to upload an
+additional document containing material that supplements the paper
+(such as an extended proof or extensive results).  However, it is
+essential that authors understand that: a) reviewers are \textbf{not
+  obliged} to read the supplement, and b) the supplement must
+  be \textbf{fully anonymized.}
+
+\subsection{Areas and Topics}
+
+PLDI is a broad conference.  It is not limited to the design and
+implementation of programming languages, but reflects the diversity of
+SIGPLAN.  If you are unsure whether your work falls
+within scope for PLDI, please check the
+\href{http://conf.researchr.org/track/pldi2015/pldi2015-papers#Call-for-Papers}{call
+  for papers} and if still in doubt, check with the
+\href{mailto:steve.blackburn@anu.edu.au?subject=[PLDI'15]}{program
+  chair}.
+
+\subsection{Concurrent Submissions and Workshops}
+
+By submitting a manuscript to PLDI'15, authors guarantee that they
+are adhering to the
+\href{http://www.sigplan.org/Resources/Policies/Republication/}{SIGPLAN
+  Republication Policy}. Please ensure that you are familiar with it.
+Violation of any of these conditions will lead to rejection.
+As always, if you are in doubt, it is best to contact the
+\href{mailto:steve.blackburn@anu.edu.au?subject=[PLDI'15]}{program
+  chair}.
+
+Finally, we also note that the
+\href{http://www.acm.org/publications/policies/plagiarism_policy}{ACM
+  Plagiarism Policy} covers a range of ethical issues concerning the
+misrepresentation of other works or one's own work.
+
+\section{Early Access in the Digital Library}
+
+The PLDI'15 proceedings may be available on the ACM Digital Library as
+early as May 30, 2015. \textbf{Authors must consider any implications
+  of this early disclosure of their work \emph{before} submitting
+  their papers.}
+
+
+\section{Acknowledgements}
+
+This document is based heavily on ones prepared for previous
+conferences and we thank their program chairs; in particular, Sandhya
+Dwarkadas (ASPLOS'15), Sarita Adve (ASPLOS'14), Steve Keckler
+(ISCA'14), Christos Kozyrakis (Micro'13), Margaret Martonosi
+(ISCA'13), Onur Mutlu (Micro'12), and Michael L. Scott (ASPLOS'12).
+
+
+\bibliographystyle{abbrvnat}
+
+% We recommend that you use BibTeX.  The inlined bibitems below are
+% used to keep this template to a single file.
+\begin{thebibliography}{}
+\softraggedright
+
+\bibitem[Backus et~al.(1960)]{Backus:60}
+J.~W. Backus, F.~L. Bauer, J.~Green, C.~Katz, J.~McCarthy, A.~J. Perlis,
+  H.~Rutishauser, K.~Samelson, B.~Vauquois, J.~H. Wegstein, A.~van Wijngaarden,
+  and M.~Woodger.
+\newblock Report on the algorithmic language ALGOL 60.
+\newblock \emph{Commun. ACM}, 3\penalty0 (5):\penalty0 299--314, May 1960.
+\newblock ISSN 0001-0782.
+\newblock \doi{10.1145/367236.367262}.
+
+\bibitem[Collins(1960)]{Collins:60}
+G.~E. Collins.
+\newblock A method for overlapping and erasure of lists.
+\newblock \emph{Commun. ACM}, 3\penalty0 (12):\penalty0 655--657, December
+  1960.
+\newblock \doi{10.1145/367487.367501}
+
+\bibitem[Lamport(1994)]{Lamport:94}
+L.~Lamport.
+\newblock \emph{{\LaTeX: A Document Preparation System}}.
+\newblock Addison-Wesley, Reading, Massachusetts, 2nd edition, 1994.
+
+\bibitem[McCarthy(1960)]{McCarthy:60}
+J.~McCarthy.
+\newblock Recursive functions of symbolic expressions and their computation by
+  machine, part {I}.
+\newblock \emph{Commun. ACM}, 3\penalty0 (4):\penalty0 184--195, April 1960.
+\newblock \doi{10.1145/367177.367199}
+
+\end{thebibliography}
+
+\end{document}
