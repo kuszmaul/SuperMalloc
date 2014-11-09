@@ -8,6 +8,7 @@ new-malloc-test-hoard
 new-malloc-test-jemalloc
 new-malloc-test-libc
 new-malloc-test-supermalloc_pthread
+new-malloc-test-tbbmalloc
 posix_memalign
 test-malloc_test
 test-malloc_test-dlmalloc

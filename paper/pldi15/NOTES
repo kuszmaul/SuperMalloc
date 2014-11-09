@@ -1,0 +1,17 @@
+tbb: \cite{KukuanovVo07}
+ it's pretty good (it's basically as fast as SuperMalloc)
+ thread-private heap
+ claim: space blowup
+   1) The paper says it never returns space to the OS (for small objects.  Large objects are different)
+   2) The code seems to allocate 16KB at a time into the local pools
+   3) A hacky priority bin ("empty enough blocks" are put into the linked list next to the currently active block so that they can be found quickly)
+   4) When returning a "foreign" block (one that was allocated by a different thread), they put it into a separate list.
+   5) their cross-test sounds similar to malloc-test
+
+note: ReinefeldDoSc13 shows the importance of malloc.
+
+note: BergerMcBl00
+
+Todo: Measure space blowup (Larson might do it...)
+
+Note: Evans06
