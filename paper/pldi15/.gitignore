@@ -1,0 +1,10 @@
+*.aux
+*.log
+*.out
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+pldi15-template.pdf
+supermalloc.pdf
+
