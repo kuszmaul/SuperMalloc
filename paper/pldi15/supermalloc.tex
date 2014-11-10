@@ -2,6 +2,9 @@
 % Requires temporary version of sigplanconf style file provided on
 % PLDI'15 web site.
 
+\def\inlinecode{\code}
+\def\code{\lstinline[basicstyle=\ttfamily]}
+
 \usepackage{supertech}
 \usepackage{SIunits}            % typset units correctly
 \usepackage{courier}            % standard fixed width font
@@ -66,6 +69,164 @@ machine is cheap to use simpler faster data structures.
 
 \secput{intro}{Introduction}
 
+C/C++ dynamic memory allocation functions (\code{malloc(3)} and
+\code{free(3)}) can impact the cost of running applications.  The cost
+can show up in several ways: allocation operations can be slow for
+serial programs, they can fail to scale with the number of cores in a
+multithreaded multicore environment, they can occasionally be slow,
+and they can induce a large memory footprint.  Furthermore, if the
+allocator itself is too complex, it can inhibit improvements.  We can
+divide these problems roughly into three categories: speed, footprint,
+and complexity. 
+
+The rest of this section explores this space in the context of several
+allocators.  The allocators include DLmalloc~\cite{Lea96},
+Hoard~\cite{BergerMcBl00}, JEmalloc~\cite{Evans06},
+TBBmalloc~\cite{KukanovVo07}, and our allocator, SuperMalloc.
+\figref{codesize} shows the code size for the allocators, including
+our allocator, SuperMalloc.
+
+{\paragraph{DLmalloc}} \cite{Lea96} is the default single-threaded
+allocator in Linux.  DLmalloc is relatively simple and has been stable
+for decades.  DLmalloc employs per-object boundary tags (which are due
+to~\cite{Knuth73}).  On a 64-bit machine, each allocated object is
+immediately preceeded by 8 bytes which indicate the size of the object
+(and hence the address of the next object, as well as whether the
+object is allocated or free, and whether the previous object is
+allocated or free.  When the previous object is free, the last 8 bytes
+of that object also indicate the size.  When DLmalloc frees an object,
+it can immediately coaslesce the object with the next object (if it is
+free) since it knows the size of the newly freed object.  If the
+previous object is freed, it can also coalesce the newly freed object
+with the previous one.  The boundary tags can contribute up to a 50\%
+space overhead when allocating small (8-byte) objects.  DLmalloc
+employs a first-fit heuristic, and has no provision for multithreading
+performance beyond using a single lock to protect the entire
+allocation data structure.  For example, DLmalloc has no per-thread
+caching.
+
+DLmalloc has been placed in the public domain.
+
+{\paragraph{Hoard}} \cite{BergerMcBl00} was introduced during the era
+of the first multithreaded allocators.  The Cilk
+allocator~\cite{BlumofeLe94} and the STL allocator of the
+time~\cite{SGI97} provided per-thread allocation, which was very fast
+(no locking was required), but also produced unbounded memory blowups.
+Some allocators, such as PTmalloc~\cite{Gloger06} and
+LKmalloc~\cite{LarsonKr98} exhibit memory blowup bounded by $P$, the
+number of processors.  Hoard provides a provable bound on its space
+blowup.  Hoard organizes objects into \defn{superblocks}, which
+contain objects all the same size size.  Since the objects within a
+superblock are all the same, Hoard does not need boundary tags. 
+
+Hoard uses an \defn{allocate-fullest} heuristic.  Hoard sometimes
+finds itself in a sutation where an object could be allocated out of
+any one of several superblocks.  Hoard allocates the object out of the
+fullest such superblock. By allocating into the fullest superblock,
+Hoard improves the chances that a superblock will completely empty can
+be reused for other purposes.
+
+Hoard is licensed under GPLv2.
+
+\begin{figure}
+\begin{tabular}{lrr}
+Allocator & Bytes        & LoC \\ \hline
+ DLmalloc    \cite{Lea96}        & 221K & 28K \\
+ Hoard       \cite{BergerMcBl00} & 429K & 59K \\
+ JEmalloc    \cite{Evans06}      & 624K & 69K \\
+ TBBmalloc   \cite{KukanovVo07}  & 350K & 36K \\
+ SuperMalloc & 127K & 15K \\
+\end{tabular}
+\caption{Code sizes measured in bytes and in Lines of Code (LoC).
+  Note: TBBmalloc is tough to measure since it's mixed into TBB.}
+\label{fig:codesize}
+\end{figure}
+
+{\paragraph{JEmalloc}} \cite{Evans06} is, in our experience, the best
+allocator now available for production.  JEmalloc ships with BSD and
+Mozilla, as well as with MariaDB in recent Red Hat distriutions.
+JEmalloc strives to minimize footprint in long-running processes such
+as browsers and database servers.  Like Hoard, JEmalloc allocates
+large chunks of memory containing objects all the same size.  
+
+Whereas Hoard uses an allocate-fullest heuristic, JEmalloc uses a
+lowest-address heuristic: Of all the possible objects to allocate,
+JEmalloc allocates the one with the lowest address.  This strategy is
+something akin to a first-fit strategy, except that all the objects
+are the same size.  First fit for fixed-size objects is generally
+pretty good at freeing up entire blocks, but it seems likely that
+fullest-fit is generally better.
+
+JEmalloc uses a thread-local cache, and eventually returns objects
+from the thread-local cache globally accessible memory.  JEmalloc is
+faster than Hoard, and although JEmalloc does not provide any explicit
+bounds on memory blowup, it seems to be the allocator of choice for
+long-running multithreaded processes that need to keep their footprint
+under control.
+
+JEmalloc is licensed under a variant of the modified BSD license.
+
+{\paragraph{TBBmalloc}} \cite{KukanovVo07} is the allocator shipped
+with Intel's Threading Building Blocks (TBB)\@.  TBBmalloc is about as
+fast as SuperMalloc, but has an unbounded space blowup in theory and
+in practice.  TBB use a thread-private heap, and never returns space
+for small objects to the operating system.  TBBmalloc always allocates
+out of a per-thread pool with no locking.  If the same thread returns
+the object as allocated it, then no locking is needed, otherwise the
+object is being returned to a \defn{foreign} block, and requires
+lightweight synchronization to place the object into a linked list
+that will be dealt with the next time the owner of the foreign block
+tries to allocate.  Like JEmalloc and Hoard, TBBmalloc uses
+superblocks each containing objects of homogeneous size.
+
+TBBmalloc is licensed under GPLv2.
+
+--------------
+
+The others allocate large aligned chunks which contain objects that
+are all the same size, and provide per-thread caches.
+
+
+{\paragraph{Speed:}} A poor allocator can be slow even on serial
+applications, and the situation can get far worse on multithreaded
+codes where the allocator can become a serial bottleneck.  On a
+multicore with a multithreaded workload the speed difference between
+the default allocator in Linux \cite{Lea96} and a state-of-the-art
+allocator such as JEmalloc~\cite{Evans06} can be more than a factor of
+30.  If the cost of allocation varies significantly it can be
+difficult to meet the soft real-time constraints of a server.  We have
+seen reports of \code{malloc()} causing a 3~second pause about once
+per day on a database server, which would be too slow for a
+social-networking site.  It was this 3~second pause that led us to
+investigate how to achieve the performance of JEmalloc with less
+variance.
+
+{\paragraph{Footprint:}} The \defn{memory footprint} of an
+application, the amount of physical memory that the application
+consumes while running, can also vary by more than an order of
+magnitude --- even a factor of two can be too much on something like a
+database server where memory is used as a cache for disk, and an
+increased footprint results in either a reduced effective cache size
+or excessive I/Os due to paging.  Both JEmalloc~\cite{Evans06} and Hoard~\cite{BergerMcBl00} 
+
+{\paragraph{Complexity:}} A simple memory allocator can operate using
+only a few hundred lines of code \cite{KernighanRi88}.  Since
+allocator performance is so complex, however, most allocators have
+been tuned to run faster at the cost of increased complexity.  
+
+
+
+only Even relatively simple allocators such as the
+
+SuperMalloc is an implementation of \texttt{malloc(3)} originally designed for
+x86 Hardware Transactional Memory (HTM).  
+It turns out that the same
+design also makes it fast even without HTM.  
+
+On high-threadcount
+workloads on Sandy Bridge (non-HTM) hardware, SuperMalloc outperforms
+the competition by about a factor of 3.5.
+
 % DLmalloc:    221K chars, 28K lines
 % Hoard:       429K chars, 59K lines
 % JEmalloc:    624K chars, 69K lines
@@ -78,31 +239,13 @@ machine is cheap to use simpler faster data structures.
 * Allocators use trees, buddy systems: supermalloc doesn't.
 * Work for HTM and locks.
 
-SuperMalloc is an implementation of \texttt{malloc(3)} designed for
-x86 Hardware Transactional Memory (HTM).  It turns out that the same
-design also makes it fast even without HTM.  On high-threadcount
-workloads on Sandy Bridge (non-HTM) hardware, SuperMalloc outperforms
-the competition by about a factor of 3.5.
 
 Notes: 
 \begin{itemize}
 \item \cite{ReinefeldDoSc13} shows the importance of malloc.
 \item \cite{Dementiev09} shows what?
-\item \cite{KukanovVo07}
- it's pretty good (it's basically as fast as SuperMalloc)
- thread-private heap
- I claim: space blowup
-
- Some notes:
- \begin{itemize}
-   \item The paper says it never returns space to the OS (for small objects.  Large objects are different)
-   \item The code seems to allocate 16KB at a time into the local pools
-   \item A hacky priority bin ("empty enough blocks" are put into the linked list next to the currently active block so that they can be found quickly)
-   \item When returning a "foreign" block (one that was allocated by a different thread), they put it into a separate list.
-   \item their cross-test sounds similar to malloc-test
- \end{itemize}
-\item \cite{Vyukov08} TBB can have unbounded space blowup.
-
+\item \cite{KukanovVo07} their cross-test sounds similar to malloc-test
+\item \cite{Vyukov08} 
 \item \cite{DetlefsDoZo94} Benchmarks include gs running on a 126-page manual.
 \item \cite{HudsonSaAd06}
 \item \cite{Michael04} shows a lock-free mallocator based on Hoard, with some interesting benchmarks: Linux-scalability, threadtest, larson and a producer-consumer test.
@@ -118,14 +261,7 @@ Notes:
 \end{itemize}
 
 
-{\bf Background:} DLmalloc~\cite{Lea96} is the single-threaded
-allocator shipped with Linux.  It is simple and has been stable for
-decades.  Hoard~\cite{BergerMcBl00} was an early multithreaded
-allocators, and provided provable bounds on its space blowup.  In my
-experience, JEmalloc~\cite{Evans06} is the best allocator out there.
-JEmalloc is ships with BSD and Mozilla.  JEmalloc strives to minimize
-footprint in long-running processes such as browsers and database
-servers.
+{\bf Background:}   
 
 {\bf Performance:} \figref{data} compares the performance of
 SuperMalloc against DLmalloc, Hoard, and JEmalloc on the malloc-test
@@ -137,11 +273,7 @@ multithreaded allocators that employ per-thread caching, since the
 per-thread caches can quickly become unbalanced.
 
 
-{\bf How they work:} DLmalloc~\cite{Lea96} employs boundary tags for
-each object, which contributes to space overhead for small objects,
-and uses a first-fit heuristic.  DLmalloc has no per-thread caching.
-The others allocate large aligned chunks which contain objects that
-are all the same size, and provide per-thread caches.
+{\bf How they work:} 
 
 The chunk-based allocators each maintain a table which, given a chunk,
 provides the size of that chunk's objects.  One SuperMalloc innovation
@@ -217,4 +349,4 @@ I will soon release SuperMalloc under an open-source license.
 
 %%  LocalWords:  SuperMalloc Transactional threadcount multithreaded
 %%  LocalWords:  allocator allocators JEmalloc HTM DLmalloc malloc ns
-%%  LocalWords:  uncontended
+%%  LocalWords:  uncontended superblocks TBB TBBmalloc GPLv
