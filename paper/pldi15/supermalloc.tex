@@ -31,12 +31,44 @@
 
 \begin{document}
 \special{papersize=8.5in,11in}% Still need this even with letterpaper
-\title{SuperMalloc: A Super Fast Multithreaded \texttt{malloc()} for HTM}
+\title{SuperMalloc: A Super Fast Multithreaded \texttt{malloc()} for 64-bit Machines}
 %\author{Bradley C. Kuszmaul \hspace{0.2in} \texttt{bradley@mit.edu}}
 \date{}
-\vskip -2em
 \maketitle
-\vskip -1.5em
+\begin{abstract}
+SuperMalloc is an implementation of \texttt{malloc(3)} originally
+designed for x86 Hardware Transactional Memory (HTM).  It turns out
+that the same design decisions also make it fast even without HTM\@.  We
+compared SuperMalloc to DLmalloc, JEmalloc, Hoard, and TBBmalloc,
+measuring speed, scalability, speed variance, memory footprint, and
+code size.  On every benchmark we tried, by every measure, SuperMalloc
+performs at least as well, and sometimes signficantly better, than the
+others.  The fastest alternative to SuperMalloc is TBBmalloc, which is
+about the same speed as SuperMalloc, but TBBmalloc suffers from huge
+memory footprints on some workloads.  (JEmalloc is about 3.5 times
+slower than SuperMalloc or TBBmalloc on a multithread-stress benchmark
+such as malloc-test. Hoard is half as fast as JEmalloc. DLmalloc is an
+order of magnitude slower than Hoard.)
+
+For footprint on server benchmarks such as Larson, SuperMalloc is the
+smallest.  Hoard is about 30\% larger, and DLmalloc and JEmalloc are
+often twice as large.  TBBmalloc appears to have an unbounded
+footprint --- we often saw an footprints an order of magnitude larger
+than SuperMalloc.
+
+SuperMalloc achieves these performance advantages using half as much
+code as the alternatives.  SuperMalloc exploits the fact that although
+physical memory is always precious, virtual address space on a 64-bit
+machine is cheap to use simpler faster data structures.
+\end{abstract}
+
+% DLmalloc:    221K chars, 28K lines
+% Hoard:       429K chars, 59K lines
+% JEmalloc:    624K chars, 69K lines
+% Tbbmalloc:   350K chars, 36K lines (tough to measure since it's mixed into TBB)
+% SuperMalloc: 127K chars, 15K lines
+
+
 
 * Tradeoff: Code size and complexity, speed, footprint, variability.  Supermalloc appears to disprove this tradeoff.
 * Allocators use trees, buddy systems: supermalloc doesn't.
