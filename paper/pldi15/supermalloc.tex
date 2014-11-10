@@ -50,11 +50,12 @@ slower than SuperMalloc or TBBmalloc on a multithread-stress benchmark
 such as malloc-test. Hoard is half as fast as JEmalloc. DLmalloc is an
 order of magnitude slower than Hoard.)
 
-For footprint on server benchmarks such as Larson, SuperMalloc is the
-smallest.  Hoard is about 30\% larger, and DLmalloc and JEmalloc are
-often twice as large.  TBBmalloc appears to have an unbounded
-footprint --- we often saw an footprints an order of magnitude larger
-than SuperMalloc.
+SuperMalloc's footprint is the smallest.  For some workloads, Hoard is
+about 30\% larger, and DLmalloc and JEmalloc are often twice as large.
+TBBmalloc appears to have an unbounded footprint --- we often saw an
+footprints an order of magnitude larger than SuperMalloc.  None of the
+widely-used benchmarks consistently stressed the footprint created by
+a multithreaded workload, so we created one.
 
 SuperMalloc achieves these performance advantages using half as much
 code as the alternatives.  SuperMalloc exploits the fact that although
