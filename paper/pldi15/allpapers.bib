@@ -334,6 +334,16 @@
 	Bdsk-Url-1 = {http://doi.acm.org/10.1145/166955.166974},
 	Bdsk-Url-2 = {http://dx.doi.org/10.1145/166955.166974}}
 
+
+
+@InProceedings{MagenheimerPePe87
+ ,author       = {Daniel J. Magenheimer and Liz Peters and Karl Pettis and Dan Zuras}
+ ,title	       = {Integer multiplication and division on the HP precision architecture}
+ ,doi          = {10.1145/36206.36189}
+ ,crossref     = {ASPLOS87}
+ ,pages	       = {90--99}
+ }
+
 @article{MattsonGeSl70,
 	Author = {Mattson, R.L. and Gecsei, J. and Slutz, D.R. and Traiger, I.L.},
 	Issn = {0018-8670},
@@ -417,6 +427,18 @@
 	Volume = {28},
 	Year = {1995},
 	Bdsk-Url-1 = {http://dx.doi.org/10.1109/2.471178}}
+
+ . B. Lvin, G. Novark, E. D. Berger, and B. G. Zorn. Archipelago:
+trading address space for reliability and security. SIGOPS Oper. Syst.
+Rev., 42(2):115–124, 2008.
+[27] M. M. Michael. Scalable Loc
+
+@InProceedings{LvinNoBe08
+ ,author       = {Vitaliy B. Lvin and Gene Novark and Emery D. Berger and Benjamin G. Zorn}
+ ,title	       = {Archipelago: Trading Address Space for Reliability and Security}
+ ,crossref     = {ASPLOS08}
+ ,pages	       = {115-124}
+ }
 
 @article{Lusk93,
 	Author = {Lusk, Ewing},
@@ -1101,6 +1123,13 @@
 	Year = 1995,
 	Bdsk-Url-1 = {http://doi.acm.org/10.1145/225058.225271}}
 
+@InProceedings{AfekDiMo11
+ ,author       = {Yehuda Afek and Dave Dice and Adam Morrison}
+ ,title	       = {Cache Index-Aware Memory Allocation}
+ ,crossref     = {ISSM11}
+ ,doi          = {10.1145/2076022.1993486}
+ ,pages	       = {55-64}
+ }
 @article{Agarwal92,
 	Author = {Anant Agarwal},
 	Journal = {IEEE Transactions on Parallel and Distributed Systems},
@@ -11503,29 +11532,6 @@
 	Note = {Thesis in progress},
 	Title = {A Lock-Free Implementation of the Work-Stealing Algorithm}}
 
-@proceedings{ASPLOS02-short,
-	Address = {San Jose, California},
-	Booktitle = {ASPLOS-X},
-	Month = oct # { 5--9},
-	Year = 2002}
-
-@proceedings{ASPLOS02,
-	Address = {San Jose, California},
-	Booktitle = {Proceedings of the 10th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS-X)},
-	Isbn = {1-58113-574-2},
-	Month = oct # { 5--9},
-	Publisher = {ACM Press},
-	Year = 2002}
-
-@proceedings{ASPLOS91,
-	Address = {Santa Clara, California},
-	Booktitle = {Proceedings of the 4th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS-IV)},
-	Isbn = {0-89791-380-9},
-	Month = apr # {~8--11},
-	Note = {Proceedings published as SIGARCH Computer Architecture News, Volume~19, Number~2, April 1991. SIGOPS Operating Systems Review, Volume~25, Special Issue, April 1991. SIGPLAN Sigplan Notices, Volume~26, Number~4, April 1991},
-	Publisher = {ACM Press},
-	Year = 1991}
-
 @misc{Barnes95,
 	Author = {Joshua E. Barnes},
 	Note = {Available on the Internet from {\ttfamily ftp://\linebreak[0]hubble.\linebreak[0]ifa.\linebreak[0]hawaii.\linebreak[0]edu/\linebreak[0]pub/\linebreak[0]barnes/\linebreak[0]treecode/}},
@@ -11704,6 +11710,41 @@
  ,pages	       = {489--506}
  ,annote       = {Apparently the origin of "Wilderness area" for allocators.  Cited by Vo's Concrete Libraries in the DIMACS Workshop on External Memory, Abellow and Vitter eds.} 
  }
+
+@conference{ASPLOS87,
+	Address = {Palo Alto, California},
+	Booktitle = {Proceedings of the 2nd International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS-II)},
+	Month = OCT # {~5--8},
+	Year = 1987}
+
+@conference{ASPLOS91,
+	Address = {Santa Clara, California},
+	Booktitle = {Proceedings of the 4th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS-IV)},
+	Isbn = {0-89791-380-9},
+	Month = apr # {~8--11},
+	Note = {Proceedings published as SIGARCH Computer Architecture News, Volume~19, Number~2, April 1991. SIGOPS Operating Systems Review, Volume~25, Special Issue, April 1991. SIGPLAN Sigplan Notices, Volume~26, Number~4, April 1991},
+	Publisher = {ACM Press},
+	Year = 1991}
+
+@conference{ASPLOS02-short,
+	Address = {San Jose, California},
+	Booktitle = {ASPLOS-X},
+	Month = oct # { 5--9},
+	Year = 2002}
+
+@conference{ASPLOS02,
+	Address = {San Jose, California},
+	Booktitle = {Proceedings of the 10th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS-X)},
+	Isbn = {1-58113-574-2},
+	Month = oct # { 5--9},
+	Publisher = {ACM Press},
+	Year = 2002}
+
+@conference{ASPLOS08,
+	Address = {Seattle, WA},
+	Booktitle = {Proceedings of the 13th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS-XIII)},
+	Month = MAR # {~1--5},
+	Year = 2008}
 
 @conference{FOCS33,
 	Address = {Pittsburgh, Pennsylvania},
@@ -14036,6 +14077,25 @@ PAGES = {53-62},
 	Title = {Brief Announcement: Persistent Unfairness Arising from Cache Residency Imbalance},
 	Bdsk-Url-1 = {http://dx.doi.org/10.1145/2612669.2612703}}
 
+
+
+@Misc{Dice14a
+ ,author       = {Dave Dice}
+ ,title	       = {\code{malloc} for Haswell --- Hardware Transactional Memory}
+ ,howpublished = {David Dice's Weblog}
+ ,url          = {https://blogs.oracle.com/dave/entry/malloc_for_haswell_hardware_transactional}
+ ,year	       = 2014
+ ,month	       = APR # {~24}
+ }
+
+@Misc{Dice14b
+ ,author       = {Dave Dice}
+ ,annote       = {Solaris 12 includes index-aware changes for most of their allocators}
+ ,howpublished = {Private Communication}
+ ,year	       = 2014
+ ,month	       = SEP # {~14}
+ }
+
 @inproceedings{Solar-Lezama:2006:CSF:1168857.1168907,
 	Acmid = {1168907},
 	Address = {New York, NY, USA},
@@ -15047,6 +15107,15 @@ pages={1-2},
 	address     = {Ottawa, Canada},
  	month	       = JUN
 }
+
+@conference{ISSM11,
+	booktitle    = {Proceedings International Symposium on Memory Managment (ISMM)},
+	year	     = 2011,
+	address      = {San Jose, California},
+ 	month	     = JUN
+}
+
+
 
 @proceedings{PLDI03,
 	Address = {San Diego, California},

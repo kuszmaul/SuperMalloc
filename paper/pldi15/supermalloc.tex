@@ -2,8 +2,9 @@
 % Requires temporary version of sigplanconf style file provided on
 % PLDI'15 web site.
 
-\def\inlinecode{\code}
-\def\code{\lstinline[basicstyle=\ttfamily]}
+%\def\inlinecode{\code}
+%\def\code{\lstinline[basicstyle=\ttfamily]}
+\newcommand{\code}[1]{\mintinline{c}{#1}}
 
 \usepackage{supertech}
 \usepackage{SIunits}            % typset units correctly
@@ -274,23 +275,6 @@ pages physical memory for the chunk table.  This is another instance
 of the design principle for 64-bit software that ``it is OK to waste
 some virtual address space.''
 
-SuperMalloc does divide chunks into smaller pieces for the purposes of
-implementing a fullest-fit heuristic.  It would be natural to divide a
-chunk up into pages, since the operating system can uncommit at page
-granularity.  In SuperMalloc, for some size bins, we use larger pages,
-called \defn{folios}, to avoid internal fragmentation induced by the
-odd object sizes.  For example, one of the size bins contains 832-byte
-objects (13 cache lines).  If we allocated the objects on a per-page
-basis, we would be able to fit 4 objects into a page wasting 768 bytes
-at the end.  Rather than wasting those bytes, we allocate objects out
-of a folio containing 13 pages (53,248 bytes): When we allocate a
-832-byte object, we find the fullest 13-page folio that has a free
-slot, and allocate that slot.  There is still fragmentation at the end
-of the 2~MiB chunk (5 unused pages in this case), but that
-fragmentation comprises whole pages which are never touched and remain
-uncommited.  Once again, we do not mind wasting a little virtual
-address space.
-
 {\paragraph{Small objects:}} Small objects are as small as 8 bytes,
 and increase in size by at most 25\% to limit internal fragmentation.
 Small objects are regularly spaced: the sizes are $8, 10, 12, 14, 16,
@@ -348,17 +332,141 @@ threads on different cache lines.  As explained below, we take a
 different tack on avoiding false sharing, focusing on objects that are
 larger than a cache line.
 
-
 We reserve the first few pages of each 2~MiB chunk for bookkeeping.
 The bookkeeping comprises a bitmap of the free objects and a heap-like
 data structure for implementing the fullest-fit
 heuristic. \cnote{red}{Explain how we implement fullest fit}{bck}
 
 
-{\paragraph{Medium objects:}} Medium objects are all sized to be a
-multiple of a cache line, and range up to
+{\paragraph{Medium objects:}} Medium objects are all sized be a
+multiple of 64 (the cache line size).  The smallest is 256 bytes, and
+the largest is 14272 bytes.  The sizes we chose include powers of two
+and prime multiples of cache lines.  The powers of two ($256$, $512$,
+$1024$, $2048$, $4096$, $8192$) are used only when the application
+explicitly asks for aligned data.  The prime multiples of cache lines
+are used for all other requests to reduce the contention in the
+low-associativity processor caches. For example, recent Intel
+processors provide 8-way associative level~1 cache.  Following the
+lead of \cite{AfekDiMo11}, which propose \defn{punctuated arrays} to
+reduce associativity conflicts, we wanted to avoid aligning objects
+into the same cache associativity set. (Apparently punctuated arrays
+are appearing in most of the Solaris~12 allocators \cite{Dice14b}.)
+We, however, took the more ``radical'' approach mentioned by
+\cite{Dice14a} of making all the size classes a prime multiple of the
+cache line, which not only reduces conflicts within a class size but
+reduces inter-size cache-index conflicts.
+
+One aspect that becomes relatively more important for medium objects
+than small objects is what happens when the page size is not a
+multiple of the object size.  Consider for example the 832-byte size
+bin (832 bytes corresponds to 13 cache lines).  If we fill up a
+4096-byte page with these objects, we would be able to fit 4 objects
+into a page wasting 768 bytes at the end.  
+
+Supermalloc avoids this internal fragmentation by using larger logical
+pages, called \defn{folios} for allocation bookkeeping.  For example,
+in the 832-byte bin, rather than wasting those 768 bytes, we allocate
+objects out of a folio containing 13 pages (53,248 bytes). When we
+allocate an 832-byte object, we find the fullest 13-page folio (among
+all 832-byte folios in the system) that has a free slot, and allocate
+that slot.  When a folio becomes empty, we uncommit the entire folio,
+rather than trying to uncommit individual pages of a folio.  There is
+still fragmentation at the end of the 2~MiB chunk (5 unused pages in
+this case), but that fragmentation comprises whole pages which are
+never touched and remain uncommited.  Once again, we do not mind
+wasting a little virtual address space.
+
+Except for the way their sizes are chosen, medium and small objects
+are managed exactly the same way (with folios and the fullest-fit
+heuristic, for example) by exactly the same code.
+
+{\paragraph{Large objects:}} Large objects start at 16KiB (4 pages)
+and go up to half a chunk size.  Large objects are all a multiple of a
+page size, and the code is a little bit simpler than for small and
+medium objects, since it mostly does not matter which large object is
+returned by \code{\malloc()}; When a large object is freed its pages
+can be uncommitted, so we don't need to keep track of anything for a fullest-fit heuristic.
+
+In order to avoid associativity issues, we add random number of cache
+lines, up to a page's worth, to the allocation, and adjust the
+returned pointer by that random number.  For example when asked to
+allocate $20,000$ bytes we pick a random number from 0 to 63 and add
+that many cache lines to the request.  If, for example, we picked 31
+for the random number, we would allocate $22,048 = 20,000+31\cdot64$
+bytes.  That would be allocated out of bin~40, which contains $32$KiB
+objects.  Instead of returning a pointer to the beginning of the
+$32$KiB object, we return the pointer plus $2048$ bytes.  This
+strategy wastes at most an extra page per object, and since we use
+this strategy only on objects that are $4$ pages or larger, it can
+result in at most $25$\% internal fragmentation (which matches the
+fragmentation we were willing to tolerate for the small objects).  If
+the application explicitly asks for a page-aligned allocation, we skip
+the random rigamarole.  Adding a random-offset to what would otherwise
+be a page-aligned allocation appeared in \cite{LvinNoBe08} for a
+page-per-object allocator, and is applied in a more systematic fashion
+by \cite{AfekDiMo11}.
+
+This approach introduces one big gap between $7$~and $11$~cache lines
+introducing internal fragmentation of up to 57\% for an allocation of
+449 bytes, and slightly smaller gap between 13 cache lines and 17
+cache lines ($31$\% fragmentation for 833-byte allocations).  To close
+these gap, we plan to add two more bins at 9 cache lines and 15 cache
+lines, with the rationale that a little bit of inter-size
+associativity conflict is better than internal fragmentation.  (We
+haven't yet made this change, but it should not affect any of the
+performance results shown below.)
+
+{\paragraph{Arithmetic:}} One common operation in SuperMalloc is to
+calculate indexes in a bitmap.  For example, given a pointer $p$, we
+must perform calculation in \figref{bitindex}(a) to calculate which folio
+and which object in the folio $p$ refers to.
+
+\begin{figure*}
+\begin{minted}[mathescape,linenos,xleftmargin=1cm]{c}
+C = p / chunksize;          // Compute chunk number.
+B = chunkinfos[C];          // What is the bin?
+FS = foliosizes[B];         // What is the folio size?
+FN = (p%chunksize)/FS;      // Which folio in the chunk?$\label{li:FN}$
+OS = objectsizes[B];        // How big are the objects?
+ON = ((p%chunksize)%FS)/OS; // Which object number in the folio?$\label{li:ON}$
+\end{minted}
+\begin{center}
+(a)
+\end{center}
+\begin{minted}[mathescape,linenos,xleftmargin=1cm]{c}
+C = p / chunksize;
+B = chunkinfos[C];
+FS = foliosizes[B];
+FN = ((p%chunksize)*magic0[B]) >> magic1[B];       // magic
+OS = objectsizes[B];
+ON = ((p%chunksize-FN*FS)*magic2[B]) >> magic3[B]; // magic
+\end{minted}
+\begin{center}
+(b)
+\end{center}
+\caption{The calculation to compute the folio number in the chunk,
+  \code{FN}, and the object number in the folio \code{ON}, so that the
+  bitmap for the free objects in the folio can be updated.  (a) shows
+  the code with expensive divisions in \lireftwo{FN}{ON}.  (b) shows
+  the code with the divisions replaced by multiplication and shift.}
+\label{fig:bitindex}
+\end{figure*}
 
 
+Since the chunk size is a power of two, computing the chunk number is
+easy.  Computing the folio number requires dividing by the folio size,
+which isn't a power of two, and isn't known at compile time, however.
+Division is slow, so we follow the approach of
+\cite{MagenheimerPePe87} to convert division to multiplication and
+shift.  For example, for 32-bit values of \code{c}, we have
+\mintinline{c}{x / 320 == (x*6871947674lu)>>41}.  \figref{bitindex}(b)
+shows the faster code.  We use metaprogramming to generate all the
+object sizes (e.g., to find prime numbers that are spaced no more than
+25\% apart, and to calculate the multiplication and shift constants to
+implement division.).
+
+
+\paragraph{Thread and Processor Caching:}
 
 A second innovation is to employ a per-CPU cache, in addition to a
 per-thread cache.  The cost of locking and accessing a shared data
@@ -378,7 +486,7 @@ their per-thread caches (and because there are many per-thread caches,
 their footprint is larger.)  Thus, a second design principle is
 ``uncontended locking is not so bad''.
 
-Prime numbers.  Division.
+
 
 --------------
 
@@ -528,4 +636,4 @@ I will soon release SuperMalloc under an open-source license.
 %%  LocalWords:  superblock PTmalloc Cilk multithreading multicore
 %%  LocalWords:  metadata unallocated uncommit madvise scalability
 %%  LocalWords:  SuperMalloc's codesize mmap STL supermalloc
-%%  LocalWords:  uncommited
+%%  LocalWords:  uncommited associativity rigamarole metaprogramming
