@@ -41,12 +41,12 @@
 \maketitle
 \begin{abstract}
 SuperMalloc is an implementation of \texttt{malloc(3)} originally
-designed for x86 Hardware Transactional Memory (HTM)\@.  It turns out
+designed for X86 Hardware Transactional Memory (HTM)\@.  It turns out
 that the same design decisions also make it fast even without HTM\@.
 We compared SuperMalloc to DLmalloc, JEmalloc, Hoard, and TBBmalloc,
 measuring speed, scalability, speed variance, memory footprint, and
 code size.  On every benchmark we tried, by every measure, SuperMalloc
-performs at least as well, and sometimes signficantly better, than the
+performs at least as well, and sometimes significantly better, than the
 others.  The fastest alternative to SuperMalloc is TBBmalloc (which is
 about the same speed as SuperMalloc) but TBBmalloc suffers from huge
 memory footprints on some workloads.  JEmalloc is about 3.5 times
@@ -95,7 +95,9 @@ application actually touches the virtual addresses, a page fault
 occurs, and the operating system allocates physical memory.  A page of
 virtual memory that has physical memory associated with it is called a
 \defn{committed} page, whereas if no physical memory is allocated, the
-page is \defn{uncommitted}. 
+page is \defn{uncommitted}.  An application or library can use
+\code{madvise()} to uncommit a committed page, returning the
+underlying physical memory back to the operating system.
 
 {\paragraph{DLmalloc}} \cite{Lea96} is the default single-threaded
 allocator in Linux.  DLmalloc is relatively simple and has been stable
@@ -119,7 +121,7 @@ caching.
 DLmalloc has been placed in the public domain.
 
 {\paragraph{Hoard}} \cite{BergerMcBl00} was introduced during the era
-of the first multithreaded allocators.  The Cilk
+of the first multithreaded allocators.  The original Cilk
 allocator~\cite{BlumofeLe94} and the STL allocator of the
 time~\cite{SGI97} provided per-thread allocation, which was very fast
 (no locking was required), but also produced unbounded memory blowups.
@@ -221,8 +223,8 @@ TBBmalloc), SuperMalloc allocates large chunks of homogeneous-sized
 objects for small objects, and uses operating-system-provided memory
 mapping for larger objects.  SuperMalloc's chunks are multiples of
 $2$~MiB, and are $2$~MiB-aligned, which corresponds to huge pages on
-x86.  In operating systems that support huge-page page tables, chunks
-align properly with the paging.  For objects that are significantly
+x86.  In operating systems that support huge-pages, chunks align
+properly with the paging system.  For objects that are significantly
 less than $1$~MiB, SuperMalloc carves chunks into small pieces.  For
 larger objects, the allocation is backed by one or more contiguous
 chunks.
@@ -271,6 +273,23 @@ system employs a lazy commit strategy, we typically need only a few of
 pages physical memory for the chunk table.  This is another instance
 of the design principle for 64-bit software that ``it is OK to waste
 some virtual address space.''
+
+SuperMalloc does divide chunks into smaller pieces for the purposes of
+implementing a fullest-fit heuristic.  It would be natural to divide a
+chunk up into pages, since the operating system can uncommit at page
+granularity.  In SuperMalloc, for some size bins, we use larger pages,
+called \defn{folios}, to avoid internal fragmentation induced by the
+odd object sizes.  For example, one of the size bins contains 832-byte
+objects (13 cache lines).  If we allocated the objects on a per-page
+basis, we would be able to fit 4 objects into a page wasting 768 bytes
+at the end.  Rather than wasting those bytes, we allocate objects out
+of a folio containing 13 pages (53,248 bytes): When we allocate a
+832-byte object, we find the fullest 13-page folio that has a free
+slot, and allocate that slot.  There is still fragmentation at the end
+of the 2~MiB chunk (5 unused pages in this case), but that
+fragmentation comprises whole pages which are never touched and remain
+uncommited.  Once again, we do not mind wasting a little virtual
+address space.
 
 {\paragraph{Small objects:}} Small objects are as small as 8 bytes,
 and increase in size by at most 25\% to limit internal fragmentation.
@@ -330,9 +349,11 @@ different tack on avoiding false sharing, focusing on objects that are
 larger than a cache line.
 
 
-
 We reserve the first few pages of each 2~MiB chunk for bookkeeping.
-The bookkeeping comprises a bitmap
+The bookkeeping comprises a bitmap of the free objects and a heap-like
+data structure for implementing the fullest-fit
+heuristic. \cnote{red}{Explain how we implement fullest fit}{bck}
+
 
 {\paragraph{Medium objects:}} Medium objects are all sized to be a
 multiple of a cache line, and range up to
@@ -480,6 +501,8 @@ per-thread caches can quickly become unbalanced.
 
 SuperMalloc, like Hoard, allocates objects out of the fullest possible page in order to reduce memory footprint.
 
+madv\_dontneed (and other wishlists from the talk)
+
 I will soon release SuperMalloc under an open-source license.
 
 {\raggedright
@@ -503,4 +526,6 @@ I will soon release SuperMalloc under an open-source license.
 %%  LocalWords:  allocator allocators JEmalloc HTM DLmalloc malloc ns
 %%  LocalWords:  uncontended superblocks TBB TBBmalloc GPLv LKmalloc
 %%  LocalWords:  superblock PTmalloc Cilk multithreading multicore
-%%  LocalWords:  metadata unallocated
+%%  LocalWords:  metadata unallocated uncommit madvise scalability
+%%  LocalWords:  SuperMalloc's codesize mmap STL supermalloc
+%%  LocalWords:  uncommited
