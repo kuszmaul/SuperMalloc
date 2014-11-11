@@ -86,16 +86,27 @@ TBBmalloc~\cite{KukanovVo07}, and our allocator, SuperMalloc.
 \figref{codesize} shows the code size for the allocators, including
 our allocator, SuperMalloc.
 
+Many modern allocators take advantage of the fact that the operating
+system allocates memory in two steps corresponding to virtual
+allocation and physical allocation: First a system call such as
+\code{mmap()} allocates a contiguous range of virtual addresses.  At
+this point, no physical memory has been allocated.  Later, when the
+application actually touches the virtual addresses, a page fault
+occurs, and the operating system allocates physical memory.  A page of
+virtual memory that has physical memory associated with it is called a
+\defn{committed} page, whereas if no physical memory is allocated, the
+page is \defn{uncommitted}. 
+
 {\paragraph{DLmalloc}} \cite{Lea96} is the default single-threaded
 allocator in Linux.  DLmalloc is relatively simple and has been stable
 for decades.  DLmalloc employs per-object boundary tags (which are due
 to~\cite{Knuth73}).  On a 64-bit machine, each allocated object is
-immediately preceeded by 8 bytes which indicate the size of the object
+immediately preceded by 8 bytes which indicate the size of the object
 (and hence the address of the next object, as well as whether the
 object is allocated or free, and whether the previous object is
 allocated or free.  When the previous object is free, the last 8 bytes
 of that object also indicate the size.  When DLmalloc frees an object,
-it can immediately coaslesce the object with the next object (if it is
+it can immediately coalesce the object with the next object (if it is
 free) since it knows the size of the newly freed object.  If the
 previous object is freed, it can also coalesce the newly freed object
 with the previous one.  The boundary tags can contribute up to a 50\%
@@ -115,13 +126,17 @@ time~\cite{SGI97} provided per-thread allocation, which was very fast
 Some allocators, such as PTmalloc~\cite{Gloger06} and
 LKmalloc~\cite{LarsonKr98} exhibit memory blowup bounded by $P$, the
 number of processors.  Hoard provides a provable bound on its space
-blowup.  Hoard organizes small objects into \defn{superblocks}, which
-contain objects all the same size size.  (Large objects are dealt with
-using heavier-weight mechanisms).  Since the objects within a
-superblock are all the same, Hoard does not need boundary tags.
+blowup.  Hoard organizes small objects into \defn{chunks}, which
+contain objects all the same size.\footnote{Chunks are called
+  ``superblocks'' in \cite{BergerMcBl00}.  They are called ``chunks''
+  in \cite{Evans06} and \cite{KukanovVo07}.}  (Large objects are dealt
+with using heavier-weight mechanisms).  Hoard puts metadata at the
+beginning of each superblock indicating the size of the objects in the
+superblock.  Since the objects within a superblock are all the same,
+Hoard does not need boundary tags.
 
 Hoard uses an \defn{allocate-fullest} heuristic.  Hoard sometimes
-finds itself in a sutation where an object could be allocated out of
+finds itself in a situation where an object could be allocated out of
 any one of several superblocks.  Hoard allocates the object out of the
 fullest such superblock. By allocating into the fullest superblock,
 Hoard improves the chances that a superblock will completely empty can
@@ -147,7 +162,7 @@ Allocator & Bytes        & LoC \\ \hline
 
 {\paragraph{JEmalloc}} \cite{Evans06} is, in our experience, the best
 allocator now available for production.  JEmalloc ships with BSD and
-Mozilla, as well as with MariaDB in recent Red Hat distriutions.
+Mozilla, as well as with MariaDB in recent Red Hat distributions.
 JEmalloc strives to minimize footprint in long-running processes such
 as browsers and database servers.  Like Hoard, JEmalloc allocates
 large chunks of memory containing objects all the same size.  
@@ -167,6 +182,17 @@ bounds on memory blowup, it seems to be the allocator of choice for
 long-running multithreaded processes that need to keep their footprint
 under control.
 
+JEmalloc uses three size categories: small, large, and huge, and
+implements them differently. For small and large objects, JEmalloc
+carves a chunk into page runs using a buddy algorithm, and maintains
+metadata at the beginning of the chunk.  By storing metadata at the
+beginning of the chunk, the pages themselves can remain untouched, and
+uncommitted.
+
+JEmalloc directly maps huge objects \code{mmap()}.  Huge objects are
+chunk-aligned.  JEmalloc maintains a red-black tree mapping huge chunk
+addresses to metadata.
+
 JEmalloc is licensed under a variant of the modified BSD license.
 
 {\paragraph{TBBmalloc}} \cite{KukanovVo07} is the allocator shipped
@@ -179,8 +205,9 @@ the object as allocated it, then no locking is needed, otherwise the
 object is being returned to a \defn{foreign} block, and requires
 lightweight synchronization to place the object into a linked list
 that will be dealt with the next time the owner of the foreign block
-tries to allocate.  Like JEmalloc and Hoard, TBBmalloc uses
-superblocks each containing objects of homogeneous size.
+tries to allocate.  Like JEmalloc and Hoard, TBBmalloc uses chunks
+each containing objects of homogeneous size, and places metadata at
+the beginning of each chunk.
 
 TBBmalloc is licensed under GPLv2.
 
@@ -189,26 +216,72 @@ TBBmalloc is licensed under GPLv2.
 \secref{intro} reviewed the competition, and this section explains how
 SuperMalloc works.   
 
-Like Hoard and JEmalloc, SuperMalloc allocates large chunks of
-homogeneous-sized objects for small objects, and uses
-operating-system-provided memory mapping for larger objects.
-SuperMalloc's chunks are multiples of $2$~MiB, and are
-$2$~MiB-aligned, which corresponds to huge pages on x86.  In operating
-systems that support huge-page page tables, chunks align properly with
-the paging.  For objects that are significantly less than $1$~MiB,
-SuperMalloc carves chunks into small pieces.  For larger objects, the
-allocation is backed by one or more contiguous chunks.
+Like the other chunk-oriented allocators (Hoard, JEmalloc, and
+TBBmalloc), SuperMalloc allocates large chunks of homogeneous-sized
+objects for small objects, and uses operating-system-provided memory
+mapping for larger objects.  SuperMalloc's chunks are multiples of
+$2$~MiB, and are $2$~MiB-aligned, which corresponds to huge pages on
+x86.  In operating systems that support huge-page page tables, chunks
+align properly with the paging.  For objects that are significantly
+less than $1$~MiB, SuperMalloc carves chunks into small pieces.  For
+larger objects, the allocation is backed by one or more contiguous
+chunks.
+
+Unlike the other chunk-oriented allocators, SuperMalloc does not
+divide its chunks into smaller pieces.  For example, JEmalloc divides
+its chunks into runs using a buddy algorithm, and each run can contain
+objects of a different size.  In SuperMalloc, the entire chunk is the
+same size.  The rationale for this decision is that on a 64-bit
+machine, virtual-address space is relatively cheap, while physical
+memory remains dear.  The other allocators' approach of dividing up a
+chunk saves virtual-address space by requiring fewer chunks to be
+allocated.  In the case where that strategy actually does save space,
+it is because the application did not actually allocate a whole
+chunk's worth of objects of a given size.  In that case, in
+SuperMalloc, the rest of the block is an untouched uncommitted
+``wilderness area'' (a term apparently coined by \cite{KornVo85})
+using no memory.
 
 Like JEmalloc, SuperMalloc employs several object sizes.  The sizes
 are organized as into bins.  In SuperMalloc, there are small, medium,
-large, and huge objects.  The small objects are as small as 8 bytes,
+and huge objects.  The first 45 bins are specific sizes, and larger
+bin numbers encode the number of pages that the application actually
+allocated (so that when we map a 2~MiB chunk to support a 1.5~MiB
+request, we can properly track the amount of physical memory that the
+application has asked for).  A 4-byte bin number allows us to allocate
+objects of up to just under $2^{32}$ pages ($2^{44}$ bytes).
+
+Given a pointer to an object, a chunk-based allocator must be able to
+determine which chunk an object belongs to, and what the size of the
+objects in that chunk are.  Here, for comparison, we focus on the
+comparison with JEmalloc for which the internal data structures are
+explained in some detail.  In JEmalloc, depending on the size of the
+object, the object might be looked up in a global red-black tree (for
+huge objects), or in a buddy-allocation data structure at the
+beginning of a chunk.  
+
+SuperMalloc adopted a simpler strategy.  An entire chunk is all the
+same sized, and we can look up the chunk number in a table.  Instead
+of using a tree, SuperMalloc uses an array to implement that table,
+however.  Since the usable x86 address space is $2^{48}$ bytes and
+chunks are $2^{21}$ bytes, there are only $2^{27}$ entries in the
+table.  Each entry is a 4-byte bin number.  The SuperMalloc table
+consumes $512$MiB of virtual address space, but since the operating
+system employs a lazy commit strategy, we typically need only a few of
+pages physical memory for the chunk table.  This is another instance
+of the design principle for 64-bit software that ``it is OK to waste
+some virtual address space.''
+
+{\paragraph{Small objects:}} Small objects are as small as 8 bytes,
 and increase in size by at most 25\% to limit internal fragmentation.
-Small objects are regular spaced: the sizes are $8, 10, 12, 14, 16,
-20, 24, \ldots, 224$, and their sizes take the form $k2^i$ for $4\leq
-k \leq 7$ and $1\leq i \leq 5$.  Thus bin~$0$ contains $8$-byte
-objects, bin~1 contains $10$-byte objects, and so forth.  To compute
-the bin number from a small size can be done with bit hacking in
-$O(1)$ operations using the code shown in \figref{size2bin}.  
+Small objects are regularly spaced: the sizes are $8, 10, 12, 14, 16,
+20, 24, \ldots, 224$, and their sizes take the form $k\cdot2^i$ for
+$4\leq k \leq 7$ and $1\leq i \leq 5$.  In other words, a small object
+size, when written in binary is a $1$, followed by two arbitrary
+digits, followed by zeros.  Thus bin~$0$ contains $8$-byte objects,
+bin~1 contains $10$-byte objects, and so forth.  To compute the bin
+number from a small size can be done with bit hacking in $O(1)$
+operations using the code shown in \figref{size2bin}.
 
 \begin{figure}
 \begin{minted}[mathescape]{c}
@@ -244,9 +317,9 @@ int size_2_bin(size_t s) {
 \label{fig:size2bin}
 \end{figure}
 
-For small objects, we make no particular effort is made to avoid false
+For small objects, we make no particular effort to avoid false
 sharing.  Like JEmalloc, we assume that users who care about false
-sharing will ask for an object to be cache-line aligned, using e.g.,
+sharing will explicitly ask for cache-line alignment, using e.g.,
 \code{posix_memalign()}.  This decision stands in contrast to
 allocators, such as Hoard, that try to use temporal locality to induce
 spatial locality: Hoard has heuristics that try to arrange to place
@@ -256,21 +329,15 @@ threads on different cache lines.  As explained below, we take a
 different tack on avoiding false sharing, focusing on objects that are
 larger than a cache line.
 
-Given a
-pointer to an object, a chunk-based allocator must be able to
-determine which chunk an object belongs to, and what the size of the
-objects in that chunk are.  
 
-The chunk-based allocators each maintain a table which, given a chunk,
-provides the size of that chunk's objects.  One SuperMalloc innovation
-is to use an array to implement that table instead of a tree. Since
-the usable address space is $2^{48}$ bytes and chunks are $2^{21}$
-bytes, there are only $2^{27}$ entries in the table.  The SuperMalloc
-table consumes $512$MiB of virtual address space, but since the
-operating system provides a lazy page-allocation strategy, the system
-typically allocates only a few of pages physical memory.  One design
-principle for 64-bit software is ``it is OK to waste some virtual
-address space.''
+
+We reserve the first few pages of each 2~MiB chunk for bookkeeping.
+The bookkeeping comprises a bitmap
+
+{\paragraph{Medium objects:}} Medium objects are all sized to be a
+multiple of a cache line, and range up to
+
+
 
 A second innovation is to employ a per-CPU cache, in addition to a
 per-thread cache.  The cost of locking and accessing a shared data
@@ -434,4 +501,6 @@ I will soon release SuperMalloc under an open-source license.
 
 %%  LocalWords:  SuperMalloc Transactional threadcount multithreaded
 %%  LocalWords:  allocator allocators JEmalloc HTM DLmalloc malloc ns
-%%  LocalWords:  uncontended superblocks TBB TBBmalloc GPLv
+%%  LocalWords:  uncontended superblocks TBB TBBmalloc GPLv LKmalloc
+%%  LocalWords:  superblock PTmalloc Cilk multithreading multicore
+%%  LocalWords:  metadata unallocated
