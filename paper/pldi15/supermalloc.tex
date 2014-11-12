@@ -279,14 +279,14 @@ some virtual address space.''
 
 Small objects are as small as 8 bytes, and increase in size by at most
 25\% to limit internal fragmentation.  Small objects are regularly
-spaced: the sizes are $8, 10, 12, 14, 16, 20, 24, \ldots, 224$, and
-their sizes take the form $k\cdot2^i$ for $4\leq k \leq 7$ and $1\leq
-i \leq 5$.  In other words, a small object size, when written in
-binary is a $1$, followed by two arbitrary digits, followed by zeros.
-Thus bin~$0$ contains $8$-byte objects, bin~1 contains $10$-byte
-objects, and so forth.  To compute the bin number from a small size
-can be done with bit hacking in $O(1)$ operations using the code shown
-in \figref{size2bin}.
+spaced: the sizes are $8$, $10$, $12$, $14$, $16$, $20$, $24, \ldots,
+224$, and their sizes take the form $k\cdot2^i$ for $4\leq k \leq 7$
+and $1\leq i \leq 5$.  In other words, a small object size, when
+written in binary is a $1$, followed by two arbitrary digits, followed
+by zeros.  Thus bin~$0$ contains $8$-byte objects, bin~1 contains
+$10$-byte objects, and so forth.  To compute the bin number from a
+small size can be done with bit hacking in $O(1)$ operations using the
+code shown in \figref{size2bin}.
 
 \begin{figure}
 \begin{minted}[mathescape]{c}
@@ -477,46 +477,62 @@ implement division.).
 
 Like other multithreaded allocators, SuperMalloc employs per-thread
 caching.  In addition to the per-thread cache SuperMalloc also employs
-a per-CPU cache.
+a per-CPU cache, as well as a global cache in front of the true data
+structures.  Each cache is size-segregated (that is, there is a cache
+for each size bin), but we'll describe it here as though there were
+only one size.  Each cache comprises a small number of doubly-linked
+lists of objects that belong in its bin.  A single doubly-linked list
+can be moved from one level of the cache to the other in $O(1)$
+operations, so that we can minimize the length of the critical section
+that moves the list.
 
 The cost of locking and accessing a shared data structure turns out to
 be mostly due to cache coherence traffic from accessing the object,
-rather than the locking instructions.  \figref{overhead} shows these
-overheads.  We measured the cost of incrementing a global variable
-protected by a global lock, and on our E5-2665, that was $485.5$ns.
-One alternative is to use a thread-local variable (which is shown on
-the last line of the figure), which costs only $3.1$ns.  Most modern
-allocators use a thread-local cache of global values.  But it turns
-out that a per-CPU lock and variable costs only $34.1$ns to lock and
-increment.  The difference is that the lock and the variable mostly
-reside in the right cache, and so the only cost is the lock
-instruction, the increment instruction, and the call to
-\code{sched_getcpu()} to determine which CPU the thread is running on.
-If we factor out the cost of \code{sched_getcpu()}, the per-CPU data
-structure costs only $13.3$ns.  Based on these numbers, we concluded
-that a per-CPU cache gets most of the advantage of a per-thread cache,
-but that we still need a small per-thread cache.  Uncontended locking
-is not so bad.
+rather than the locking instructions.  \figref{overhead} shows the
+overheads for incrementing a global variable protected by a global
+lock when multiple threads are running.  For example on our E5-2665,
+that was $485.5$ns.  One alternative is to use a thread-local variable
+which costs only $3.1$ns.  Most modern allocators use a thread-local
+cache of global values.  But it turns out that a per-CPU data
+structure costs only $34.1$ns to access.  The difference is that the
+per-CPU data structure mostly resides in the right cache (it's in the
+wrong cache only when the operating system migrates a thread to a
+different processor), and the lock instruction is mostly uncontended
+(contention happens only when the operating system preempts a thread).
+So instead of paying for all the cache-coherence traffic, we pay only
+the cost executing the lock instruction and the increment instruction.
+For the per-CPU cache we also must determine which CPU we are on, for
+which we use a call to \code{sched_getcpu()}.  If we factor out the
+cost of \code{sched_getcpu()}, the per-CPU data structure costs only
+$13.3$ns.  Based on these numbers, we concluded that a per-CPU cache
+gets most of the advantage of a per-thread cache, but that we still
+need a small per-thread cache.  Uncontended locking is not so bad.
 
-One alternative used by some systems is to hash the thread identifier
-instead of using a per-CPU cache.  This approach typically requires
-more caches than there are CPU's.  If there are $P$ threads, $P$
-processors, and $P$ caches, we still expect quite a bit of contention
-on some of the caches.  In fact, we expect only $P/e$ threads to
-operate without contention.  Since the cost of contention is so high,
-this would reduce the cost of access to
+A related approach used by some systems is to hash the thread
+identifier instead of using a per-CPU cache.  The hash is then used to
+index a collection of not-quite-thread-and-not-quite-per-CPU caches.
+This hashing approach typically requires more caches than there are
+CPU's, however, and can be analyzed as follows.  If there are $P$
+threads running,\footnote{There may be more threads actually running,
+  but at least for a scheduling quantum, only $P$ of them are actually
+  scheduled.} $P$ processors, and $P$ caches, we still expect quite a
+bit of contention on some of the caches.  In fact, we expect only
+about $P/e$ threads to operate without contention due to a standard
+balls-and-bins argument (and some cache will have contention about as
+bad as $\log P/\log\log P$).  Since the cost of contention is so high,
+this would reduce the cost of access to no less than
 \[ 485.5/e + 34.1\cdot(1-1/e) = 212\mbox{ns},\]
 which is still an order of magnitude slower than the uncontended
 per-CPU operation.  To get the contention close to zero, we can apply
 the birthday paradox, and conclude that we might need $P^2$ caches.
 That's probably overkill, since if we go the contention down to, say
-$P/20$ threads we would get rid of enough contention to get to within
-half of optimal.  To get the contention to $1/20$ requires
-approximately $3P$ caches.  The biggest advantage to using only $P$
-per-CPU caches instead of $3P$ (or $P^2$) caches indexed by a hash of
-the thread index, is that the stuff in the cache takes less space.
-All the objects in the caches are likely to be using committed memory,
-and we want to waste as little physical memory as possible.
+$1/20$ of the accesses, we would get rid of enough contention to get
+to within about half of optimal.  To get the contention to $1/20$
+requires approximately $3P$ caches.  The biggest advantage to using
+only $P$ per-CPU caches instead of $3P$ (or $P^2$) caches indexed by a
+hash of the thread index, is that the cache takes less space.  All the
+objects in the caches are likely to be using committed memory, and we
+want to waste as little physical memory as possible.
 
 \begin{figure}
 \begin{tabular}{lrrr}
@@ -539,45 +555,54 @@ Per-thread                   &    3.3ns &   2.1ns &   3.1ns \\
 \end{figure}
 
 The SuperMalloc per-thread cache is just big enough to amortize the
-$23$ns uncontended locking overhead.  So we store just 8~KiB worth of
-objects for each size class in the thread cache.  
+$34$ns uncontended locking overhead compared to the $3.1$ns unlocked
+overhead, so we want about $10$ objects in the per-thread cache.  We
+decided to store two linked lists each containing up to 8~KiB worth of
+objects for each bin in the thread cache.
 
-The per-CPU cache contains just enough objects in each class to fill
-up the hardware cache.  We reasoned that that if the working set of a
-thread is bigger than the hardware cache, the thread will be incurring
-cache misses anyway. There is no point in working hard to avoid a few
-more cache misses.  In contrast, many allocators keep many megabytes
-in their per-thread caches.  Because there are many per-thread caches
-(thousands of threads in a typical database server, for example) their
-footprint is larger.
+We tried to tune the per-CPU cache to be just big enough to fill up
+the processor's data cache.  We reasoned that that if the working set
+of a thread is bigger than the data cache, the thread will be
+incurring cache misses anyway. In this case, there is no point in
+working hard to avoid a few more cache misses.  In contrast, many
+allocators keep many megabytes in their per-thread caches.  Because
+there are many per-thread caches (thousands of threads in a typical
+database server, for example) their footprint is larger.  We chose to
+store two linked lists each containing of to $1$MiB for each bin in
+the per-CPU cache.
 
-We allocate and remove items from the thread cache with no locking.
-If the thread cache gets too full, we move half the objects in the
-thread cache to the CPU cache in $O(1)$ operations.  (Similarly, if
-the thread cache empties, we move a half-a-cache worth of objects from
-the CPU to the thread cache in $O(1)$ operations.)  If the CPU cache
-gets too full, we simply start placing objects into the global data
-structure, and if all the caches empty, we simply get objects from the
-global data structure.  
+There is also a global cache containing $P$ linked lists of up to
+$1$MiB each. 
 
-The thread cache contains two doubly linked lists, each containing at
-most $8192$ bytes worth of objects.  When both lists get full, we move
-one of the lists to the CPU cache is $O(1)$ operations.
+The logic for allocating an object is as follows:
+\begin{enumerate}
+\item If the thread cache has an item, use it.  This requires no locking. \label{step:thread}
+\item Otherwise if the CPU cache contains a non-empty linked list, move it to the thread cache, and proceed to step~\ref{step:thread}.  Moving an item from the CPU cache requires mutual exclusion, which is implemented with a transaction on chips that support transactions (such as Haswell) otherwise with locking. There is a lock for each cpu-bin pair.\label{step:cpu}
+\item Otherwise if the global cache contains a non-empty linked list, move it to the thread cache, and proceed to step~\ref{step:thread}.  This step also requires mutual exclusion (with a transaction or a lock), and there is a lock for each bin.
+\item Otherwise access the global data structures, which requires mutual exclusion (with a transaction or a lock), and there is a lock for each bin.
+\end{enumerate}
 
-We still need locks for the CPU cache, since there is no guarantee
-that we stay on the same CPU for the duration of a critical section.
-The CPU cache employs a lock for each CPU-bin pairing.  Since there
-are 45~bins and 32~CPUs on the biggest machine we measured, that's
-1,440~locks in use.  We place each lock on its own cache line.  For
-each bin and CPU, the CPU cache contains two doubly linked lists, each
-containing at most $1$MiB worth of objects.  We considered placing the
-locks and the doubly linked list heads into the same cache line, but
-concluded that that might cause performance trouble.  For example, on
-the HTM hardware, we spin on the lock before starting the transaction.
-But that spin could cause the transaction to fail.  And on hardware
-without HTM, spinning on the lock could interfere with the updates
-being made to the linked lists by causing the cache line to bounce
-around.
+The logic for deallocating an object is similar:
+\begin{enumerate}
+\item If one of the linked lists in the thread cache isn't ``full'', then add the object to that list.
+\item Otherwise, if one of the CPU caches is empty, move one of the linked lists from the thread cache to the CPU cache (add the object to that list while we are at it.)
+\item Otherwise, if one of the global caches is empty, move one of the linked lists from the thread cache to the global cache (add the object to that list while we are at.)
+\item Otherwise access the global data structures to free the object.
+\end{enumerate}
+
+Most of the critical-sections are on the CPU cache, and since there is
+no guarantee that we stay on the same CPU for the duration of a
+critical section, we need locks.  The CPU cache employs a lock for
+each CPU-bin pairing.  Since there are 45~bins and 32~CPU's on the
+biggest machine we measured, that's 1,440~locks in use.  We place each
+lock on its own cache line.  We considered placing the locks and the
+doubly linked list heads into the same cache line, but concluded that
+that might cause performance trouble.  For example, on the HTM
+hardware, we spin on the lock before starting the transaction.  But
+that spin could cause the transaction to fail if the lock were on the
+same cache line as the data being modified.  Without HTM, spinning on
+the lock could interfere with the updates being made to the linked
+lists by causing the cache line to bounce around.
 
 For the global data structure, we have a lock for each bin.  Since we
 seldom access the global data structure, the lock is mostly
@@ -613,14 +638,9 @@ prefetching improves performance by a few percent (see
 
 Need better spin waiting on locks that we will subscribe to.
 
+\secput{performance}{Performance}
 
-
-
---------------
-
-The others allocate large aligned chunks which contain objects that
-are all the same size, and provide per-thread caches.
-
+We are interested in three aspects of performance: speed, footprint, and complexity.
 
 {\paragraph{Speed:}} A poor allocator can be slow even on serial
 applications, and the situation can get far worse on multithreaded
@@ -636,6 +656,26 @@ social-networking site.  It was this 3~second pause that led us to
 investigate how to achieve the performance of JEmalloc with less
 variance.
 
+\begin{figure}
+\input{new-malloc-test-1K-tempo-aggregated}
+\caption{A comparison of SuperMalloc, DLmalloc \cite{Lea96}, Hoard
+  \cite{BergerMcBl00}, and JEmalloc~\cite{Evans06} running malloc-test
+  on a 16-core (2 sockets + hyperthreading) 2.4GHz E5-2665 (Sandy
+  Bridge).  The lines are the average of 8 trials, and the error bars
+  show the fastest and slow trial.}
+\label{fig:data}
+\vspace*{-3ex}
+\end{figure}
+
+\figref{data} compares the performance of SuperMalloc against
+DLmalloc, Hoard, and JEmalloc on the malloc-test
+benchmark~\cite{LeverBo00}.  The malloc-test benchmark runs $K$
+producer threads and $K$ consumer threads.  Each producer thread
+allocates objects as fast as possible, and each consumer frees them.
+Malloc-test offers one of the most difficult workloads for
+multithreaded allocators that employ per-thread caching, since the
+per-thread caches can quickly become unbalanced.
+
 {\paragraph{Footprint:}} The \defn{memory footprint} of an
 application, the amount of physical memory that the application
 consumes while running, can also vary by more than an order of
@@ -648,6 +688,95 @@ or excessive I/Os due to paging.  Both JEmalloc~\cite{Evans06} and Hoard~\cite{B
 only a few hundred lines of code \cite{KernighanRi88}.  Since
 allocator performance is so complex, however, most allocators have
 been tuned to run faster at the cost of increased complexity.  
+
+
+
+
+\secput{wishlist}{An Operating-System Wish List}
+
+There are two features that Linux does not provide which are provided
+by some other operating systems: a cheaper way to uncommit memory, and
+a hook to reduce the odds that a thread is preempted while holding a
+lock.
+
+{\paragraph{Cheap uncommit:}} The first problem is to uncommit memory
+cheaply.  Linux provides a function
+\begin{center}
+\code{madvise(ptr, len, MADV_DONTNEED)}
+\end{center}
+which informs the operating system that the \code{len} bytes of memory
+starting at address \code{ptr} are no longer needed.  For anonymously
+mapped memory (the kind that \code{malloc()} uses), this removes the
+page from the page table, freeing the physical page.  The next time
+the process touches the page it will cause another page fault, at
+which point the operating system will allocate and zero-fill a
+physical page.  That is a fairly expensive operation --- it takes
+$1800$ns to call \code{madvise(MADV_DONTNEED)} to uncommit a page,
+whereas if the page is already uncommited it costs only $240$ns to
+make the same system call.
+
+One potential alternative is to use
+\begin{center}
+\code{madvise(ptr, len, MADV_FREE)},
+\end{center}
+which is provided by FreeBSD and Solaris.  The semantics of this call
+is to give the kernel freedom to uncommit the page the way
+\code{MADV_DONTNEED} does at any time until the process touches the
+page again.  The kernel also has the freedom not to touch the page, so
+that the data could still be the same data.  Since the kernel is in a
+position to understand memory pressure as well as the overall system
+load, it can decide when and whether to spend the CPU cycles to
+reclaim memory.
+
+Evans complains that ``\code{MADV_FREE} is \textit{way} nicer than
+\code{MADV_DONTNEED} in the context of malloc.  JEmalloc has a really
+discouraging amount of complexity that is directly a result of working
+around the performance overhead of \code{MADV_DONTNEED}''
+\cite{Evans12}.  We agree with Evans' sentiments, although the
+SuperMalloc caches reduce the impact of the \code{madvise()} calls.
+Although SuperMalloc would not get much simpler with \code{MADV_FREE},
+it would speed up and exhibit less performance variance.
+
+An alternative approach would be for the kernel to deliver an event to
+a process indicating that it should use less memory.  The allocator
+generally has a big list of empty pages lying around that it could
+quickly return to the kernel.
+
+{\paragraph{Lock-aware scheduling:}} The second problem shows up when
+we are running in locking mode (that is, without transactional
+memory).  Sometimes while a lock is held by a thread, the kernel
+preempts the thread and schedules something else.  Since the thread
+holds a lock, any other threads that try to acquire that lock suspend
+too, which can lead to lock convoying and other performance problems.
+
+Solaris provides one way to fix this using the \code{schedctl()}
+system call, which briefly tells the kernel not to, if possible,
+preempt a thread \cite{Dice11}.  The mechanism includes two steps: (1)
+the thread says it is about to enter a critical section, and (2) the
+thread indicates that it has left the critical section.  Step (1) is
+accomplished by setting a bit in a thread-specific structure.
+Meanwhile the kernel, if it wanted to preempt the thread, sets a bit
+in the structure.  Step (2) is accomplished by checking to see if the
+``wanted-to-preempt'' bit is set, and if so, politely yielding.  The
+kernel must take some care to downgrade threads that abuse the
+mechanism.
+
+The Linux maintainers seem skeptical of this feature.  For example,
+see \cite{Aziz14}, which proposed the patch and claimed that it
+improves TPC-C performance by 3\%--5\%, but the kernel maintainers
+dismissed it as ``a feature for a real-time kernel'' and suggested a
+voluntary preemption model instead, and that they were ``skeptical
+about the whole idea''.  One proposed \cite{Oboguev14a, Oboguev14b}
+that a userspace mechanism to set the priority of a thread would solve
+the problem.  As implementers of \code{malloc()}, we do not see how it
+would --- \code{malloc()} is in a library, and we do not know what, if
+any, thread priority schemes the application may be using.
+
+We would like to see a hook in Linux to avoid preempting threads that
+are briefly holding a lock.
+
+--------------
+
 
 
 
@@ -689,39 +818,13 @@ Notes:
 \item \cite{LarsonKr98} LKmalloc hashes the threadid (so it doesn't need so many arenas, but it still needs a lock.)  They say for servers the requirements are to be fast, high-memory utilization, size indenpendent, locality, scalable, thread independence, predictable speed, stability).  LKmalloc is similar DLmalloc in that it uses bins of free blocks, approx best fit, and immediate coaslescing.  LKmalloc improves on DLmalloc by providing a lock per free list, multiple subheaps (to reduce cache sloshing (a value migrating around), select subheap by hasing, and striping (4MB pieces allocated to a heap)
 \item \cite{Gloger12} presents measurements of several allocators, with an emphasis on ptmalloc.
 \item \cite{Gloger06} is the web page for ptmalloc, an allocator based on dlmalloc \cite{Lea96}.
-\item Dice blog
 \item knary a benchmark we should use (since I helped write
   it...).  Knary was used in \cite{SchneiderAnNi06}, but was
   attributed to Hood when in fact it's due to \cite{BlumofeJoKu96}.
 \end{itemize}
 
 
-{\bf Background:}   
 
-{\bf Performance:} \figref{data} compares the performance of
-SuperMalloc against DLmalloc, Hoard, and JEmalloc on the malloc-test
-benchmark~\cite{LeverBo00}.  The malloc-test benchmark runs $K$
-producer threads and $K$ consumer threads.  Each producer thread
-allocates objects as fast as possible, and each consumer frees them.
-Malloc-test offers one of the most difficult workloads for
-multithreaded allocators that employ per-thread caching, since the
-per-thread caches can quickly become unbalanced.
-
-
-{\bf How they work:} 
-
-
-
-\begin{figure}
-\input{new-malloc-test-1K-tempo-aggregated}
-\caption{A comparison of SuperMalloc, DLmalloc \cite{Lea96}, Hoard
-  \cite{BergerMcBl00}, and JEmalloc~\cite{Evans06} running malloc-test
-  on a 16-core (2 sockets + hyperthreading) 2.4GHz E5-2665 (Sandy
-  Bridge).  The lines are the average of 8 trials, and the error bars
-  show the fastest and slow trial.}
-\label{fig:data}
-\vspace*{-3ex}
-\end{figure}
 
 %SuperMalloc uses simple data structures to try to maximize the odds that hardware transactions succeed. For example, the SuperMalloc uses a priority heap to allocate objects out of the fullest page. The heap takes advantage of the fact that for each class, there are only a relatively small number of possible page-fullness values. For example, for 8-byte objects, there are only 512 objects in a page, and so instead of using a general heap, SuperMalloc uses an array of 513 lists, the $i$th list containing a list of pages with $i$ free slots.
 
@@ -758,11 +861,12 @@ I will soon release SuperMalloc under an open-source license.
 
 \end{document}
 
-%%  LocalWords:  SuperMalloc Transactional threadcount multithreaded
+%%  LocalWords:  SuperMalloc threadcount multithreaded implementers
 %%  LocalWords:  allocator allocators JEmalloc HTM DLmalloc malloc ns
 %%  LocalWords:  uncontended superblocks TBB TBBmalloc GPLv LKmalloc
 %%  LocalWords:  superblock PTmalloc Cilk multithreading multicore
 %%  LocalWords:  metadata unallocated uncommit madvise scalability
 %%  LocalWords:  SuperMalloc's codesize mmap STL supermalloc Solaris
 %%  LocalWords:  uncommited associativity rigamarole metaprogramming
-%%  LocalWords:  incrementing prefetch
+%%  LocalWords:  incrementing prefetch deallocating prefetching
+%%  LocalWords:  transactional
