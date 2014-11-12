@@ -199,7 +199,8 @@ addresses to metadata.
 JEmalloc is licensed under a variant of the modified BSD license.
 
 {\paragraph{TBBmalloc}} \cite{KukanovVo07} is the allocator shipped
-with Intel's Threading Building Blocks (TBB)\@.  TBBmalloc is about as
+with Intel's Threading Building Blocks (TBB), and is based on ideas
+developed in McRT-malloc \cite{HudsonSaAd06}.  TBBmalloc is about as
 fast as SuperMalloc, but has an unbounded space blowup in theory and
 in practice.  TBB use a thread-private heap, and never returns space
 for small objects to the operating system.  TBBmalloc always allocates
@@ -211,6 +212,9 @@ that will be dealt with the next time the owner of the foreign block
 tries to allocate.  Like JEmalloc and Hoard, TBBmalloc uses chunks
 each containing objects of homogeneous size, and places metadata at
 the beginning of each chunk.
+
+TBBmalloc can have an unbounded footprint.  One case was documented by
+\cite{Vyukov08}.
 
 TBBmalloc is licensed under GPLv2.
 
@@ -777,28 +781,6 @@ are briefly holding a lock.
 
 --------------
 
-
-
-
-only Even relatively simple allocators such as the
-
-SuperMalloc is an implementation of \texttt{malloc(3)} originally designed for
-x86 Hardware Transactional Memory (HTM).  
-It turns out that the same
-design also makes it fast even without HTM.  
-
-On high-threadcount
-workloads on Sandy Bridge (non-HTM) hardware, SuperMalloc outperforms
-the competition by about a factor of 3.5.
-
-% DLmalloc:    221K chars, 28K lines
-% Hoard:       429K chars, 59K lines
-% JEmalloc:    624K chars, 69K lines
-% Tbbmalloc:   350K chars, 36K lines (tough to measure since it's mixed into TBB)
-% SuperMalloc: 127K chars, 15K lines
-
-
-
 * Tradeoff: Code size and complexity, speed, footprint, variability.  Supermalloc appears to disprove this tradeoff.
 * Allocators use trees, buddy systems: supermalloc doesn't.
 * Work for HTM and locks.
@@ -806,18 +788,16 @@ the competition by about a factor of 3.5.
 
 Notes: 
 \begin{itemize}
-\item \cite{ReinefeldDoSc13} shows the importance of malloc.
+%\item \cite{ReinefeldDoSc13} shows the importance of malloc.
 \item \cite{Dementiev09} shows what?
 \item \cite{KukanovVo07} their cross-test sounds similar to malloc-test
-\item \cite{Vyukov08} 
 \item \cite{DetlefsDoZo94} Benchmarks include gs running on a 126-page manual.
-\item \cite{HudsonSaAd06}
 \item \cite{Michael04} shows a lock-free mallocator based on Hoard, with some interesting benchmarks: Linux-scalability, threadtest, larson and a producer-consumer test.
 \item \cite{FengBe05}
 \item \cite{SchneiderAnNi06}: streamflow (worries about cache behavior by using segregated heaps).  Synchronization-free operations for local alloc/free, and non-blocking synch for remote deallocations.  [In contrast, SuperMalloc doesn't care as much about trying to get cache behavior to be local.  Perhaps wrongly so.  Supermalloc does worry about false sharing  ].  Does poorly on memory footprint on the Larson benchmark, but they didn't isolate the issue, since they ran Larson for a fixed time instad of a fixed amount of work.
 \item \cite{LarsonKr98} LKmalloc hashes the threadid (so it doesn't need so many arenas, but it still needs a lock.)  They say for servers the requirements are to be fast, high-memory utilization, size indenpendent, locality, scalable, thread independence, predictable speed, stability).  LKmalloc is similar DLmalloc in that it uses bins of free blocks, approx best fit, and immediate coaslescing.  LKmalloc improves on DLmalloc by providing a lock per free list, multiple subheaps (to reduce cache sloshing (a value migrating around), select subheap by hasing, and striping (4MB pieces allocated to a heap)
 \item \cite{Gloger12} presents measurements of several allocators, with an emphasis on ptmalloc.
-\item \cite{Gloger06} is the web page for ptmalloc, an allocator based on dlmalloc \cite{Lea96}.
+%\item \cite{Gloger06} is the web page for ptmalloc, an allocator based on dlmalloc \cite{Lea96}.
 \item knary a benchmark we should use (since I helped write
   it...).  Knary was used in \cite{SchneiderAnNi06}, but was
   attributed to Hood when in fact it's due to \cite{BlumofeJoKu96}.
