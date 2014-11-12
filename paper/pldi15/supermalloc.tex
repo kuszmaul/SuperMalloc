@@ -275,16 +275,18 @@ pages physical memory for the chunk table.  This is another instance
 of the design principle for 64-bit software that ``it is OK to waste
 some virtual address space.''
 
-{\paragraph{Small objects:}} Small objects are as small as 8 bytes,
-and increase in size by at most 25\% to limit internal fragmentation.
-Small objects are regularly spaced: the sizes are $8, 10, 12, 14, 16,
-20, 24, \ldots, 224$, and their sizes take the form $k\cdot2^i$ for
-$4\leq k \leq 7$ and $1\leq i \leq 5$.  In other words, a small object
-size, when written in binary is a $1$, followed by two arbitrary
-digits, followed by zeros.  Thus bin~$0$ contains $8$-byte objects,
-bin~1 contains $10$-byte objects, and so forth.  To compute the bin
-number from a small size can be done with bit hacking in $O(1)$
-operations using the code shown in \figref{size2bin}.
+\secput{small}{Small Objects}
+
+Small objects are as small as 8 bytes, and increase in size by at most
+25\% to limit internal fragmentation.  Small objects are regularly
+spaced: the sizes are $8, 10, 12, 14, 16, 20, 24, \ldots, 224$, and
+their sizes take the form $k\cdot2^i$ for $4\leq k \leq 7$ and $1\leq
+i \leq 5$.  In other words, a small object size, when written in
+binary is a $1$, followed by two arbitrary digits, followed by zeros.
+Thus bin~$0$ contains $8$-byte objects, bin~1 contains $10$-byte
+objects, and so forth.  To compute the bin number from a small size
+can be done with bit hacking in $O(1)$ operations using the code shown
+in \figref{size2bin}.
 
 \begin{figure}
 \begin{minted}[mathescape]{c}
@@ -338,23 +340,25 @@ data structure for implementing the fullest-fit
 heuristic. \cnote{red}{Explain how we implement fullest fit}{bck}
 
 
-{\paragraph{Medium objects:}} Medium objects are all sized be a
-multiple of 64 (the cache line size).  The smallest is 256 bytes, and
-the largest is 14272 bytes.  The sizes we chose include powers of two
-and prime multiples of cache lines.  The powers of two ($256$, $512$,
-$1024$, $2048$, $4096$, $8192$) are used only when the application
-explicitly asks for aligned data.  The prime multiples of cache lines
-are used for all other requests to reduce the contention in the
-low-associativity processor caches. For example, recent Intel
-processors provide 8-way associative level~1 cache.  Following the
-lead of \cite{AfekDiMo11}, which propose \defn{punctuated arrays} to
-reduce associativity conflicts, we wanted to avoid aligning objects
-into the same cache associativity set. (Apparently punctuated arrays
-are appearing in most of the Solaris~12 allocators \cite{Dice14b}.)
-We, however, took the more ``radical'' approach mentioned by
-\cite{Dice14a} of making all the size classes a prime multiple of the
-cache line, which not only reduces conflicts within a class size but
-reduces inter-size cache-index conflicts.
+\secput{medium}{Medium objects:}
+
+Medium objects are all sized be a multiple of 64 (the cache line
+size).  The smallest is 256 bytes, and the largest is 14272 bytes.
+The sizes we chose include powers of two and prime multiples of cache
+lines.  The powers of two ($256$, $512$, $1024$, $2048$, $4096$,
+$8192$) are used only when the application explicitly asks for aligned
+data.  The prime multiples of cache lines are used for all other
+requests to reduce the contention in the low-associativity processor
+caches. For example, recent Intel processors provide 8-way associative
+level~1 cache.  Following the lead of \cite{AfekDiMo11}, which propose
+\defn{punctuated arrays} to reduce associativity conflicts, we wanted
+to avoid aligning objects into the same cache associativity
+set. (Apparently punctuated arrays are appearing in most of the
+Solaris~12 allocators \cite{Dice14b}.)  We, however, took the more
+``radical'' approach mentioned by \cite{Dice14a} of making all the
+size classes a prime multiple of the cache line, which not only
+reduces conflicts within a class size but reduces inter-size
+cache-index conflicts.
 
 One aspect that becomes relatively more important for medium objects
 than small objects is what happens when the page size is not a
@@ -380,12 +384,14 @@ Except for the way their sizes are chosen, medium and small objects
 are managed exactly the same way (with folios and the fullest-fit
 heuristic, for example) by exactly the same code.
 
-{\paragraph{Large objects:}} Large objects start at 16KiB (4 pages)
-and go up to half a chunk size.  Large objects are all a multiple of a
-page size, and the code is a little bit simpler than for small and
-medium objects, since it mostly does not matter which large object is
-returned by \code{\malloc()}; When a large object is freed its pages
-can be uncommitted, so we don't need to keep track of anything for a fullest-fit heuristic.
+\secput{large}{Large objects}
+
+Large objects start at 16KiB (4 pages) and go up to half a chunk size.
+Large objects are all a multiple of a page size, and the code is a
+little bit simpler than for small and medium objects, since it mostly
+does not matter which large object is returned by \code{\malloc()};
+When a large object is freed its pages can be uncommitted, so we don't
+need to keep track of anything for a fullest-fit heuristic.
 
 In order to avoid associativity issues, we add random number of cache
 lines, up to a page's worth, to the allocation, and adjust the
@@ -416,10 +422,12 @@ associativity conflict is better than internal fragmentation.  (We
 haven't yet made this change, but it should not affect any of the
 performance results shown below.)
 
-{\paragraph{Arithmetic:}} One common operation in SuperMalloc is to
-calculate indexes in a bitmap.  For example, given a pointer $p$, we
-must perform calculation in \figref{bitindex}(a) to calculate which folio
-and which object in the folio $p$ refers to.
+\secput{arith}{Arithmetic}
+
+One common operation in SuperMalloc is to calculate indexes in a
+bitmap.  For example, given a pointer $p$, we must perform calculation
+in \figref{bitindex}(a) to calculate which folio and which object in
+the folio $p$ refers to.
 
 \begin{figure*}
 \begin{minted}[mathescape,linenos,xleftmargin=1cm]{c}
@@ -465,26 +473,146 @@ object sizes (e.g., to find prime numbers that are spaced no more than
 25\% apart, and to calculate the multiplication and shift constants to
 implement division.).
 
+\secput{caching}{Caching}
 
-\paragraph{Thread and Processor Caching:}
+Like other multithreaded allocators, SuperMalloc employs per-thread
+caching.  In addition to the per-thread cache SuperMalloc also employs
+a per-CPU cache.
 
-A second innovation is to employ a per-CPU cache, in addition to a
-per-thread cache.  The cost of locking and accessing a shared data
-structure turns out to be mostly due to cache coherence traffic from
-accessing the object, rather than the locking instructions.  E.g., on
-our 2-socket machine, locking and accessing a contended object costs
-$460$ns.  Locking and accessing an uncontended object (one that was
-last accessed on the same processor) costs only 26ns.  Accessing a
-thread-local object with no locking costs $3$ns.  The SuperMalloc
-per-thread cache contains just enough objects to amortize the $23$ns
-uncontended locking overhead.  The per-CPU cache contains just enough
-objects in each class to fill up the hardware cache, the rationale
-being that if the working set of a thread is bigger than the hardware
-cache, there is no point in working hard to avoid a few more cache
-misses.  In contrast, the other allocators may have many megabytes in
-their per-thread caches (and because there are many per-thread caches,
-their footprint is larger.)  Thus, a second design principle is
-``uncontended locking is not so bad''.
+The cost of locking and accessing a shared data structure turns out to
+be mostly due to cache coherence traffic from accessing the object,
+rather than the locking instructions.  \figref{overhead} shows these
+overheads.  We measured the cost of incrementing a global variable
+protected by a global lock, and on our E5-2665, that was $485.5$ns.
+One alternative is to use a thread-local variable (which is shown on
+the last line of the figure), which costs only $3.1$ns.  Most modern
+allocators use a thread-local cache of global values.  But it turns
+out that a per-CPU lock and variable costs only $34.1$ns to lock and
+increment.  The difference is that the lock and the variable mostly
+reside in the right cache, and so the only cost is the lock
+instruction, the increment instruction, and the call to
+\code{sched_getcpu()} to determine which CPU the thread is running on.
+If we factor out the cost of \code{sched_getcpu()}, the per-CPU data
+structure costs only $13.3$ns.  Based on these numbers, we concluded
+that a per-CPU cache gets most of the advantage of a per-thread cache,
+but that we still need a small per-thread cache.  Uncontended locking
+is not so bad.
+
+One alternative used by some systems is to hash the thread identifier
+instead of using a per-CPU cache.  This approach typically requires
+more caches than there are CPU's.  If there are $P$ threads, $P$
+processors, and $P$ caches, we still expect quite a bit of contention
+on some of the caches.  In fact, we expect only $P/e$ threads to
+operate without contention.  Since the cost of contention is so high,
+this would reduce the cost of access to
+\[ 485.5/e + 34.1\cdot(1-1/e) = 212\mbox{ns},\]
+which is still an order of magnitude slower than the uncontended
+per-CPU operation.  To get the contention close to zero, we can apply
+the birthday paradox, and conclude that we might need $P^2$ caches.
+That's probably overkill, since if we go the contention down to, say
+$P/20$ threads we would get rid of enough contention to get to within
+half of optimal.  To get the contention to $1/20$ requires
+approximately $3P$ caches.  The biggest advantage to using only $P$
+per-CPU caches instead of $3P$ (or $P^2$) caches indexed by a hash of
+the thread index, is that the stuff in the cache takes less space.
+All the objects in the caches are likely to be using committed memory,
+and we want to waste as little physical memory as possible.
+
+\begin{figure}
+\begin{tabular}{lrrr}
+                             & i7-4600U & i7-4770 &  E5-2665 \\
+                             & 2 cores  & 4 cores &  16 cores \\
+                             &          &         & 2 sockets \\
+                             & 2.1GHz   &  3.4Ghz &  2.4GHz \\ \hline
+Global                       &  149.0ns & 120.6ns & 485.5ns \\
+Per-CPU                      &   29.6ns &  18.0ns &  34.1ns \\
+Per-CPU no getcpu            &   17.2ns &  10.6ns &  13.3ns \\
+Per-thread                   &    3.3ns &   2.1ns &   3.1ns \\
+\end{tabular}
+\caption{Lock vs.~contention overhead.  ``Global'' is the cost of
+  accessing a global lock and incrementing a global counter.
+  ``Per-CPU'' is the cost of call \code{sched_getcpu()} and accessing
+  a per-cpu lock and increment a counter.  ``Per-CPU no getcpu'' is
+  same thing without the call to \code{sched_getcpu()}.  Per-thread is
+  the cost of incrementing a thread-local variable without a lock .}
+\label{fig:overhead}
+\end{figure}
+
+The SuperMalloc per-thread cache is just big enough to amortize the
+$23$ns uncontended locking overhead.  So we store just 8~KiB worth of
+objects for each size class in the thread cache.  
+
+The per-CPU cache contains just enough objects in each class to fill
+up the hardware cache.  We reasoned that that if the working set of a
+thread is bigger than the hardware cache, the thread will be incurring
+cache misses anyway. There is no point in working hard to avoid a few
+more cache misses.  In contrast, many allocators keep many megabytes
+in their per-thread caches.  Because there are many per-thread caches
+(thousands of threads in a typical database server, for example) their
+footprint is larger.
+
+We allocate and remove items from the thread cache with no locking.
+If the thread cache gets too full, we move half the objects in the
+thread cache to the CPU cache in $O(1)$ operations.  (Similarly, if
+the thread cache empties, we move a half-a-cache worth of objects from
+the CPU to the thread cache in $O(1)$ operations.)  If the CPU cache
+gets too full, we simply start placing objects into the global data
+structure, and if all the caches empty, we simply get objects from the
+global data structure.  
+
+The thread cache contains two doubly linked lists, each containing at
+most $8192$ bytes worth of objects.  When both lists get full, we move
+one of the lists to the CPU cache is $O(1)$ operations.
+
+We still need locks for the CPU cache, since there is no guarantee
+that we stay on the same CPU for the duration of a critical section.
+The CPU cache employs a lock for each CPU-bin pairing.  Since there
+are 45~bins and 32~CPUs on the biggest machine we measured, that's
+1,440~locks in use.  We place each lock on its own cache line.  For
+each bin and CPU, the CPU cache contains two doubly linked lists, each
+containing at most $1$MiB worth of objects.  We considered placing the
+locks and the doubly linked list heads into the same cache line, but
+concluded that that might cause performance trouble.  For example, on
+the HTM hardware, we spin on the lock before starting the transaction.
+But that spin could cause the transaction to fail.  And on hardware
+without HTM, spinning on the lock could interfere with the updates
+being made to the linked lists by causing the cache line to bounce
+around.
+
+For the global data structure, we have a lock for each bin.  Since we
+seldom access the global data structure, the lock is mostly
+uncontended.
+
+When running on hardware that supports HTM, we use transactions.  If
+the transaction fails enough, we fall back to locking code using the
+original lock structures.  To make the HTM transactions interact
+properly with the lock-protected transactions, the HTM transaction
+must look at the lock state, and verify that it is unlocked.  This
+lock examination is called \defn{subscribing} to the lock.  One
+decision to make is whether to subscribe to the lock early or late in
+the transaction.  Subscribing late sounds enticing because it reduces
+the time during which we conflict on the lock (when in fact we might
+not conflict on the data structure).  Subscribing late can be
+dangerous, however, since it can be difficult to prove that your code
+does not get tricked into committing \cite{DiceHaKo14}.  We subscribe
+to the lock early in the transaction for three reasons.  (1) We do not
+feel confident that we can guarantee that the code avoids all the
+pitfalls of late subscription.  (2) Our data structures are closely
+related to our locks.  It's unlikely that the lock conflicts but that
+we don't actually conflict on the data.  (3) Our transactions are all
+so short that it probably doesn't matter.
+
+In order to make the critical sections short, both for HTM and
+locking, we try to prefetch everything that will be accessed, then
+wait for the lock to become free (and if the lock wasn't free, we
+prefetch everything again, and check the lock again.)  The goals is to
+make it so that while the lock is held (or the transaction is
+running), as few cache misses as possible are incurred.  This
+prefetching improves performance by a few percent (see
+\figref{prefetchhelps}).
+
+Need better spin waiting on locks that we will subscribe to.
+
 
 
 
@@ -635,5 +763,6 @@ I will soon release SuperMalloc under an open-source license.
 %%  LocalWords:  uncontended superblocks TBB TBBmalloc GPLv LKmalloc
 %%  LocalWords:  superblock PTmalloc Cilk multithreading multicore
 %%  LocalWords:  metadata unallocated uncommit madvise scalability
-%%  LocalWords:  SuperMalloc's codesize mmap STL supermalloc
+%%  LocalWords:  SuperMalloc's codesize mmap STL supermalloc Solaris
 %%  LocalWords:  uncommited associativity rigamarole metaprogramming
+%%  LocalWords:  incrementing prefetch
