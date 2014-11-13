@@ -11,6 +11,12 @@
 \usepackage{courier}            % standard fixed width font
 \usepackage[scaled]{helvet} % see www.ctan.org/get/macros/latex/required/psnfss/psnfss2e.pdf
 \usepackage[hyphens]{url}                  % format URLs
+
+\ifnotes
+\newcommand{\bcknote}[1]{\cnote{red}{#1}{bck}}
+\else
+\fi
+
 % Try \usepackage[hyphens]{url}
 % or try this
 %% \makeatletter
@@ -148,14 +154,16 @@ be reused for other purposes.
 Hoard is licensed under GPLv2.
 
 \begin{figure}
+\begin{center}
 \begin{tabular}{lrr}
 Allocator & Bytes        & LoC \\ \hline
- DLmalloc    \cite{Lea96}        & 221K & 28K \\
- Hoard       \cite{BergerMcBl00} & 429K & 59K \\
- JEmalloc    \cite{Evans06}      & 624K & 69K \\
- TBBmalloc   \cite{KukanovVo07}  & 350K & 36K \\
- SuperMalloc & 127K & 15K \\
+ DLmalloc    \cite{Lea96}        & 221K &  6,280 \\
+ Hoard       \cite{BergerMcBl00} & 429K & 17,056 \\
+ JEmalloc    \cite{Evans06}      & 624K & 22,230 \\
+ TBBmalloc   \cite{KukanovVo07}  & 350K &  9,705 \\
+ SuperMalloc                     & 127K &  3,934 \\
 \end{tabular}
+\end{center}
 \caption{Code sizes measured in bytes and in Lines of Code (LoC).
   Note: TBBmalloc is tough to measure since it's mixed into TBB.
   SuperMalloc could end up with more code as it becomes
@@ -250,7 +258,7 @@ SuperMalloc, the rest of the block is an untouched uncommitted
 using no memory.
 
 Like JEmalloc, SuperMalloc employs several object sizes.  The sizes
-are organized as into bins.  In SuperMalloc, there are small, medium,
+are organized as into bins.  In SuperMalloc, there are small, medium, large,
 and huge objects.  The first 45 bins are specific sizes, and larger
 bin numbers encode the number of pages that the application actually
 allocated (so that when we map a 2~MiB chunk to support a 1.5~MiB
@@ -341,8 +349,7 @@ larger than a cache line.
 We reserve the first few pages of each 2~MiB chunk for bookkeeping.
 The bookkeeping comprises a bitmap of the free objects and a heap-like
 data structure for implementing the fullest-fit
-heuristic. \cnote{red}{Explain how we implement fullest fit}{bck}
-
+heuristic. \bcknote{Explain how we implement fullest fit}
 
 \secput{medium}{Medium objects:}
 
@@ -425,6 +432,36 @@ lines, with the rationale that a little bit of inter-size
 associativity conflict is better than internal fragmentation.  (We
 haven't yet made this change, but it should not affect any of the
 performance results shown below.)
+
+\secput{huge}{Huge objects}
+
+Huge objects start at half a chunk (about 1MiB) and get larger.  The
+SuperMalloc huge object allocation primitive is straightforward, and
+is similar to many other allocators.  We use operating system
+primitives such as \code{mmap()} to create new huge chunks, and we
+never give the memory back using \code{unmap()}.  We do take advantage
+of the virtual-addresses-are-cheap observation however.
+
+We round up huge objects to the nearest power of two.  For example to
+allocate a $5$MiB object, we allocate an $8$MiB region (which is
+$2$MiB-aligned) of virtual memory using \code{mmap()}. 
+
+We keep a linked list for each such power of two, so that when we
+\code{free()} a huge chunk, we add it to the linked list.  We actually
+thread the linked list through the chunk table so that the chunk
+itself does not need to be in committed memory.  When we free a huge
+object we explicitly uncommit the memory using \code{madvise()}.
+
+We use \code{madvise()} to ask to the kernel to map the huge chunk
+using huge pages (recent Linux kernels support $2$~MiB pages, which
+can reduce TLB pressure and reduces the cost of walking the page table
+in the case of a TLB miss \cite{Corbet11}).  If the object is not a
+multiple of $2$MiB in size, the last fractional part of the huge page
+is mapped only with normal $4$KiB page table entries.
+
+Thus, although when we allocated $8$MiB to implement a $5$MiB
+allocation, only $5$MiB is actually every committed to memory (and
+then only when the application code touches it.)
 
 \secput{arith}{Arithmetic}
 
@@ -532,11 +569,12 @@ the birthday paradox, and conclude that we might need $P^2$ caches.
 That's probably overkill, since if we go the contention down to, say
 $1/20$ of the accesses, we would get rid of enough contention to get
 to within about half of optimal.  To get the contention to $1/20$
-requires approximately $3P$ caches.  The biggest advantage to using
-only $P$ per-CPU caches instead of $3P$ (or $P^2$) caches indexed by a
-hash of the thread index, is that the cache takes less space.  All the
-objects in the caches are likely to be using committed memory, and we
-want to waste as little physical memory as possible.
+requires approximately $3P$ caches.  (JEmalloc uses $4P$ caches.)  The
+biggest advantage to using only $P$ per-CPU caches instead of $3P$ (or
+$P^2$) caches indexed by a hash of the thread index, is that the cache
+takes less space.  All the objects in the caches are likely to be
+using committed memory, and we want to waste as little physical memory
+as possible.
 
 \begin{figure}
 \begin{tabular}{lrrr}
@@ -691,10 +729,59 @@ or excessive I/Os due to paging.  Both JEmalloc~\cite{Evans06} and Hoard~\cite{B
 {\paragraph{Complexity:}} A simple memory allocator can operate using
 only a few hundred lines of code \cite{KernighanRi88}.  Since
 allocator performance is so complex, however, most allocators have
-been tuned to run faster at the cost of increased complexity.  
+been tuned to run faster at the cost of increased complexity.  The
+code sizes of \figref{codesize} show that SuperMalloc is smaller, but
+where does the code complexity come from in these allocators?
 
+\figref{supermodules} shows the largest modules in SuperMalloc.  The
+biggest module is for managing the cache.  The interface to make the
+standard POSIX calls is second biggest (including functions such as
+reallocation, and testing).  The code for actually performing
+allocation in the three size classes (small objects, medium/large objects, and huge objects)
+together is just a little larger than the cache management code.  The
+code for invoking locks or hardware transactional memory, and the
+metaprogram that computes the bin sizes and sets up all the constants
+are each also about 350 lines of code.  The code for interfacing to
+mmap to get chunk-aligned memory is 123 lines.
 
+\begin{figure}
+\begin{center}
+\begin{tabular}{lrr}
+Module & Characters & LoC \\ \hline
+mmap-interface         &   5,066 &  123 \\        
+huge objects           &   7,312 &  189 \\
+medium \& large objects&  10,203 &  302 \\
+metaprogram            &  14,791 &  332 \\
+atomicity and locks    &   9,296 &  357 \\
+small objects          &  17,096 &  461 \\
+Front end (API)        &  17,256 &  536 \\
+Cache management       &  25,340 &  841 \\
+\end{tabular}
+\end{center}
+\caption{The sizes of the significant modules of SuperMalloc, sorted by size.}
+\label{fig:supermodules}
+\end{figure}
 
+For JEmalloc, the biggest module manages their ``arenas'' at 2,577
+LoC, which implements the meat of their code, basically implementing
+the functionality of objects modules and the cache management (which
+for us adds up to 1,793 LoC).  
+One significant module in JEmalloc, in
+terms of lines of code, manages the tuning parameters (giving the user
+control, for example, of the number of arenas and providing access to
+various counters).  Although that code has many lines of code, it is
+not complex.  It's just long because there are many tuning parameters.
+We do not want tuning parameters in SuperMalloc, preferring instead
+that the code work well in all cases.  It may turn out that our
+determination to avoid tuning parameters will fade away when faced
+with the demands of production --- we should chalk up this part of
+JEmalloc's complexity to the fact that it's production-quality code.
+
+Hoard contains a huge number of modules, each of which is only a few
+hundred lines of code, which can be used to build good special-purpose
+and general-purpose allocators \cite{AlexandrescuBe05}.  SuperMalloc
+isn't trying to enable to construction of special-purpose allocators,
+so our code is smaller.
 
 \secput{wishlist}{An Operating-System Wish List}
 
@@ -849,4 +936,4 @@ I will soon release SuperMalloc under an open-source license.
 %%  LocalWords:  SuperMalloc's codesize mmap STL supermalloc Solaris
 %%  LocalWords:  uncommited associativity rigamarole metaprogramming
 %%  LocalWords:  incrementing prefetch deallocating prefetching
-%%  LocalWords:  transactional
+%%  LocalWords:  transactional atomicity
