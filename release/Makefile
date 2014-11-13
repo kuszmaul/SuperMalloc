@@ -40,7 +40,7 @@ timings-simple:
 	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-hoard -w 2 -t 10
 
 new-malloc-test-1K-x240.data new-malloc-test-1K-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
-	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc supermalloc_pthread | tee $@
+	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc tbbmalloc supermalloc_pthread | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
           echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -w $$thread) \
                         $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
@@ -56,7 +56,7 @@ new-malloc-test-1K-x240.data new-malloc-test-1K-lutestring.data: $(BLD)/new-mall
         ;done ;done
 
 new-malloc-test-vK-x240.data new-malloc-test-vK-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
-	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc supermalloc_pthread | tee $@
+	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc tbbmalloc supermalloc_pthread | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
           echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -s -1 -w $$thread) \
                         $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -s -1 -w $$thread) \
@@ -112,6 +112,14 @@ new-malloc-test-vK-tempo-aggregated.data: ../paper/aggregate_error_bars # new-ma
 new-malloc-test-1K-tempo-aggregated.pdf: new-malloc-test-1K-tempo-aggregated.data
 new-malloc-test-1K-tempo-aggregated.data: ../paper/aggregate_error_bars # new-malloc-test-1K-tempo.data
 	./$< < new-malloc-test-1K-tempo.data > $@
+
+new-malloc-test-vK-lutestring-aggregated.pdf: new-malloc-test-vK-lutestring-aggregated.data
+new-malloc-test-vK-lutestring-aggregated.data: ../paper/aggregate_error_bars # new-malloc-test-vK-lutestring.data
+	./$< < new-malloc-test-vK-lutestring.data > $@
+
+new-malloc-test-1K-lutestring-aggregated.pdf: new-malloc-test-1K-lutestring-aggregated.data
+new-malloc-test-1K-lutestring-aggregated.data: ../paper/aggregate_error_bars # new-malloc-test-1K-lutestring.data
+	./$< < new-malloc-test-1K-lutestring.data > $@
 
 # Note: supermalloc doesn't compile with gcc 4.8.0, which is what's installed on Tempo.
 # I should make it work on tempo, but don't have time right now.
