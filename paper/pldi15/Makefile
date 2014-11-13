@@ -10,3 +10,6 @@ FORCE:
 	gnuplot $<
 clean:
 	rm -f *.aux *.log *.pyg *.bbl *.blg *.fls *.fdb_latexmk supermalloc.pdf
+
+foo.pdf: new-malloc-test-1K-tempo-aggregated.pdf new-malloc-test-1K-lutestring-aggregated.pdf
+	pdflatex foo
