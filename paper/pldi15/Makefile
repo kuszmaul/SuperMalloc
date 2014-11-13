@@ -13,3 +13,6 @@ clean:
 
 foo.pdf: new-malloc-test-1K-tempo-aggregated.pdf new-malloc-test-1K-lutestring-aggregated.pdf
 	pdflatex foo
+
+supermalloc-greyscale.pdf: supermalloc.pdf
+	gs -sDEVICE=pdfwrite -sProcessColorModel=DeviceGray -sColorConversionStrategy=Gray -dOverrideICC -o $@ -f $<

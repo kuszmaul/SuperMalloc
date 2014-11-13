@@ -7,4 +7,5 @@
 *.fls
 pldi15-template.pdf
 supermalloc.pdf
-
+foo.pdf
+supermalloc-greyscale.pdf
