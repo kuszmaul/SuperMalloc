@@ -789,7 +789,7 @@ are briefly holding a lock.
 Notes: 
 \begin{itemize}
 %\item \cite{ReinefeldDoSc13} shows the importance of malloc.
-\item \cite{Dementiev09} shows what?
+% \item \cite{Dementiev09} shows an anecdote about the importance of caching even fairly large objects (200KiB).  He claims that the lazy-commit strategy was causing nonscalability.  I did an experiment, and it looks like his analysis is wrong (possibly superseded by newer kernels?)
 \item \cite{KukanovVo07} their cross-test sounds similar to malloc-test
 \item \cite{DetlefsDoZo94} Benchmarks include gs running on a 126-page manual.
 \item \cite{Michael04} shows a lock-free mallocator based on Hoard, with some interesting benchmarks: Linux-scalability, threadtest, larson and a producer-consumer test.
