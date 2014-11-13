@@ -83,7 +83,7 @@ new-malloc-test-1K-aggregated-oldallocators.pdf: new-malloc-test-1K-aggregated.d
 
 new-malloc-test-1K-tempo.data: NO_RTM=1
 new-malloc-test-1K-tempo.data:
-	echo threads dlmalloc hoard jemalloc supermalloc_pthread | tee $@
+	echo threads dlmalloc hoard jemalloc tbbmalloc supermalloc_pthread | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 32); do \
           echo $$thread $$(./new-malloc-test-dlmalloc                                                          -w $$thread) \
                         $$(./new-malloc-test-hoard                                                             -w $$thread) \
@@ -95,7 +95,7 @@ new-malloc-test-1K-tempo.data:
 
 new-malloc-test-vK-tempo.data: NO_RTM=1
 new-malloc-test-vK-tempo.data:  
-	echo threads dlmalloc hoard jemalloc supermalloc_pthread | tee $@
+	echo threads dlmalloc hoard jemalloc tbbmalloc supermalloc_pthread | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 32); do \
           echo $$thread $$(./new-malloc-test-dlmalloc                                                    -s -1 -w $$thread) \
                         $$(./new-malloc-test-hoard                                                       -s -1 -w $$thread) \
