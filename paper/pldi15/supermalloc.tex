@@ -699,6 +699,18 @@ investigate how to achieve the performance of JEmalloc with less
 variance.
 
 \begin{figure}
+\input{new-malloc-test-1K-lutestring-aggregated}
+\caption{A comparison of SuperMalloc, DLmalloc, Hoard,
+  JEmalloc, and TBBmalloc running malloc-test
+  on a 4-core (1 socket + hyperthreading) 3.4GHz i7-4770 (Haswell-DT)
+  The lines are the average of 8 trials, and the error bars
+  show the fastest and slow trial.}
+\label{fig:data}
+\vspace*{-3ex}
+\end{figure}
+
+
+\begin{figure}
 \input{new-malloc-test-1K-tempo-aggregated}
 \caption{A comparison of SuperMalloc, DLmalloc \cite{Lea96}, Hoard
   \cite{BergerMcBl00}, and JEmalloc~\cite{Evans06} running malloc-test
