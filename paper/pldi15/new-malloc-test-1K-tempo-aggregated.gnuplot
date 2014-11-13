@@ -100,7 +100,7 @@ set xtics border out scale 1,0.5 nomirror norotate  offset character 0, 0, 0 aut
 set xtics (1,8,16,24,32)
 set ytics border out scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 #set ytics autofreq  norangelimit
-set ytics ("\\footnotesize 0" 0, "\\footnotesize$50$M" 50e6, "\\footnotesize$100$M" 100e6, "\\footnotesize $134$M" 134e6)
+set ytics ("\\footnotesize 0" 0, "\\footnotesize$50$M" 50e6, "\\footnotesize$100$M" 100e6, "\\footnotesize $132$M" 132e6)
 set ztics border in scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 set ztics autofreq  norangelimit
 set nox2tics

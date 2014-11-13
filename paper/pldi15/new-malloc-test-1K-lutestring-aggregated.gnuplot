@@ -100,7 +100,7 @@ set xtics border out scale 1,0.5 nomirror norotate  offset character 0, 0, 0 aut
 set xtics (1,2,4,6,8)
 set ytics border out scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 #set ytics autofreq  norangelimit
-set ytics ("\\footnotesize 0" 0, "\\footnotesize$50$M" 50e6, "\\footnotesize$100$M" 100e6, "\\footnotesize $134$M" 134e6)
+set ytics ("\\footnotesize 0" 0, "\\footnotesize$50$M" 50e6, "\\footnotesize $94$M" 94e6)
 set ztics border in scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 set ztics autofreq  norangelimit
 set nox2tics
@@ -123,13 +123,13 @@ set xlabel "{\\small Producer threads}"
 set xlabel  offset character 0, 0, 0 font "" textcolor lt -1 norotate
 set x2label "" 
 set x2label  offset character 0, 0, 0 font "" textcolor lt -1 norotate
-set xrange [ 0 : 8.1 ] noreverse nowriteback
+set xrange [ 0.75 : 8.1 ] noreverse nowriteback
 set x2range [ * : * ] noreverse nowriteback
 set ylabel "{\\small \\texttt{malloc()}'s per second}" 
 set ylabel  offset character 3, 0, 0 font "" textcolor lt -1 rotate by -270
 set y2label "" 
 set y2label  offset character 0, 0, 0 font "" textcolor lt -1 rotate by -270
-set yrange [ 0 : 134e6 ] noreverse nowriteback
+set yrange [ 0 : 100e6 ] noreverse nowriteback
 set y2range [ * : * ] noreverse nowriteback
 set zlabel "" 
 set zlabel  offset character 0, 0, 0 font "" textcolor lt -1 norotate
