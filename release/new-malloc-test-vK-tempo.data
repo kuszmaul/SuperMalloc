@@ -1,4 +1,4 @@
-threads dlmalloc hoard jemalloc supermalloc_pthread
+threads dlmalloc hoard jemalloc tbbmalloc supermalloc_pthread
 1 2448998 1747075 4580411 4097691 7786397
 2 5574977 2128571 7422738 8055922 13326844
 3 2294632 4211720 13475656 15272918 27248808
