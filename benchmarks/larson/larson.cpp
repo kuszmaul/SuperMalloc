@@ -69,6 +69,10 @@ void QueryPerformanceFrequency(long * x)
 #include  <time.h>
 #include  <assert.h>
 
+struct variance_sum {
+  unsigned long Ex, Ex2, n;
+};
+
 #define _REENTRANT 1
 #include <pthread.h>
 #ifdef __sun
@@ -175,12 +179,13 @@ typedef struct thr_data {
 
   volatile int finished ;
   struct lran2_st rgen ;
+  struct variance_sum vsum;
 
 } thread_data;
 
 void runthreads(long sleep_cnt, int min_threads, int max_threads, 
 		int chperthread, int num_rounds) ;
-void runloops(long sleep_cnt, int num_chunks ) ;
+void runloops(long sleep_cnt, int num_chunks,  struct variance_sum *vs) ;
 static void warmup(char **blkp, int num_chunks );
 static void * exercise_heap( void *pinput) ;
 static void lran2_init(struct lran2_st* d, long seed) ;
@@ -339,15 +344,17 @@ int main (int argc, char *argv[])
 
 } /* main */
 
-static unsigned long Ex = 0;
-static unsigned long Ex2 = 0;
+struct variance_sum global_vsum = {0,0,0};
 
 static double get_variance(void) {
+  unsigned long Ex = global_vsum.Ex;
+  unsigned long Ex2 = global_vsum.Ex2;
   double s2 = ((double)(Ex*Ex))/slow_count;
-  return (Ex2 - s2)/slow_count;
+  return (Ex2 - s2)/global_vsum.n;
 }
 
-static char *my_malloc(size_t size) {
+
+static char *my_malloc(size_t size, struct variance_sum *vs) {
   struct timespec start,end;
   if (time_variance) {
     clock_gettime(CLOCK_MONOTONIC, &start);
@@ -361,10 +368,11 @@ static char *my_malloc(size_t size) {
       if (c < n_slow_instance) {
 	slow_instance[c] = diff;
       }
-      // Compute variance:
-      __sync_fetch_and_add(&Ex, diff);
-      __sync_fetch_and_add(&Ex2, diff*diff);
     }
+    // Compute variance:
+    vs->Ex+=diff;
+    vs->Ex2+=diff*diff;
+    vs->n++;
     while (1) { // store max atomically
       unsigned long slowest_v = __atomic_load_n(&slowest, __ATOMIC_CONSUME);
       if (slowest_v > diff) break;
@@ -406,7 +414,7 @@ void runloops(long sleep_cnt, int num_chunks )
 #ifdef CPP
     blkp[cblks] = new char[blk_size] ;
 #else
-    blkp[cblks] = (char *) my_malloc(blk_size) ;
+    blkp[cblks] = (char *) my_malloc(blk_size, &global_vsum) ;
 #endif
     blksize[cblks] = blk_size ;
     assert(blkp[cblks] != NULL) ;
@@ -429,7 +437,7 @@ void runloops(long sleep_cnt, int num_chunks )
 #ifdef CPP
       blkp[victim] = new char[blk_size] ;
 #else
-      blkp[victim] = (char *) my_malloc(blk_size) ;
+      blkp[victim] = (char *) my_malloc(blk_size, &global_vsum) ;
 #endif
       blksize[victim] = blk_size ;
       assert(blkp[victim] != NULL) ;
@@ -510,12 +518,13 @@ void runthreads(long sleep_cnt, int min_threads, int max_threads, int chperthrea
 	de_area[i].cFrees      = 0 ;
 	de_area[i].cThreads    = 0 ;
 	de_area[i].finished    = FALSE ;
+	de_area[i].vsum        = (struct variance_sum){0,0,0};
 	lran2_init(&de_area[i].rgen, de_area[i].seed) ;
 
 #ifdef __WIN32__
 	_beginthread((void (__cdecl*)(void *)) exercise_heap, 0, &de_area[i]) ;  
 #else
-	_beginthread(exercise_heap, 0, &de_area[i]) ;  
+	_beginthread(exercise_heap, 0, &de_area[i]) ; 
 #endif
 
 	}
@@ -549,6 +558,10 @@ void runthreads(long sleep_cnt, int min_threads, int max_threads, int chperthrea
 	sum_frees     += de_area[i].cFrees ;
 	sum_threads   += de_area[i].cThreads ;
 	de_area[i].cAllocs = de_area[i].cFrees = 0;
+	
+	global_vsum.Ex += de_area[i].vsum.Ex;
+	global_vsum.Ex2 += de_area[i].vsum.Ex2;
+	global_vsum.n   += de_area[i].vsum.n;
       }
 
  
@@ -630,7 +643,7 @@ static void * exercise_heap( void *pinput)
 #ifdef CPP
     pdea->array[victim] = new char[blk_size] ;
 #else
-    pdea->array[victim] = (char *) my_malloc(blk_size) ;
+    pdea->array[victim] = (char *) my_malloc(blk_size, &pdea->vsum) ;
 #endif
 
     pdea->blksize[victim] = blk_size ;
@@ -686,7 +699,7 @@ static void warmup(char **blkp, int num_chunks )
 #ifdef CPP
     blkp[cblks] = new char[blk_size] ;
 #else
-    blkp[cblks] = (char *) my_malloc(blk_size) ;
+    blkp[cblks] = (char *) my_malloc(blk_size, &global_vsum) ;
 #endif
     blksize[cblks] = blk_size ;
     assert(blkp[cblks] != NULL) ;
@@ -716,7 +729,7 @@ static void warmup(char **blkp, int num_chunks )
 #ifdef CPP
     blkp[victim] = new char[blk_size] ;
 #else
-    blkp[victim] = (char *) my_malloc(blk_size) ;
+    blkp[victim] = (char *) my_malloc(blk_size, &global_vsum) ;
 #endif
     blksize[victim] = blk_size ;
     assert(blkp[victim] != NULL) ;

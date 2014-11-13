@@ -16,25 +16,6 @@ maxrss=3307264
 Variance notes:
 [bradley@30-87-232 larson]$ ./larson 10 7 500 1000 10000 1 8
 sleep = 10, min = 7, max = 500, per thread = 1000, num rounds = 10000, seed = 1, max_threads = 8, min_threads = 8
-Throughput =  6240168 operations per second.
-Done sleeping...
-maxrss=6756 slowest=35879739 sqrt(variance)=2179325.954661
-slows(24279)={1367 1873 2091 3539 1780 1753 1728 1740 1737 2181 1736 2149 1728 1782 1745 1835 3492 1696 2096 1693 1735 2229 1944 1747 1677 1734 1754 1806 2345 1746 3382 1751 1702 4278 1774 1751 1946 1808 1762 1764 2475 1746 1764 3437 1772 1855 1868 1899 2274 1748 1761 1756 1774 1690 1726 1837 3395 1752 1904 1747 1778 1733 1729 2099 1686 1691 3721 1838 1838 1821 3433 1773 1765 2257 1778 2047 1811 1751 1837 1789 1729 1924 1799 4316 1952 1788 1770 1727 1760 1766 1923 1674 5547 1690 1735 1749 1705 3759 1785 3505 }
-[bradley@30-87-232 larson]$ LD_PRELOAD=../../release/lib/libsupermalloc.so ./larson 10 7 500 1000 10000 1 8
-sleep = 10, min = 7, max = 500, per thread = 1000, num rounds = 10000, seed = 1, max_threads = 8, min_threads = 8
-Throughput =  7121576 operations per second.
-Done sleeping...
-maxrss=7328 slowest=29014337 sqrt(variance)=1656508.742740
-slows(31686)={179973 190352 134957 16073 1011 9724 178334 1404 59449 56839 61107 63552 1172 55573 67129 57382 59712 1194 183363 1283 58014 66920 1220 1345 1461 234686 1051 1095 1047 69704 61222 1006 1042 202509 64977 1150 5894 1185 10936 12682 1123 1123 1059 1110 1267 1055 7565 4811 1247 1103 5933 1339 5722 1002 1636 2134 1376 5550 1123 2702 1023 4490 1100 2472 1280 4831 1226 1824 1039 1079 1270 1119 1045 4808 1076 1260 2061 2385 6906 1374 29890 1102 1260 1042 1430 1115 1898 1543 1230 5512 3608 1166 1146 1226 1250 1106 2980 1056 1971 4203 }
-[bradley@30-87-232 larson]$ LD_PRELOAD=/home/bradley/malloc-implementations/jemalloc-3.6.0/lib/libjemalloc.so  ./larson 10 7 500 1000 10000 1 8
-sleep = 10, min = 7, max = 500, per thread = 1000, num rounds = 10000, seed = 1, max_threads = 8, min_threads = 8
-Throughput =  7099820 operations per second.
-Done sleeping...
-maxrss=8872 slowest=30779349 sqrt(variance)=2186085.003218
-slows(16442)={7202 4630 4866 3637 3361 3215 4465 5075 3750 5352 4009 3305 3327 3853 3858 6182 4613 3486 3814 4851 3841 2909 3107 4886 3099 3255 7284 5071 4118 3485 3068 3131 3116 2920 3104 3241 3131 3127 8407 3559 3068 3663 3315 3070 3937 2898 3089 3102 3202 2918 5517 3202 3295 7623 3258 3224 4554 3074 4882 3273 3303 3337 4565 4441 3642 3102 3298 3279 3131 2642 3056 3569 4706 2991 3759 3318 3138 6170 3145 3718 3799 3635 3106 3429 3525 3008 2757 2967 3158 3103 5666 3539 3889 3778 3061 2766 4433 3053 3203 2763 }
-[bradley@30-87-232 larson]$ 
-[bradley@30-87-232 larson]$ ./larson 10 7 500 1000 10000 1 8
-sleep = 10, min = 7, max = 500, per thread = 1000, num rounds = 10000, seed = 1, max_threads = 8, min_threads = 8
 Throughput =  6108685 operations per second.
 Done sleeping...
 maxrss=6736 slowest=42077996 sqrt(variance)=1453751.359594
@@ -65,3 +46,26 @@ maxrss=10076 slowest=30252288 sqrt(variance)=1671401.840312
 slows(31631)={5982 3975 3997 4218 4630 4009 3906 4114 5609 3889 3927 15882 4228 3935 5446 6111 4240 3787 3974 5390 4095 3748 8004 4479 3866 5496 8076 3974 4056 4221 3973 3784 5207 11171 3962 4163 3814 5311 4092 3882 3796 3827 3778 4101 4191 3774 3867 3849 3880 3942 4468 4906 10848 3774 3827 3786 3818 6127 4062 4235 3794 36295 3929 3967 3774 4481 4262 3961 4050 4510 5236 3964 5225 3569 3870 4101 3946 3899 4829 4258 4549 5289 3991 4049 4408 3937 4615 6096 1300 1289 1128 1044 1108 1150 5415 1199 8437 1046 1025 5693 }
 [bradley@30-87-232 larson]$ pwd
 /home/bradley/supermalloc/benchmarks/larson
+
+
+[bradley@30-87-232 manythreads]$ LD_PRELOAD=/home/bradley/malloc-implementations/Hoard/src/libhoard.so /usr/bin/time ./vyukov
+LD_PRELOAD=/home/bradley/malloc-implementations/Hoard/src/libhoard.so /usr/bin/time ./vyukov
+maxrss=291232
+14.72user 0.27system 0:20.14elapsed 74%CPU (0avgtext+0avgdata 291556maxresident)k
+0inputs+0outputs (0major+72691minor)pagefaults 0swaps
+[bradley@30-87-232 manythreads]$ LD_PRELOAD=/home/bradley/malloc-implementations/jemalloc-3.6.0/lib/libjemalloc.so /usr/bin/time ./vyukov
+LD_PRELOAD=/home/bradley/malloc-implementations/jemalloc-3.6.0/lib/libjemalloc.so /usr/bin/time ./vyukov
+maxrss=233320
+16.23user 10.31system 0:31.62elapsed 83%CPU (0avgtext+0avgdata 233320maxresident)k
+0inputs+0outputs (0major+5466673minor)pagefaults 0swaps
+[bradley@30-87-232 manythreads]$ LD_PRELOAD=/home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release/libtbbmalloc_proxy.so.2:/home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release/libtbbmalloc.so.2 /usr/bin/time ./vyukov
+LD_PRELOAD=/home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release/libtbbmalloc_proxy.so.2:/home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release/libtbbmalloc.so.2 /usr/bin/time ./vyukov
+maxrss=4314756
+17.33user 5.37system 1:51.36elapsed 20%CPU (0avgtext+0avgdata 4314756maxresident)k
+1645264inputs+0outputs (160357major+1427629minor)pagefaults 0swaps
+[bradley@30-87-232 manythreads]$ LD_PRELOAD=../../release/lib/libsupermalloc.so /usr/bin/time ./vyukov
+LD_PRELOAD=../../release/lib/libsupermalloc.so /usr/bin/time ./vyukov
+maxrss=223920
+15.95user 0.21system 0:21.32elapsed 75%CPU (0avgtext+0avgdata 224152maxresident)k
+448inputs+0outputs (1major+56163minor)pagefaults 0swaps
+[bradley@30-87-232 manythreads]$ 

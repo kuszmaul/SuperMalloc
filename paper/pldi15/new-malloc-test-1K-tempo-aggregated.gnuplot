@@ -162,12 +162,12 @@ set style line 7 lt 2 lc rgb "#A000A0" lw 1 pt 0
 set style line 8 lt 3 lc rgb "#0000A0" lw 1 pt 0
 set style line 9 lt 4 lc rgb "#00A0A0" lw 1 pt 0
 set label 4 "\\footnotesize SuperMalloc"      at 15,1.2e8    right textcolor rgb "#006400"
-set label 6 "\\footnotesize dlmalloc"         at 18,6e6      right textcolor rgb "#A00000"
+set label 6 "\\footnotesize DLmalloc"         at 18,6e6      right textcolor rgb "#A00000"
 set label 7 "\\footnotesize Hoard"            at 32,5e7      offset character 0,0.5 right textcolor rgb "#A000A0"
 set arrow 107 from 28,5e7 to 32,17156632 heads size screen 1 ls 7
-set label 8 "\\footnotesize jemalloc"         at 20,5e7      offset character 0,0.5 center textcolor rgb "#0000A0"
+set label 8 "\\footnotesize JEmalloc"         at 20,5e7      offset character 0,0.5 center textcolor rgb "#0000A0"
 set arrow 108 from 20,5e7 to 23,31938839 heads size screen 1 ls 8
-set label 9 "\\footnotesize tbbmalloc"        at 15,4.5e7 right textcolor rgb "#00A0A0"
+set label 9 "\\footnotesize TBBmalloc"        at 15,4.5e7 right textcolor rgb "#00A0A0"
 plot "new-malloc-test-1K-tempo-aggregated.data" using 1:2:3:4 with errorbars title "dlmalloc" ls 6,  "new-malloc-test-1K-tempo-aggregated.data" using 1:2 with lines notitle ls 6,\
      "new-malloc-test-1K-tempo-aggregated.data" using 1:5:6:7 with errorbars title "hoard"    ls 7,  "new-malloc-test-1K-tempo-aggregated.data" using 1:5 with lines notitle ls 7,\
      "new-malloc-test-1K-tempo-aggregated.data" using 1:8:9:10 with errorbars title "jemalloc" ls 8, "new-malloc-test-1K-tempo-aggregated.data" using 1:8 with lines notitle ls 8,\
