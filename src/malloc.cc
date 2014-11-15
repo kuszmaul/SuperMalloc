@@ -335,7 +335,9 @@ static void* aligned_malloc_internal(size_t alignment, size_t size) {
   } else {
     // huge blocks are naturally powers of two, but they aren't always aligned.  Allocate something big enough to align it.
     // huge_malloc sets all the intermediate spots to bin -1 to indicate that it's not really the beginning.
-    return align_pointer_up(huge_malloc(alignment+size-pagesize), alignment, size, alignment+size-pagesize);
+    void *r = huge_malloc(std::max(alignment, size)); // this will be aligned.  The bookkeeping will be messed up if alignment>size, however.
+    bassert((reinterpret_cast<uint64_t>(r) & (alignment-1)) == 0); // make sure it is aligned
+    return r;
   }
 }
 

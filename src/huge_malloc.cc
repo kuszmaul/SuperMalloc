@@ -10,41 +10,85 @@
 #include "generated_constants.h"
 #include "malloc_internal.h"
 
-// For each binned size, we need to maintain arrays of lists of pages.  The length of the array is the number of objects that fit into a page.
-//  The first list is pages that have one empty slot.  The second list is pages with two empty slots.  The third list is pages with
-//  three empty slots.
-// The way we link pages together is that we use the empty slot as the next pointer, so we point at the empty slot.
-
 static lock_t huge_lock = LOCK_INITIALIZER;
 
+// free_chunks[0] is a list of 1-chunk objects (which are, by definition chunk-aligned)
+// free_chunks[1] is a list of 2-chunk objects which are also 2-chunk aligned (that is 4MiB-aligned).
+// free_chunks[2] is a list of 4-chunk objects that are 4-chunk aligned.
+// terminated by 0.
 chunknumber_t free_chunks[log_max_chunknumber];
 
-static void pre_add_to_free_chunks(int f) {
+static void pre_get_from_free_chunks(int f) {
   int r = free_chunks[f];
+  if (r==0) return;
   prefetch_write(&free_chunks[f]);
   prefetch_read(&chunk_infos[r]);
 }
-static void* do_add_to_free_chunks(int f) {
+static void* do_get_from_free_chunks(int f) {
   chunknumber_t r = free_chunks[f];
+  if (r==0) return NULL;
   free_chunks[f] = chunk_infos[r].next;
   return reinterpret_cast<void*>(static_cast<uint64_t>(r)*chunksize);
 }
+
+static void *get_cached_power_of_two_chunks(int list_number) {
+  if (atomic_load(&free_chunks[list_number]) == 0) return NULL; // there are none.
+  return atomically(&huge_lock, "huge:add_to_free_chunks", pre_get_from_free_chunks, do_get_from_free_chunks, list_number);
+}
+
+static void put_cached_power_of_two_chunks(chunknumber_t cn, int list_number) {
+  // Do this atomically.  This one is simple enough to be done with a compare and swap.
+  if (0) {
+    chunk_infos[cn].next = free_chunks[list_number];
+    free_chunks[list_number] = cn;
+  } else {
+    while (1) {
+      chunknumber_t hd = atomic_load(&free_chunks[list_number]);
+      chunk_infos[cn].next = hd;
+      if (__sync_bool_compare_and_swap(&free_chunks[list_number], hd, cn)) break;
+    }
+  }
+}
+
+// static void* align_pointer_up_huge(void *p, chunknumber_t n_chunks_alignment) {
+//   uint64_t ru = reinterpret_cast<uint64_t>(p);
+//   uint64_t alignment = n_chunks_alignment * chunksize;
+//   uint64_t ra = (ru + alignment -1) & ~(alignment-1);
+//   return reinterpret_cast<void*>(ra);
+// }
 
 static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
 // Effect: Allocate n_chunks of chunks.
 // Requires: n_chunks is power of two.
 {
-  int f = lg_of_power_of_two(n_chunks);
-  if (0) printf("Getting %d chunks. Tryin free_chunks[%d]\n", n_chunks, f);
-  if (atomic_load(&free_chunks[f]) ==0) {
-    return mmap_chunk_aligned_block(n_chunks);
-  } else {
-    // Do this atomically.
-    return atomically(&huge_lock, "huge:add_to_free_chunks", pre_add_to_free_chunks, do_add_to_free_chunks, f);
+  {
+    void *r = get_cached_power_of_two_chunks(lg_of_power_of_two(n_chunks));
+    if (r) return r;
   }
+  void *p = mmap_chunk_aligned_block(2*n_chunks); 
+  chunknumber_t c = address_2_chunknumber(p);
+  chunknumber_t end = c+2*n_chunks;
+  void *result = NULL;
+  while (c < end) {
+    if ((c & (n_chunks-1)) == 0) {
+      // c is aligned well enough
+      result = reinterpret_cast<void*>(reinterpret_cast<char*>(p) + c*chunksize);
+      c += n_chunks;
+      break;
+    } else {
+      int bit = __builtin_ffsl(c/chunksize)-1;
+      // make sure the bit we add doesn't overflow
+      while (c + (1<<bit) >= end) bit--;
+      put_cached_power_of_two_chunks(c, bit);
+      c += (1<<bit);
+    }
+  }
+  bassert(result);
+  return result;
 }
 
 void* huge_malloc(size_t size) {
+  // allocates something out of the hyperceil(size) bin, which is also hyperceil(size)-aligned.
   chunknumber_t n_chunks_base = ceil(size, chunksize);
   chunknumber_t n_chunks = hyperceil(n_chunks_base);
   void *c = get_power_of_two_n_chunks(n_chunks);
@@ -70,9 +114,6 @@ void* huge_malloc(size_t size) {
   }
   chunknumber_t chunknum = address_2_chunknumber(c);
   chunk_infos[chunknum].bin_number = bin;
-  for (chunknumber_t i = 1; i < n_chunks; i++) {
-    chunk_infos[chunknum + i].bin_number = bin_sentinal;
-  }
   if (0) printf(" malloced %p\n", c);
   return c;
 }
@@ -81,28 +122,14 @@ void huge_free(void *m) {
   chunknumber_t  cn  = address_2_chunknumber(m);
   bassert(cn);
   binnumber_t   bin  = chunk_infos[cn].bin_number;
-  while (bin == bin_sentinal) {
-    cn--;
-    bin = chunk_infos[cn].bin_number;
-  }
   uint64_t      siz  = bin_2_size(bin);
   chunknumber_t csiz = ceil(siz, chunksize);
   uint64_t     hceil = hyperceil(csiz);
   uint32_t      hlog = lg_of_power_of_two(hceil);
   bassert(hlog < log_max_chunknumber);
   madvise(m, siz, MADV_DONTNEED);
-  // Do this atomically.  This one is simple enough to be done with a compare and swap.
   
-  if (0) {
-      chunk_infos[cn].next = free_chunks[hlog];
-      free_chunks[hlog] = cn;
-  } else {
-    while (1) {
-      chunknumber_t hd = atomic_load(&free_chunks[hlog]);
-      chunk_infos[cn].next = hd;
-      if (__sync_bool_compare_and_swap(&free_chunks[hlog], hd, cn)) break;
-    }
-  }
+  put_cached_power_of_two_chunks(cn, hlog);
 }
 
 #ifdef TESTING
