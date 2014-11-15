@@ -232,6 +232,9 @@ extern "C" void free(void *p) {
   if (bin < first_huge_bin_number) {
     cached_free(p, bin);
   } else {
+    // If the bin is a sentinal, then that means it's huge_free()'s problem to figure it out.
+    // Huge free will scan backwards to find the proper size (which is needed only for
+    // aligned allocations).
     huge_free(p);
   }
 }
@@ -320,7 +323,7 @@ static void* aligned_malloc_internal(size_t alignment, size_t size) {
       return cached_malloc(bin);
     }
     if (bs+1 >= alignment+size) {
-      // this bin produces big enough blocks to force alignment by taing a subpiece.
+      // this bin produces big enough blocks to force alignment by taking a subpiece.
       return align_pointer_up(cached_malloc(bin), alignment, size, bs);
     }
     bin++;
@@ -331,6 +334,7 @@ static void* aligned_malloc_internal(size_t alignment, size_t size) {
     return huge_malloc(size); // huge blocks are always naturally aligned.
   } else {
     // huge blocks are naturally powers of two, but they aren't always aligned.  Allocate something big enough to align it.
+    // huge_malloc sets all the intermediate spots to bin -1 to indicate that it's not really the beginning.
     return align_pointer_up(huge_malloc(alignment+size-pagesize), alignment, size, alignment+size-pagesize);
   }
 }

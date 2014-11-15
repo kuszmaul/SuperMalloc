@@ -90,6 +90,8 @@ extern struct chunk_info {
   };
 } *chunk_infos; // I want this to be an array of length [1u<<27], but that causes link-time errors.  Instead initialize_malloc() mmaps something big enough.
 
+const binnumber_t bin_sentinal = 0xFFFFFFFF; // this indicates that the bin is not really the bin number, look in the previous chunk.
+
 // Functions that are separated into various files.
 void* huge_malloc(uint64_t size);
 void huge_free(void* ptr);

@@ -70,6 +70,9 @@ void* huge_malloc(size_t size) {
   }
   chunknumber_t chunknum = address_2_chunknumber(c);
   chunk_infos[chunknum].bin_number = bin;
+  for (chunknumber_t i = 1; i < n_chunks; i++) {
+    chunk_infos[chunknum + i].bin_number = bin_sentinal;
+  }
   if (0) printf(" malloced %p\n", c);
   return c;
 }
@@ -78,6 +81,10 @@ void huge_free(void *m) {
   chunknumber_t  cn  = address_2_chunknumber(m);
   bassert(cn);
   binnumber_t   bin  = chunk_infos[cn].bin_number;
+  while (bin == bin_sentinal) {
+    cn--;
+    bin = chunk_infos[cn].bin_number;
+  }
   uint64_t      siz  = bin_2_size(bin);
   chunknumber_t csiz = ceil(siz, chunksize);
   uint64_t     hceil = hyperceil(csiz);
