@@ -228,6 +228,7 @@ extern "C" void free(void *p) {
   if (p == NULL) return;
   chunknumber_t cn = address_2_chunknumber(p);
   binnumber_t bin = chunk_infos[cn].bin_number;
+  bassert(!(offset_in_chunk(p) == 0 && bin==0)); // we cannot have a bin 0 item that is chunk-aligned
   if (bin < first_huge_bin_number) {
     cached_free(p, bin);
   } else {
