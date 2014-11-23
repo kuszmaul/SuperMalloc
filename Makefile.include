@@ -45,6 +45,9 @@ check: $(patsubst %, $(BLD)/%.check, $(TESTS)) \
  check-test-malloc_test-w1-s4096 \
  check-test-malloc_test-w1-s-1
 
+TAGS: $(SRC)/*.cc $(SRC)/*.h $(BLD)/generated_constants.h $(BLD)/generated_constants.cc
+	etags $(SRC)/*.cc $(SRC)/*.h  $(BLD)/generated_constants.h $(BLD)/generated_constants.cc
+
 %.check: %
 	SUPERMALLOC_THREADCACHE=1 ./$<
 	SUPERMALLOC_THREADCACHE=0 ./$<

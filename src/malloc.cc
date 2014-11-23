@@ -28,17 +28,18 @@ extern "C" void test_size_2_bin(void) {
 	bassert(s>=i);
 	bassert(size_2_bin(s) == g);
     }
-    bassert(size_2_bin(largest_large+1) == first_huge_bin_number);
-    bassert(size_2_bin(largest_large+4096) == first_huge_bin_number);
-    bassert(size_2_bin(largest_large+4096+1) == 1+first_huge_bin_number);
-    bassert(bin_2_size(first_huge_bin_number) == largest_large+4096);
-    bassert(bin_2_size(first_huge_bin_number+1) == largest_large+4096*2);
-    bassert(bin_2_size(first_huge_bin_number+2) == largest_large+4096*3);
+    for (size_t i = largest_large+1; i <= chunksize; i++) {
+      bassert(size_2_bin(i) == first_huge_bin_number);
+    }
+    bassert(bin_2_size(first_huge_bin_number-1) < chunksize);
+    bassert(bin_2_size(first_huge_bin_number) == chunksize);
+    bassert(bin_2_size(first_huge_bin_number+1) == chunksize*2);
+    bassert(bin_2_size(first_huge_bin_number+2) == chunksize*4);
     for (int k = 0; k < 1000; k++) {
       size_t s = chunksize * 10 + pagesize * k;
       binnumber_t b = size_2_bin(s);
       bassert(size_2_bin(bin_2_size(b))==b);
-      bassert(bin_2_size(size_2_bin(s))==s);
+      bassert(bin_2_size(size_2_bin(s))==hyperceil(s));
     }
 
     // Verify that all the bins that are 256 or larger are multiples of a cache line.
@@ -227,7 +228,8 @@ extern "C" void free(void *p) {
   maybe_initialize_malloc();
   if (p == NULL) return;
   chunknumber_t cn = address_2_chunknumber(p);
-  binnumber_t bin = chunk_infos[cn].bin_number;
+  bin_and_size_t bnt = chunk_infos[cn].bin_and_size;
+  binnumber_t bin = bin_from_bin_and_size(bnt);
   bassert(!(offset_in_chunk(p) == 0 && bin==0)); // we cannot have a bin 0 item that is chunk-aligned
   if (bin < first_huge_bin_number) {
     cached_free(p, bin);
@@ -379,7 +381,7 @@ extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
 
 extern "C" size_t malloc_usable_size(const void *ptr) {
   chunknumber_t cn = address_2_chunknumber(ptr);
-  binnumber_t bin = chunk_infos[cn].bin_number;
+  binnumber_t bin = bin_from_bin_and_size(chunk_infos[cn].bin_and_size);
   const char *base = reinterpret_cast<const char*>(object_base(const_cast<void*>(ptr)));
   const char *ptr_c = reinterpret_cast<const char*>(ptr);
   ssize_t base_size = bin_2_size(bin);
@@ -416,7 +418,7 @@ void test_malloc_usable_size(void) {
 void* object_base(void *ptr) {
   // Requires: ptr is on the same chunk as the object base.
   chunknumber_t cn = address_2_chunknumber(ptr);
-  binnumber_t bin = chunk_infos[cn].bin_number;
+  binnumber_t bin = bin_from_bin_and_size(chunk_infos[cn].bin_and_size);
   if (bin >= first_huge_bin_number) {
     return address_2_chunkaddress(ptr);
   } else {
@@ -541,3 +543,12 @@ void* object_base(void *ptr) {
 // even at the beginning, since it probably means a single page table
 // entry for this table.
 
+bin_and_size_t bin_and_size_to_bin_and_size(binnumber_t bin, size_t size) {
+  bassert(bin < 128);
+  uint32_t n_pages = ceil(size,4096);
+  if (n_pages  < (1<<24)) {
+    return bin + (1<<7) + (n_pages<<8);
+  } else {
+    return bin +          (ceil(size,chunksize)<<8);
+  }
+}

@@ -52,6 +52,7 @@ void* large_malloc(size_t size)
 //  for these pages we disable hugepages.)
 {
   if (0) printf("large_malloc(%ld):\n", size);
+  uint32_t footprint = pagesize*ceil(size, pagesize);
   binnumber_t b = size_2_bin(size);
   size_t usable_size = bin_2_size(b);
   bassert(b >= first_large_bin_number);
@@ -83,7 +84,6 @@ void* large_malloc(size_t size)
 	if (h==NULL) continue; // Go try again
       }
       // that was the atomic part.
-      uint32_t footprint = pagesize*ceil(size, pagesize);
       h->footprint = footprint;
       add_to_footprint(footprint);
       if (0) printf("setting its footprint to %d\n", h->footprint);
@@ -96,7 +96,7 @@ void* large_malloc(size_t size)
       void* address = reinterpret_cast<void*>(reinterpret_cast<char*>(chunk) + offset_of_first_object_in_large_chunk + offset * usable_size);
       bassert(address_2_chunknumber(address)==address_2_chunknumber(chunk));
       if (0) printf("result=%p\n", address);
-      bassert(chunk_infos[address_2_chunknumber(address)].bin_number == b);
+      bassert(bin_from_bin_and_size(chunk_infos[address_2_chunknumber(address)].bin_and_size) == b);
       log_command('a', address);
       return address;
     } else {
@@ -116,7 +116,7 @@ void* large_malloc(size_t size)
       for (size_t i = 0; i+1 < objects_per_chunk; i++) {
 	entry[i].next = &entry[i+1];
       }
-      chunk_infos[address_2_chunknumber(chunk)].bin_number = b;
+      chunk_infos[address_2_chunknumber(chunk)].bin_and_size = bin_and_size_to_bin_and_size(b, footprint);
 
       // Do this atomically. 
       if (0) {
@@ -140,7 +140,7 @@ void* large_malloc(size_t size)
 
 size_t large_footprint(void *p) {
   if (0) printf("large_footprint(%p):\n", p);
-  binnumber_t bin = chunk_infos[address_2_chunknumber(p)].bin_number;
+  binnumber_t bin = bin_from_bin_and_size(chunk_infos[address_2_chunknumber(p)].bin_and_size);
   bassert(first_large_bin_number <= bin);
   bassert(bin < first_huge_bin_number);
   uint64_t usable_size = bin_2_size(bin);
@@ -157,7 +157,7 @@ size_t large_footprint(void *p) {
 
 void large_free(void *p) {
   log_command('f', p);
-  binnumber_t bin = chunk_infos[address_2_chunknumber(p)].bin_number;
+  binnumber_t bin = bin_from_bin_and_size(chunk_infos[address_2_chunknumber(p)].bin_and_size);
   bassert(first_large_bin_number <= bin  && bin < first_huge_bin_number);
   uint64_t usable_size = bin_2_size(bin);
   madvise(p, usable_size, MADV_DONTNEED);

@@ -113,7 +113,7 @@ void* huge_malloc(size_t size) {
     bin = size_2_bin(n_pages*pagesize);
   }
   chunknumber_t chunknum = address_2_chunknumber(c);
-  chunk_infos[chunknum].bin_number = bin;
+  chunk_infos[chunknum].bin_and_size = bin_and_size_to_bin_and_size(bin, size);
   if (0) printf(" malloced %p\n", c);
   return c;
 }
@@ -121,7 +121,8 @@ void* huge_malloc(size_t size) {
 void huge_free(void *m) {
   chunknumber_t  cn  = address_2_chunknumber(m);
   bassert(cn);
-  binnumber_t   bin  = chunk_infos[cn].bin_number;
+  bin_and_size_t bnt = chunk_infos[cn].bin_and_size;
+  binnumber_t   bin  = bin_from_bin_and_size(bnt);
   uint64_t      siz  = bin_2_size(bin);
   chunknumber_t csiz = ceil(siz, chunksize);
   uint64_t     hceil = hyperceil(csiz);
@@ -145,7 +146,7 @@ void test_huge_malloc(void) {
   bassert(reinterpret_cast<uint64_t>(a) % chunksize==0);
   chunknumber_t a_n = address_2_chunknumber(a);
   if (print) printf("a=%p a_n=0x%x\n", a, a_n);
-  bassert(chunk_infos[a_n].bin_number == first_huge_bin_number);
+  bassert(bin_from_bin_and_size(chunk_infos[a_n].bin_and_size) >= first_huge_bin_number);
   *(char*)a = 1;
 
   void *b = huge_malloc(largest_large + 2);
@@ -153,21 +154,25 @@ void test_huge_malloc(void) {
   chunknumber_t b_n = address_2_chunknumber(b);
   if (print) printf("b=%p diff=0x%lx a_n-b_n=%d\n", b, (char*)a-(char*)b, (int)a_n-(int)b_n);
   bassert(abs((int)a_n - (int)b_n) == 1);
-  bassert(chunk_infos[b_n].bin_number == first_huge_bin_number);
+  bassert(bin_from_bin_and_size(chunk_infos[b_n].bin_and_size) == first_huge_bin_number);
 
   void *c = huge_malloc(2*chunksize);
   bassert(offset_in_chunk(c) == 0);
   chunknumber_t c_n = address_2_chunknumber(c);
-  if (print) printf("c=%p diff=0x%lx bin = %u b_n=%d c_n=%d\n", c, (char*)b-(char*)c, chunk_infos[c_n].bin_number, b_n, c_n);
+  if (print) printf("c=%p diff=0x%lx bin = %u,%u b_n=%d c_n=%d\n",
+		    c, (char*)b-(char*)c,
+		    bin_from_bin_and_size(chunk_infos[c_n].bin_and_size),
+		    chunk_infos[c_n].bin_and_size>>7,
+		    b_n, c_n);
   bassert((b_n - c_n == 2) || (c_n - b_n ==1));
-  bassert(chunk_infos[c_n].bin_number == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
+  bassert(bin_from_bin_and_size(chunk_infos[c_n].bin_and_size) == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
 
   void *d = huge_malloc(2*chunksize);
   bassert(reinterpret_cast<uint64_t>(d) % chunksize==0);
   chunknumber_t d_n = address_2_chunknumber(d);
   if (print) printf("d=%p c_n=%d d_n=%d diff=%d abs=%d\n", d, c_n, d_n, c_n-d_n, (int)std::abs((int)c_n-(int)d_n));
   bassert(std::abs((int)c_n - (int)d_n) == 2);
-  bassert(chunk_infos[c_n].bin_number == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
+  bassert(bin_from_bin_and_size(chunk_infos[c_n].bin_and_size) == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
 
   {
     chunknumber_t m1_n = address_2_chunknumber(reinterpret_cast<void*>(-1ul));

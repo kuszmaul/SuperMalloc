@@ -18,9 +18,17 @@ const uint64_t cachelines_per_page = pagesize/cacheline_size;
 
 // We exploit the fact that these are the same size in chunk_infos, which is a union of these two types.
 typedef uint32_t chunknumber_t;
+typedef uint32_t bin_and_size_t;  // we encode the bin number as 7 bits low-order bits.  The size is encoded as
+    //                                1 bit means the size is in 4K pages (0) or the size is in 2M pages (1)
+    //                                24 bits is the size (in 4K or 2M pages )
 typedef uint32_t binnumber_t;
 typedef uint16_t objects_per_folio_t;
 typedef uint16_t folios_per_chunk_t;
+
+bin_and_size_t bin_and_size_to_bin_and_size(binnumber_t bin, size_t size);
+static inline binnumber_t bin_from_bin_and_size(bin_and_size_t bnt) {
+  return bnt&127;
+}
 
 static inline uint64_t ceil(uint64_t a, uint64_t b) {
   return (a+b-1)/b;
@@ -43,7 +51,7 @@ static inline int lg_of_power_of_two(uint64_t a)
 #ifdef TESTING
   bassert((a & (a-1))==0);
 #endif
-  return __builtin_ctz(a);
+  return __builtin_ctzl(a);
 }
 
 static inline chunknumber_t address_2_chunknumber(const void *a) {
@@ -85,7 +93,7 @@ void* object_base(void *ptr);
 
 extern struct chunk_info {
   union {
-    binnumber_t bin_number;   // Encodes how big the objects are in the chunk.
+    bin_and_size_t bin_and_size;
     chunknumber_t next; // Forms a linked list.
   };
 } *chunk_infos; // I want this to be an array of length [1u<<27], but that causes link-time errors.  Instead initialize_malloc() mmaps something big enough.
