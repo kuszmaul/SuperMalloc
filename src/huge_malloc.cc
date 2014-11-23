@@ -72,16 +72,23 @@ static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
   while (c < end) {
     if ((c & (n_chunks-1)) == 0) {
       // c is aligned well enough
-      result = reinterpret_cast<void*>(reinterpret_cast<char*>(p) + c*chunksize);
+      result = reinterpret_cast<void*>(c*chunksize);
       c += n_chunks;
       break;
     } else {
-      int bit = __builtin_ffsl(c/chunksize)-1;
+      int bit = __builtin_ffs(c)-1;
       // make sure the bit we add doesn't overflow
-      while (c + (1<<bit) >= end) bit--;
+      while (c + (1<<bit) > end) bit--;
       put_cached_power_of_two_chunks(c, bit);
       c += (1<<bit);
     }
+  }
+  // the pieces in the tail of c must be put in the right place.
+  while (c < end) {
+    int bit = __builtin_ffs(c)-1;
+    while (c + (1<<bit) > end) bit--;
+    put_cached_power_of_two_chunks(c, bit);
+    c += (1<<bit);
   }
   bassert(result);
   return result;
@@ -153,7 +160,6 @@ void test_huge_malloc(void) {
   bassert(offset_in_chunk(b) == 0);
   chunknumber_t b_n = address_2_chunknumber(b);
   if (print) printf("b=%p diff=0x%lx a_n-b_n=%d\n", b, (char*)a-(char*)b, (int)a_n-(int)b_n);
-  bassert(abs((int)a_n - (int)b_n) == 1);
   bassert(bin_from_bin_and_size(chunk_infos[b_n].bin_and_size) == first_huge_bin_number);
 
   void *c = huge_malloc(2*chunksize);
@@ -164,15 +170,21 @@ void test_huge_malloc(void) {
 		    bin_from_bin_and_size(chunk_infos[c_n].bin_and_size),
 		    chunk_infos[c_n].bin_and_size>>7,
 		    b_n, c_n);
-  bassert((b_n - c_n == 2) || (c_n - b_n ==1));
-  bassert(bin_from_bin_and_size(chunk_infos[c_n].bin_and_size) == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
+  bassert(bin_from_bin_and_size(chunk_infos[c_n].bin_and_size) == first_huge_bin_number +1);
 
   void *d = huge_malloc(2*chunksize);
   bassert(reinterpret_cast<uint64_t>(d) % chunksize==0);
   chunknumber_t d_n = address_2_chunknumber(d);
   if (print) printf("d=%p c_n=%d d_n=%d diff=%d abs=%d\n", d, c_n, d_n, c_n-d_n, (int)std::abs((int)c_n-(int)d_n));
-  bassert(std::abs((int)c_n - (int)d_n) == 2);
-  bassert(bin_from_bin_and_size(chunk_infos[c_n].bin_and_size) == first_huge_bin_number -1 + ceil(2*chunksize - largest_large, pagesize));
+  bassert(bin_from_bin_and_size(chunk_infos[c_n].bin_and_size) == first_huge_bin_number +1);
+
+  // Now make sure that a, b, c, d are allocated with no overlaps.
+  bassert(abs(a_n-b_n)>=1);  // a and b must be separated by 1
+  bassert(abs(a_n-c_n)>=2);  // a and c must be separated by 2
+  bassert(abs(a_n-d_n)>=2);  // a and d must be separated by 2
+  bassert(abs(b_n-c_n)>=2);  // b and c must be separated by 2
+  bassert(abs(b_n-d_n)>=2);  // a and d must be separated by 2
+  bassert(abs(c_n-d_n)>=2);  // c and d must be separated by 2
 
   {
     chunknumber_t m1_n = address_2_chunknumber(reinterpret_cast<void*>(-1ul));
