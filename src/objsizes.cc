@@ -6,24 +6,25 @@
 
 #include "malloc_internal.h"
 
-static bool is_prime(uint32_t x) {
+static bool is_prime_or_9_or_15(uint32_t x) {
+  if (x == 9 || x==15) return true;
   for (uint32_t y = 2; y*y <= x; y++) {
     if (x%y == 0) return false;
   }
   return true;
 }
 
-static uint32_t next_prime(uint32_t x) {
+static uint32_t next_prime_or_9_or_15(uint32_t x) {
   while (1) {
     x++;
-    if (is_prime(x)) return x;
+    if (is_prime_or_9_or_15(x)) return x;
   }
 }
 
-static uint32_t next_prime_or_power_of_two(uint32_t x) {
+static uint32_t next_prime_or_9_or_15_or_power_of_two(uint32_t x) {
   while (1) {
     x++;
-    if (is_prime(x)) return x;
+    if (is_prime_or_9_or_15(x)) return x;
     if (is_power_of_two(x)) return x;
   }
 }
@@ -180,7 +181,7 @@ done_small:
   fprintf(cf, "%s", header_line);
 
   uint32_t prev_objsize_in_cachelines = 4;
-  for (uint32_t objsize_in_cachelines = 5; objsize_in_cachelines < 64*4; objsize_in_cachelines = next_prime_or_power_of_two(objsize_in_cachelines)) {
+  for (uint32_t objsize_in_cachelines = 5; objsize_in_cachelines < 64*4; objsize_in_cachelines = next_prime_or_9_or_15_or_power_of_two(objsize_in_cachelines)) {
     // Must trade off two kinds of internal fragmentation and external
     // fragmentation.
     //
@@ -195,7 +196,7 @@ done_small:
     // chunk, but it could grow out of hand), and (b) the fact that we
     // must round up to the next chunk when allocating memory.
     if (is_power_of_two(objsize_in_cachelines) ||
-	prev_objsize_in_cachelines  < .7 * next_prime(objsize_in_cachelines) // not next power of two
+	prev_objsize_in_cachelines  < .7 * next_prime_or_9_or_15(objsize_in_cachelines) // not next power of two
 	) {
       uint32_t objsize = objsize_in_cachelines * cacheline_size;
       static_bin_t b(objsize);
