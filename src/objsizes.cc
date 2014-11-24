@@ -1,4 +1,4 @@
-#include <assert.h> 
+#include "bassert.h"
 #include <stdint.h>
 #include <stdio.h>
 
@@ -119,9 +119,9 @@ class static_bin_t {
 };
 
 int main (int argc, const char *argv[]) {
-  assert(argc == 2);
+  bassert(argc == 2);
   FILE *cf = fopen(argv[1], "w");
-  assert(cf);
+  bassert(cf);
   const char *name = "GENERATED_CONSTANTS_H";
   fprintf(cf, "#include \"generated_constants.h\"\n");
   printf("#ifndef %s\n", name);
@@ -236,7 +236,7 @@ done_small:
     b.print(cf, bin++);
     fprintf(cf, " %s\n", comment);
     static_bins.push_back(b);
-    assert(b.objects_per_folio * b.folios_per_chunk * sizeof(large_object_list_cell) <= offset_of_first_object_in_large_chunk);
+    bassert(b.objects_per_folio * b.folios_per_chunk * sizeof(large_object_list_cell) <= offset_of_first_object_in_large_chunk);
   }
   binnumber_t first_huge_bin = bin;
   fprintf(cf, "// huge objects (chunk allocated) start  at this size.\n");

@@ -3,9 +3,8 @@
 
 #ifdef TESTING
 #include <stdio.h>
-#include "bassert.h"
-
 #endif
+#include "bassert.h"
 
 #include <stdint.h>
 #include <sys/types.h>
