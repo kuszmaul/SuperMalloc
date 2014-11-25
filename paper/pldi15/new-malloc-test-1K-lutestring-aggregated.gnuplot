@@ -177,5 +177,6 @@ plot "new-malloc-test-1K-lutestring-aggregated.data" using 1:17:18:19 with error
      "new-malloc-test-1K-lutestring-aggregated.data" using 1:23:24:25 with errorbars title "jemalloc" ls 8, "new-malloc-test-1K-lutestring-aggregated.data" using 1:23 with lines notitle ls 8,\
      "new-malloc-test-1K-lutestring-aggregated.data" using 1:26:27:28 with errorbars title "tbbmalloc" ls 9, "new-malloc-test-1K-lutestring-aggregated.data" using 1:26 with lines notitle ls 9, \
      "new-malloc-test-1K-lutestring-aggregated.data" using 1:11:12:13 with errorbars title "supermalloc-noprefetch" ls 3, "new-malloc-test-1K-lutestring-aggregated.data" using 1:11 with lines notitle ls 3, \
-     "new-malloc-test-1K-lutestring-aggregated.data" using 1:5:6:7 with errorbars title "supermalloc" ls 2, "new-malloc-test-1K-lutestring-aggregated.data" using 1:5 with lines notitle ls 2
+     "new-malloc-test-1K-lutestring-aggregated.data" using 1:29:30:31 with errorbars title "pthread" ls 2, "new-malloc-test-1K-lutestring-aggregated.data" using 1:29 with lines notitle ls 2
+#     "new-malloc-test-1K-lutestring-aggregated.data" using 1:5:6:7 with errorbars title "supermalloc" ls 2, "new-malloc-test-1K-lutestring-aggregated.data" using 1:5 with lines notitle ls 2, \
 #    EOF
