@@ -33,6 +33,10 @@ TBBMALLOC_DIR = /home/bradley/malloc-implementations/tbb43_20140724oss/build/lin
 $(BLD)/new-malloc-test-tbbmalloc: $(BLD)/new-malloc-test.o
 	$(CXX) $< -L$(TBBMALLOC_DIR) -ltbbmalloc_proxy -ltbbmalloc -Wl,-rpath,$(TBBMALLOC_DIR) -pthread -o $@
 
+TBBMALLOCNOTSX_DIR = /home/bradley/malloc-implementations/tbb_no_tsx/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release
+$(BLD)/new-malloc-test-tbbmallocnotsx: $(BLD)/new-malloc-test.o
+	$(CXX) $< -L$(TBBMALLOCNOTSX_DIR) -ltbbmalloc_proxy -ltbbmalloc -Wl,-rpath,$(TBBMALLOCNOTSX_DIR) -pthread -o $@
+
 timings-simple:
 	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test -w 2 -t 10
 	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-libc -w 2 -t 10
@@ -40,7 +44,7 @@ timings-simple:
 	/usr/bin/time -f "%M MAXRSS" ./new-malloc-test-hoard -w 2 -t 10
 
 new-malloc-test-1K-x240.data new-malloc-test-1K-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
-	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc tbbmalloc supermalloc_pthread | tee $@
+	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc tbbmalloc supermalloc_pthread tbbmallocnotsx | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
           echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -w $$thread) \
                         $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
@@ -52,11 +56,12 @@ new-malloc-test-1K-x240.data new-malloc-test-1K-lutestring.data: $(BLD)/new-mall
                         $$(./new-malloc-test-jemalloc -w $$thread) \
                         $$(./new-malloc-test-tbbmalloc -w $$thread) \
                         $$(./new-malloc-test-supermalloc_pthread -w $$thread) \
+                        $$(./new-malloc-test-tbbmallocnotsx -w $$thread) \
               | tee -a $@ \
         ;done ;done
 
 new-malloc-test-vK-x240.data new-malloc-test-vK-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
-	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc tbbmalloc supermalloc_pthread | tee $@
+	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc tbbmalloc supermalloc_pthread tbbmalloc-notsx | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
           echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -s -1 -w $$thread) \
                         $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -s -1 -w $$thread) \
@@ -66,8 +71,9 @@ new-malloc-test-vK-x240.data new-malloc-test-vK-lutestring.data: $(BLD)/new-mall
                         $$(./new-malloc-test-dlmalloc                                                    -s -1 -w $$thread) \
                         $$(./new-malloc-test-hoard                                                       -s -1 -w $$thread) \
                         $$(./new-malloc-test-jemalloc                                                    -s -1 -w $$thread) \
-                        $$(./new-malloc-test-tbbmalloc                                                    -s -1 -w $$thread) \
+                        $$(./new-malloc-test-tbbmalloc                                                   -s -1 -w $$thread) \
                         $$(./new-malloc-test-supermalloc_pthread                                         -s -1 -w $$thread) \
+                        $$(./new-malloc-test-tbbmalloc-notsx                                             -s -1 -w $$thread) \
               | tee -a $@ \
         ;done ;done
 
