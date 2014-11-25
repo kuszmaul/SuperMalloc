@@ -73,17 +73,17 @@ int compare_failed_counts(const void *a_v, const void *b_v) {
   return 0;
 }
 #endif
+#endif
+
+#if 0
 static void print_atomic_stats() {
-#ifdef DO_FAILED_COUNTS
+#if defined(DO_FAILED_COUNTS) && defined(TESTING)
   fprintf(stderr, "Critical sections: %ld, locked %ld\n", atomic_stats.atomic_count, atomic_stats.locked_count);
   qsort(failed_counts, failed_counts_n, sizeof(failed_counts[0]), compare_failed_counts);
   for (int i = 0; i < failed_counts_n; i++) {
     fprintf(stderr, " %38s: 0x%08x %5ld\n", failed_counts[i].name, failed_counts[i].code, failed_counts[i].count);
   }
 #endif
-}
-#else
-static void print_atomic_stats() {
 }
 #endif
 
@@ -110,13 +110,20 @@ static
 extern "C"
 #endif
 void initialize_malloc() {
-  atexit(print_atomic_stats);
-#ifdef ENABLE_STATS
-  atexit(print_stats);
-#endif
-#ifdef ENABLE_LOG_CHECKING
-  atexit(check_log);
-#endif
+  // See #22.  Cannot call atexit() inside initialize_malloc() since
+  // there's a lock inside atexit(), and that lock may not yet be
+  // initialized.  The problem seems to be that malloc() is called
+  // very early during initialization, even before the libraries are
+  // initialized.  (Which makes sense if the libraries have
+  // initializers that malloc: they aren't yet initialized...)
+
+  //  atexit(print_atomic_stats);
+  //#ifdef ENABLE_STATS
+  //  atexit(print_stats);
+  //#endif
+  //#ifdef ENABLE_LOG_CHECKING
+  //  atexit(check_log);
+  //#endif
 
   const size_t n_elts = 1u<<27;
   const size_t alloc_size = n_elts * sizeof(chunk_info);
