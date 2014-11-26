@@ -226,6 +226,7 @@ done_small:
   fprintf(cf, "%s", header_line);
 
   uint32_t prev_objsize_in_cachelines = 4;
+  size_t largest_small = 0;
   for (uint32_t objsize_in_cachelines = 5; objsize_in_cachelines < 64*4; objsize_in_cachelines = next_prime_or_9_or_15_or_power_of_two(objsize_in_cachelines)) {
     // Must trade off two kinds of internal fragmentation and external
     // fragmentation.
@@ -245,6 +246,7 @@ done_small:
 	) {
       uint32_t objsize = objsize_in_cachelines * cacheline_size;
       static_bin_t b(BIN_SMALL, objsize);
+      largest_small = objsize;
       // Don't like this magic numbers (8*pagesize?  Really?)
       uint32_t folios_per_chunk = (chunksize-8*pagesize)/b.foliosize;
       uint32_t minimum_used_per_folio = (prev_objsize_in_cachelines*cacheline_size+1)*b.objects_per_folio;
@@ -292,6 +294,7 @@ done_small:
   }
   fprintf(cf, "\n};\n");
   printf("static const binnumber_t bin_number_limit = %u;\n", bin);
+  printf("static const size_t largest_small         = %lu;\n", largest_small);
   const size_t largest_large = (1ul<<(log_chunksize-1))-pagesize;
   printf("static const uint64_t offset_of_first_object_in_large_chunk = %lu;\n", offset_of_first_object_in_large_chunk);
   printf("static const size_t largest_large         = %lu;\n", largest_large);

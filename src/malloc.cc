@@ -217,22 +217,32 @@ extern "C" void* malloc(size_t size) {
     errno = ENOMEM;
     return NULL;
   }
-  if (size <= largest_large) {
+  if (size < largest_small) {
     binnumber_t bin = size_2_bin(size);
     size_t siz = bin_2_size(bin);
-    // We are willing to go with powers of two that are up to a single cache line with no issues.
-    // 128-bytes are questionable: if we use them, we have a cache associativity problem (using only half
-    //  the cache sets), and if we don't use them, we need another bin (which messes up the calculation of the bin
-    //  sizes)
-    if (size<=cacheline_size || !is_power_of_two(siz))
+    // We are willing to go with powers of two that are up to a single
+    // cache line with no issues, since that doesn't cause
+    // associativity problems.
+    if (size <= cacheline_size || !is_power_of_two(siz)) {
       return cached_malloc(bin);
-    if (bin+1 < first_huge_bin_number)
+    } else {
       return cached_malloc(bin+1);
-    // Else fall through,
+    }
+  } else {
+    // For large and up, we need to add our own misalignment.
+    size_t misalignment = (size <= largest_small) ? 0 : (prandnum()*cacheline_size)%pagesize;
+    size_t allocate_size = size + misalignment;
+    if (allocate_size <= largest_large) {
+      binnumber_t bin = size_2_bin(allocate_size);
+      void *result = cached_malloc(bin);
+      if (result == NULL) return NULL;
+      return reinterpret_cast<char*>(result) + misalignment;
+    } else {
+      void *result = huge_malloc(allocate_size);
+      if (result == NULL) return result;
+      return reinterpret_cast<char*>(result) + misalignment;
+    }
   }
-  char *result = reinterpret_cast<char*>(huge_malloc(size+pagesize-cacheline_size));
-  int   add_misalignment = cacheline_size * (prandnum()%(pagesize/cacheline_size));
-  return result+add_misalignment;  
 }
 
 extern "C" void free(void *p) {
@@ -243,11 +253,10 @@ extern "C" void free(void *p) {
   binnumber_t bin = bin_from_bin_and_size(bnt);
   bassert(!(offset_in_chunk(p) == 0 && bin==0)); // we cannot have a bin 0 item that is chunk-aligned
   if (bin < first_huge_bin_number) {
-    cached_free(p, bin);
+    // Cached_free cannot tolerate it.
+    cached_free(object_base(p), bin);
   } else {
-    // If the bin is a sentinal, then that means it's huge_free()'s problem to figure it out.
-    // Huge free will scan backwards to find the proper size (which is needed only for
-    // aligned allocations).
+    // Huge free can tolerate p being offset.
     huge_free(p);
   }
 }
@@ -337,7 +346,9 @@ static void* aligned_malloc_internal(size_t alignment, size_t size) {
     }
     if (bs+1 >= alignment+size) {
       // this bin produces big enough blocks to force alignment by taking a subpiece.
-      return align_pointer_up(cached_malloc(bin), alignment, size, bs);
+      void *r = cached_malloc(bin);
+      if (r == NULL) return NULL;
+      return align_pointer_up(r, alignment, size, bs);
     }
     bin++;
   }
@@ -349,6 +360,7 @@ static void* aligned_malloc_internal(size_t alignment, size_t size) {
     // huge blocks are naturally powers of two, but they aren't always aligned.  Allocate something big enough to align it.
     // huge_malloc sets all the intermediate spots to bin -1 to indicate that it's not really the beginning.
     void *r = huge_malloc(std::max(alignment, size)); // this will be aligned.  The bookkeeping will be messed up if alignment>size, however.
+    if (r == NULL) return NULL;
     bassert((reinterpret_cast<uint64_t>(r) & (alignment-1)) == 0); // make sure it is aligned
     return r;
   }
@@ -386,8 +398,15 @@ extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
     *ptr = NULL;
     return 0;
   }
-  *ptr = aligned_malloc_internal(alignment, size);
-  return 0;
+  void *r = aligned_malloc_internal(alignment, size);
+  if (r == NULL) {
+    // posix_memalign leaves errno undefined, but aligned_malloc_internal() sets it
+    // if something goes wrong.
+    return errno;
+  } else {
+    *ptr = r;
+    return 0;
+  }
 }
 
 extern "C" size_t malloc_usable_size(const void *ptr) {

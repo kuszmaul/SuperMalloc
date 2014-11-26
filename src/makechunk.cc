@@ -12,9 +12,25 @@
 
 // Nothing in this file seems to need locking.  We rely on the thread safety of mmap and munmap.
 
+static size_t total_mapped = 0;
+static size_t mismapped_so_unmapped = 0;
+
 void* mmap_size(size_t size) {
   void *r = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+  if (r==MAP_FAILED) {
+    fprintf(stderr, " Total mapped so far = %lu unmapped=%lu, size = %ld\n", total_mapped, mismapped_so_unmapped, size);
+    perror("Map failed");
+  }
+  if (r==MAP_FAILED) return NULL;
+  __sync_fetch_and_add(&total_mapped, size);
+  return r;
+
+  // This is the old code...
   bassert(r!=NULL);
+  if (r==MAP_FAILED) {
+    fprintf(stderr, " Total mapped so far = %ld, size = %ld\n", total_mapped, size);
+    perror("Map failed");
+  }
   bassert(r!=MAP_FAILED);
   return r;
 }
@@ -27,6 +43,7 @@ static void unmap(void *p, size_t size) {
       abort();
     }
     bassert(r==0);
+    __sync_fetch_and_add(&mismapped_so_unmapped, size);
   }
 }
 
@@ -34,6 +51,7 @@ static void unmap(void *p, size_t size) {
 static void *chunk_create_slow(size_t n_chunks) {
   size_t total_size = (1+n_chunks)*chunksize; // The original code mapped one page less than this, but it seemed to cause misalignment 
   void *m = mmap_size(total_size);
+  if (m==NULL) return m;
   size_t m_offset = offset_in_chunk(m);
   if (m_offset == 0) {
     unmap(reinterpret_cast<char*>(m) + n_chunks*chunksize, chunksize);
@@ -71,6 +89,7 @@ void *mmap_chunk_aligned_block(size_t n_chunks)
      */
 
   void * r = mmap_size(n_chunks*chunksize);
+  if (r==0) return NULL;
   if (offset_in_chunk(r) != 0) {
     // Do it the slow way.
     unmap(r, n_chunks*chunksize);

@@ -66,6 +66,7 @@ static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
     if (r) return r;
   }
   void *p = mmap_chunk_aligned_block(2*n_chunks); 
+  if (p == NULL) return NULL;
   chunknumber_t c = address_2_chunknumber(p);
   chunknumber_t end = c+2*n_chunks;
   void *result = NULL;
@@ -99,6 +100,7 @@ void* huge_malloc(size_t size) {
   chunknumber_t n_chunks_base = ceil(size, chunksize);
   chunknumber_t n_chunks = hyperceil(n_chunks_base);
   void *c = get_power_of_two_n_chunks(n_chunks);
+  if (c == NULL) return NULL;
   size_t n_pages  = ceil(size, pagesize);
   size_t usable_size = n_pages * pagesize;
   size_t n_to_purge = n_chunks*chunksize - usable_size;
@@ -126,6 +128,7 @@ void* huge_malloc(size_t size) {
 }
 
 void huge_free(void *m) {
+  // huge free can tolerate m being any pointer into the chunk returned by huge_malloc.
   chunknumber_t  cn  = address_2_chunknumber(m);
   bassert(cn);
   bin_and_size_t bnt = chunk_infos[cn].bin_and_size;
