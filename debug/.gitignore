@@ -1,8 +1,9 @@
 aligned_alloc
 calloc
-generated_constants.h
 generated_constants.cc
+generated_constants.h
+new-malloc-test
 posix_memalign
 test-malloc_test
-new-malloc-test
+test22
 unit-tests

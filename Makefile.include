@@ -21,7 +21,7 @@ default: tests $(LIB)/libsupermalloc_pthread.so
 #lib: $(LIB)/libsupermalloc.so
 #.PHONY: lib
 
-TESTS = aligned_alloc calloc posix_memalign $(UNITTESTS) test-malloc_test new-malloc-test
+TESTS = aligned_alloc calloc posix_memalign $(UNITTESTS) test-malloc_test new-malloc-test test22
 TESTS_IN_DIR = $(patsubst %, $(BLD)/%, $(TESTS))
 
 ifeq ($LINKMODE,static)
@@ -33,6 +33,9 @@ endif
 
 $(TESTS_IN_DIR): $(IMPLEMENTATION_FILES)
 tests: $(TESTS_IN_DIR)
+
+foo:
+	echo $(TESTS_IN_DIR)
 
 check: $(patsubst %, $(BLD)/%.check, $(TESTS)) \
  check-test-malloc_test-w1 \
@@ -90,6 +93,8 @@ $(BLD)/generated_constants_pthread.o: $(BLD)/generated_constants.cc
 $(BLD)/%.o: CPPFLAGS += -I$(SRC) 
 $(BLD)/%.o: $(TST)/%.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
+$(BLD)/%.o: $(TST)/%.cc
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 $(BLD)/%: $(BLD)/%.o
 	$(CXX) $(CXXFLAGS) $< $(LDFLAGS) $(IMPLEMENTATION_FILES) -o $@
 

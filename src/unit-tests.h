@@ -12,6 +12,7 @@ extern "C" {
   void test_small_malloc(void);
   void test_realloc(void);
   void test_malloc_usable_size(void);
+  void test_object_base(void);
 #ifdef __cplusplus
 }
 #endif

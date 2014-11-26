@@ -429,17 +429,24 @@ void* object_base(void *ptr) {
   if (bin >= first_huge_bin_number) {
     return address_2_chunkaddress(ptr);
   } else {
-    uint64_t oic = offset_in_chunk(ptr);
-    // now figure out which folio we are in.
-    uint64_t unused_at_chunk_beginning = (bin < first_large_bin_number) ? 0 : offset_of_first_object_in_large_chunk;
-    uint32_t folio_size   = static_bin_info[bin].folio_size;
-    uint64_t folio_number = (oic-unused_at_chunk_beginning)/folio_size; // use magic for this.  What about the reserved pages for the list of sizes?
-    uint64_t offset_in_folio = oic-unused_at_chunk_beginning - folio_number * folio_size;
-    uint32_t object_size = static_bin_info[bin].object_size;
-    uint64_t object_number = offset_in_folio/object_size; // use magic for this.
-    return reinterpret_cast<char*>(address_2_chunkaddress(ptr)) + unused_at_chunk_beginning + folio_number * folio_size + object_number*object_size;
+    uint64_t wasted_offset   = static_bin_info[bin].overhead_pages_per_chunk * pagesize;
+    uint64_t useful_offset   = offset_in_chunk(ptr) - wasted_offset;
+    uint32_t folio_number    = divide_offset_by_foliosize(useful_offset, bin);
+    uint64_t folio_mul       = folio_number * static_bin_info[bin].folio_size;
+    uint32_t offset_in_folio = useful_offset - folio_mul;
+    uint64_t object_number   = divide_offset_by_objsize(offset_in_folio, bin);
+    return reinterpret_cast<void*>(cn*chunksize + wasted_offset + folio_mul + object_number * static_bin_info[bin].object_size);
   }
 }
+
+#ifdef TESTING
+void test_object_base() {
+  void *p = malloc(8193);
+  //printf("objbase p      =%p\n", p);
+  //printf("        objbase=%p\n", object_base(p));
+  bassert(offset_in_chunk(object_base(p)) >= 4096);
+}
+#endif
 
 // The basic idea of allocation, is that that we allocate 2MiB chunks
 // (which are 2MiB aligned), and everything within a 2MiB chunk is the

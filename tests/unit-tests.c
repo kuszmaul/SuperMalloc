@@ -15,6 +15,7 @@ int main(int argc __attribute__((unused)), const char *argv[] __attribute__((unu
   test_small_malloc();
   test_realloc();
   test_malloc_usable_size();
+  test_object_base();
 
   {
     errno = 0;
