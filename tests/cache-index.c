@@ -4,9 +4,11 @@
 #include <assert.h>
 #include <stdio.h>
 
-enum { alloc_count = 1024*128 };
+#include "supermalloc.h"
+
+enum { alloc_count = 1024*16 };
 void *ptrs[alloc_count];
-enum { index_limit = (1<<6)-1 };
+enum { index_limit = (1<<6) };
 int indexes[index_limit];
 
 int compute_cache_index(void *p) {
@@ -21,6 +23,7 @@ void test_size(size_t s) {
   for (int i = 0; i < alloc_count; i++) {
     ptrs[i] = malloc(s);
     indexes[compute_cache_index(ptrs[i])]++;
+    printf("%p (%ld) (idx=%d)\n", ptrs[i], malloc_usable_size(ptrs[i]), compute_cache_index(ptrs[i]));
   }
   int smallest = alloc_count+1;
   int largest  = -1;
@@ -30,7 +33,11 @@ void test_size(size_t s) {
   }
   printf("s=%lu smallest=%d largest=%d\n", s, smallest, largest);
   assert(smallest > 0 && largest < alloc_count+1);
-  assert(smallest * 2 > largest);
+  if (s < 64) {
+    assert(smallest * 4 > largest);
+  } else {
+    assert(smallest * 2 > largest);
+  }
   for (int i = 0; i < alloc_count; i++) {
     free(ptrs[i]);
   }
@@ -42,10 +49,11 @@ size_t next_size(size_t s) {
 
 int main (int argc __attribute__((unused)), char *argv[] __attribute((unused))) {
   size_t size = 1;
+  test_size(66);
+  return 0;
   do {
     test_size(size);
     size = next_size(size);
-  } while (size < 257);
-  //} while (size < 257*1024*1024);
+  } while (size < 257*1024*1024);
   return 0;
 }

@@ -220,7 +220,11 @@ extern "C" void* malloc(size_t size) {
   if (size <= largest_large) {
     binnumber_t bin = size_2_bin(size);
     size_t siz = bin_2_size(bin);
-    if (!is_power_of_two(siz/cacheline_size))
+    // We are willing to go with powers of two that are up to a single cache line with no issues.
+    // 128-bytes are questionable: if we use them, we have a cache associativity problem (using only half
+    //  the cache sets), and if we don't use them, we need another bin (which messes up the calculation of the bin
+    //  sizes)
+    if (size<=cacheline_size || !is_power_of_two(siz/cacheline_size))
       return cached_malloc(bin);
     if (bin+1 < first_huge_bin_number)
       return cached_malloc(bin+1);
