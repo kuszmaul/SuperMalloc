@@ -163,7 +163,8 @@ struct large_object_list_cell {
   };
 };
 
-const uint32_t folio_bitmap_n_words = pagesize/512; /* at most 512 objects per folio. */ 
+const uint32_t max_objects_per_folio = 2048; /* at most 2048 objects per folio. objsizes will check this when generated the constants. */ 
+const uint32_t folio_bitmap_n_words = max_objects_per_folio/64; 
 
 struct per_folio {
   per_folio *next __attribute__((aligned(64)));
