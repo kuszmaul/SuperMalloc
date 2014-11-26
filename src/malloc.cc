@@ -390,6 +390,7 @@ extern "C" size_t malloc_usable_size(const void *ptr) {
   chunknumber_t cn = address_2_chunknumber(ptr);
   binnumber_t bin = bin_from_bin_and_size(chunk_infos[cn].bin_and_size);
   const char *base = reinterpret_cast<const char*>(object_base(const_cast<void*>(ptr)));
+  bassert(address_2_chunknumber(base)==cn);
   const char *ptr_c = reinterpret_cast<const char*>(ptr);
   ssize_t base_size = bin_2_size(bin);
   bassert(base <= ptr);

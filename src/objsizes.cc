@@ -82,6 +82,18 @@ void print_number_maybe_power_of_two(FILE *f, uint64_t n) {
   }
 }
 
+enum bin_category {
+  BIN_SMALL, BIN_LARGE, BIN_HUGE
+};
+uint32_t calculate_overhead_pages_per_chunk(enum bin_category bc, uint64_t foliosize) {
+  switch (bc) {
+    case BIN_HUGE:  return 0;
+    case BIN_LARGE: return 1;
+    case BIN_SMALL: return ceil(sizeof(per_folio) * (chunksize/foliosize), pagesize);
+  }
+  abort();
+}
+
 class static_bin_t {
  public:
   uint64_t object_size;
@@ -93,7 +105,7 @@ class static_bin_t {
   uint32_t folio_division_shift_magic;
   uint32_t overhead_pages_per_chunk;
   uint32_t folios_per_chunk;
-  static_bin_t(uint64_t object_size)
+  static_bin_t(enum bin_category bc, uint64_t object_size)
       : object_size(object_size)
       , foliosize(calculate_foliosize(object_size))
       , objects_per_folio(foliosize/object_size)
@@ -101,7 +113,7 @@ class static_bin_t {
       , folio_division_multiply_magic(calculate_multiply_magic(foliosize))
       , object_division_shift_magic(calculate_shift_magic(object_size))
       , folio_division_shift_magic(calculate_shift_magic(foliosize))
-      , overhead_pages_per_chunk(object_size < chunksize ? ceil(sizeof(per_folio) * (chunksize/foliosize), pagesize) : 0)
+      , overhead_pages_per_chunk(calculate_overhead_pages_per_chunk(bc, foliosize))
       , folios_per_chunk(object_size < chunksize ? (chunksize-overhead_pages_per_chunk*pagesize)/foliosize : 1)
   {}
   void print(FILE *f, uint32_t bin) {
@@ -164,7 +176,7 @@ int main (int argc, const char *argv[]) {
     for (uint64_t c = 4; c <= 7; c++) {
       uint32_t objsize = (c*k)/4;
       if (objsize > 4*cacheline_size) goto done_small;
-      static_bin_t b(objsize);
+      static_bin_t b(BIN_SMALL, objsize);
       uint64_t wasted = b.foliosize - b.objects_per_folio * objsize;
       b.print(cf, bin++);
       fprintf(cf, "    %3ld\n", wasted);
@@ -199,7 +211,7 @@ done_small:
 	prev_objsize_in_cachelines  < .7 * next_prime_or_9_or_15(objsize_in_cachelines) // not next power of two
 	) {
       uint32_t objsize = objsize_in_cachelines * cacheline_size;
-      static_bin_t b(objsize);
+      static_bin_t b(BIN_SMALL, objsize);
       // Don't like this magic numbers (8*pagesize?  Really?)
       uint32_t folios_per_chunk = (chunksize-8*pagesize)/b.foliosize;
       uint32_t minimum_used_per_folio = (prev_objsize_in_cachelines*cacheline_size+1)*b.objects_per_folio;
@@ -232,7 +244,7 @@ done_small:
       objsize -= pagesize; 
       comment = " (reserve a page for the list of sizes)";
     }
-    struct static_bin_t b(objsize);
+    struct static_bin_t b(BIN_LARGE, objsize);
     b.print(cf, bin++);
     fprintf(cf, " %s\n", comment);
     static_bins.push_back(b);
@@ -241,7 +253,7 @@ done_small:
   binnumber_t first_huge_bin = bin;
   fprintf(cf, "// huge objects (chunk allocated) start  at this size.\n");
   for (uint64_t siz = chunksize; siz < (1ul<<48); siz*=2) {
-    struct static_bin_t b(siz);
+    struct static_bin_t b(BIN_HUGE, siz);
     b.print(cf, bin++);
     fprintf(cf, "\n");
   }
