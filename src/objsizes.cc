@@ -58,6 +58,17 @@ static uint64_t calculate_multiply_magic(uint64_t d) {
   }
 }
 
+uint64_t gcd(uint64_t a, uint64_t b) {
+  if (a==b) return a;
+  if (a<b) return gcd(a, b-a);
+  return gcd(b, a-b);
+}
+
+uint64_t lcm(uint64_t a, uint64_t b) {
+  uint64_t g = gcd(a, b);
+  return (a/g)*b;
+}
+
 uint64_t calculate_foliosize(uint64_t objsize) {
   if (objsize > chunksize) return objsize;
   if (is_power_of_two(objsize)) {
@@ -69,18 +80,25 @@ uint64_t calculate_foliosize(uint64_t objsize) {
     return (objsize/cacheline_size)*pagesize;
   }
   if (objsize > pagesize) return objsize;
-  if (objsize / cacheline_size != 0)  return pagesize;
-  return std::min(pagesize,
-		  ceil(cachelines_per_page*objsize, pagesize)*pagesize);
+  return lcm(objsize, pagesize);
 }
 
+void print_number(FILE *f, uint64_t n, int len) {
+  if (n<=1024 || (n%1024))                 fprintf(f, "%*lu", len, n);
+  else if (n<1024*1024 || (n%(1024*1024))) fprintf(f, "%*lu*Ki", std::max(1, len-3), n/1024);
+  else if (is_power_of_two(n))             fprintf(f, "1ul<<%*d", std::max(1, len-5), lg_of_power_of_two(n));
+  else                                     fprintf(f, "%*lu*Me", std::max(1, len-3), n/(1024*1024));
+}
+
+#if 0
 void print_number_maybe_power_of_two(FILE *f, uint64_t n) {
-  if (is_power_of_two(n)) {
+  if (n > 8 && is_power_of_two(n)) {
     fprintf(f, "1ul<<%3d", lg_of_power_of_two(n));
   } else {
     fprintf(f, "%8lu", n);
   }
 }
+#endif
 
 enum bin_category {
   BIN_SMALL, BIN_LARGE, BIN_HUGE
@@ -115,13 +133,16 @@ class static_bin_t {
       , folio_division_shift_magic(calculate_shift_magic(foliosize))
       , overhead_pages_per_chunk(calculate_overhead_pages_per_chunk(bc, foliosize))
       , folios_per_chunk(object_size < chunksize ? (chunksize-overhead_pages_per_chunk*pagesize)/foliosize : 1)
-  {}
+  {
+    bassert(objects_per_folio<=max_objects_per_folio);
+  }
   void print(FILE *f, uint32_t bin) {
     fprintf(f, "  { ");
-    print_number_maybe_power_of_two(f, object_size);
-    fprintf(f, ",   ");
-    print_number_maybe_power_of_two(f, foliosize);
-    fprintf(f, ",               %3u,              %3u,                       %2u,                           %2u,          %2u,    %10lulu,  %10lulu},  // %3d",
+    print_number(f, object_size, 7);
+    fprintf(f, ", ");
+    bassert(foliosize % 4096 == 0);
+    print_number(f, foliosize, 10);
+    fprintf(f, ",              %4u,              %3u,                       %2u,                  %2u,          %2u,    %10lulu,   %10lulu},  // %3d",
 	    objects_per_folio, folios_per_chunk,
 	    overhead_pages_per_chunk,
 	    object_division_shift_magic,    folio_division_shift_magic,
@@ -161,6 +182,9 @@ int main (int argc, const char *argv[]) {
   printf("//  Larger bin numbers B indicate the object size, coded as\n");
   printf("//     malloc_usable_size(object) = page_size*(bin_of(object)-first_huge_bin_number;\n");
 
+  printf("static const size_t Ki = 1024;  /* Kibi */\n");
+  printf("static const size_t Me = Ki*Ki; /* Mebi */\n");
+
   std::vector<static_bin_t> static_bins;
 
   const char *struct_definition = "struct static_bin_s { uint64_t object_size, folio_size; objects_per_folio_t objects_per_folio; folios_per_chunk_t folios_per_chunk;  uint8_t overhead_pages_per_chunk, object_division_shift_magic, folio_division_shift_magic; uint64_t object_division_multiply_magic, folio_division_multiply_magic;}";
@@ -168,18 +192,27 @@ int main (int argc, const char *argv[]) {
   fprintf(cf, "const struct static_bin_s static_bin_info[] __attribute__((aligned(64))) = {\n");
   fprintf(cf, "// The first class of small objects try to get a maximum of 25%% internal fragmentation by having sizes of the form c<<k where c is 4, 5, 6 or 7.\n");
   fprintf(cf, "// We stop at when we have 4 cachelines, so that the ones that happen to be multiples of cache lines are either a power of two or odd.\n");
-  const char * header_line = "//{  objsize, folio_size, objects_per_folio, folios_per_chunk, overhead_pages_per_chunk, division_magic: object_shift, folio_shift, object_multiply, folio_multiply},  // bin   wastage\n";
+  const char * header_line = "//{ objsize, folio_size, objects_per_folio, folios_per_chunk, overhead_pages_per_chunk, magic: object_shift, folio_shift, object_multiply, folio_multiply},  // fragmentation(overhead bins net)\n";
   fprintf(cf, "%s", header_line);
   int bin = 0;
 
+  uint64_t prev_non_aligned_size = 8; // a size that could be returned by a non-aligned malloc
   for (uint64_t k = 8; 1; k*=2) {
     for (uint64_t c = 4; c <= 7; c++) {
       uint32_t objsize = (c*k)/4;
       if (objsize > 4*cacheline_size) goto done_small;
       static_bin_t b(BIN_SMALL, objsize);
-      uint64_t wasted = b.foliosize - b.objects_per_folio * objsize;
+      double wasted = (chunksize - b.folios_per_chunk * b.objects_per_folio * objsize)/(double)chunksize;
       b.print(cf, bin++);
-      fprintf(cf, "    %3ld\n", wasted);
+      fprintf(cf, "    %3.1f%%", wasted*100.0);
+      if (objsize==8 || (is_power_of_two(objsize) && objsize > cacheline_size)) {
+	fprintf(cf, "       %4.1f%%\n", wasted*100.0);
+      } else {
+	double bin_wastage = (objsize-prev_non_aligned_size-1)/(double)objsize;
+	prev_non_aligned_size = objsize;
+	fprintf(cf, " %4.1f%% %4.1f%%\n", bin_wastage*100.0, ((1+bin_wastage)*(1+wasted)-1)*100.0);
+      }
+
       static_bins.push_back(b);
     }
   }

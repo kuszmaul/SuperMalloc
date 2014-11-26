@@ -23,7 +23,7 @@ void test_size(size_t s) {
   for (int i = 0; i < alloc_count; i++) {
     ptrs[i] = malloc(s);
     indexes[compute_cache_index(ptrs[i])]++;
-    printf("%p (%ld) (idx=%d)\n", ptrs[i], malloc_usable_size(ptrs[i]), compute_cache_index(ptrs[i]));
+    //printf("%p (%ld) (idx=%d)\n", ptrs[i], malloc_usable_size(ptrs[i]), compute_cache_index(ptrs[i]));
   }
   int smallest = alloc_count+1;
   int largest  = -1;
@@ -49,8 +49,7 @@ size_t next_size(size_t s) {
 
 int main (int argc __attribute__((unused)), char *argv[] __attribute((unused))) {
   size_t size = 1;
-  test_size(66);
-  return 0;
+  // test_size(99);
   do {
     test_size(size);
     size = next_size(size);

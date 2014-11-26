@@ -224,7 +224,7 @@ extern "C" void* malloc(size_t size) {
     // 128-bytes are questionable: if we use them, we have a cache associativity problem (using only half
     //  the cache sets), and if we don't use them, we need another bin (which messes up the calculation of the bin
     //  sizes)
-    if (size<=cacheline_size || !is_power_of_two(siz/cacheline_size))
+    if (size<=cacheline_size || !is_power_of_two(siz))
       return cached_malloc(bin);
     if (bin+1 < first_huge_bin_number)
       return cached_malloc(bin+1);
