@@ -117,7 +117,7 @@ void* huge_malloc(size_t size) {
       madvise(c, (n_chunks-1)*chunksize, MADV_HUGEPAGE);
     }
     madvise((char *)c + (n_chunks-1)*chunksize, (n_pages*pagesize)%chunksize, MADV_NOHUGEPAGE);
-    bin = size_2_bin(n_pages*pagesize);
+    bin = size_2_bin(n_chunks*chunksize);
   }
   chunknumber_t chunknum = address_2_chunknumber(c);
   chunk_infos[chunknum].bin_and_size = bin_and_size_to_bin_and_size(bin, size);
