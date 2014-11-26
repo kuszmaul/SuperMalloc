@@ -434,6 +434,15 @@ void* object_base(void *ptr) {
   }
 }
 
+#ifdef TESTING
+void test_object_base() {
+  void *p = malloc(8193);
+  printf("objbase p      =%p\n", p);
+  printf("        objbase=%p\n", object_base(p));
+  bassert(offset_in_chunk(object_base(p)) >= 4096);
+}
+#endif
+
 // The basic idea of allocation, is that that we allocate 2MiB chunks
 // (which are 2MiB aligned), and everything within a 2MiB chunk is the
 // same size.
