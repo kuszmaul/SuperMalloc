@@ -8,6 +8,7 @@
 
 #ifdef TESTING
 #include <string.h>
+#include <unistd.h>
 #endif
 
 // Nothing in this file seems to need locking.  We rely on the thread safety of mmap and munmap.
@@ -16,7 +17,8 @@ static size_t total_mapped = 0;
 static size_t mismapped_so_unmapped = 0;
 
 void* mmap_size(size_t size) {
-  void *r = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+  void *r = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON | MAP_NORESERVE, -1, 0);
+  printf("%p\n", r);
   if (r==MAP_FAILED) {
     fprintf(stderr, " Total mapped so far = %lu unmapped=%lu, size = %ld\n", total_mapped, mismapped_so_unmapped, size);
     perror("Map failed");
