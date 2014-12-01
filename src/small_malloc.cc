@@ -8,12 +8,35 @@ lock_t small_locks[first_large_bin_number] = { REPEAT_FOR_SMALL_BINS(LOCK_INITIA
 static struct {
   dynamic_small_bin_info lists __attribute__((aligned(4096)));
 
- // 0 means all pages are full (all the pages are in slot 0).
- // Else 1 means there's a page with 1 free slot, and some page is in slot 1.
- // Else 2 means there's one with 2 free slots, and some page is in slot 2.
- // The full pages are in slot 0, the 1-free are in slot 1, and so forth.  Note
- // that we can have some full pages and have the fullest_offset be nonzero
- // (if not *all* pages are full).
+  // 0 means all pages are full (all the pages are in slot 0).
+  // Else 1 means there's a page with 1 free slot, and some page is in slot 1.
+  // Else 2 means there's one with 2 free slots, and some page is in slot 2.
+  // The full pages are in slot 0, the 1-free are in slot 1, and so forth.  Note
+  // that we can have some full pages and have the fullest_offset be nonzero
+  // (if not *all* pages are full).
+  // There's an extra slot for pages that are empty and have been madvised'd to uncommited.
+
+  // For example, if there are 512 objects per folio then the slot 0
+  // contains folios with 0 free slots, slot 1 contains folios with 1
+  // free slot, ..., slot 512 contains folios with 512 free slots, and
+  // slot 513 contains folios with 512 free slots and the folio is not
+  // committed to physical memory.  The rationale is that we don't
+  // want to constantly pay the cost of madvising an empty page and
+  // then touching it again, so we keep at least one page the
+  // penultimate slot (number 512), and the madvised' pages in slot
+  // 513.
+
+  // We will also eventually provide a way for a separate thread to
+  // actually do the madvising so that it won't slow down the thread
+  // that is doing malloc.  We'll do that by providing three modes:
+  //  [1] The madvise occurs in the free(), which introduces
+  //      performance variance to the caller of free().
+  //  [2] The madvise occurs in a separate thread which we manage.
+  //  [3] The madvise occurs in a thread the user creates using a
+  //      function that we create (for this one, we need to provide
+  //      some more synchronization so that the user thread can shut
+  //      us down if they want to.)
+
   uint16_t fullest_offset[first_large_bin_number];
 } dsbi;
 
@@ -71,7 +94,7 @@ static void predo_small_malloc_add_pages_from_new_chunk(binnumber_t bin,
 							small_chunk_header *sch) {
   folios_per_chunk_t folios_per_chunk = static_bin_info[bin].folios_per_chunk;
   objects_per_folio_t o_per_folio = static_bin_info[bin].objects_per_folio;
-  prefetch_write(&dsbi.lists.b[dsbi_offset + o_per_folio]);
+  prefetch_write(&dsbi.lists.b[dsbi_offset + o_per_folio + 1]);
   prefetch_write(&sch->ll[folios_per_chunk-1].next);
   if (dsbi.fullest_offset[bin] == 0) {
     prefetch_write(&dsbi.fullest_offset[bin]);
@@ -83,10 +106,14 @@ static bool do_small_malloc_add_pages_from_new_chunk(binnumber_t bin,
 						     small_chunk_header *sch) {
   folios_per_chunk_t folios_per_chunk = static_bin_info[bin].folios_per_chunk;
   objects_per_folio_t o_per_folio = static_bin_info[bin].objects_per_folio;
-  per_folio *old_h = dsbi.lists.b[dsbi_offset + o_per_folio];
-  dsbi.lists.b[dsbi_offset + o_per_folio] = &sch->ll[0];
+  // The "+ 1" in the lines below is to arrange to add the new folkos
+  // to the madvise_done list.  Initially, those folios are
+  // uncommitted.
+  per_folio *old_h = dsbi.lists.b[dsbi_offset + o_per_folio + 1];
+  dsbi.lists.b[dsbi_offset + o_per_folio + 1] = &sch->ll[0];
   sch->ll[folios_per_chunk-1].next = old_h;
   if (dsbi.fullest_offset[bin] == 0) { // must test this again here.
+    // Even if the fullest slot is actually in o_per_folio+1, we say it's in o_per_folio.
     dsbi.fullest_offset[bin] = o_per_folio;
   }
   return true; // cannot have the return type with void, since atomically wants to store the return type and then return it.
@@ -98,9 +125,18 @@ static void predo_small_malloc(binnumber_t bin,
   uint32_t fullest = atomic_load(&dsbi.fullest_offset[bin]);
   if (fullest == 0) return; // A chunk must be allocated.
   uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
-  per_folio *result_pp = atomic_load(&dsbi.lists.b[dsbi_offset + fullest]);
-  prefetch_write(&dsbi.lists.b[dsbi_offset + fullest]); // previously fetched, so just make it writeable
-  if (result_pp == NULL) return; // Can happen only because predo isn't done atomically.
+  uint32_t fetch_offset = fullest;
+  per_folio *result_pp = atomic_load(&dsbi.lists.b[dsbi_offset + fetch_offset]);
+  if (result_pp == NULL) {
+    if (fullest == o_per_folio) {
+      fetch_offset++;
+      result_pp = atomic_load(&dsbi.lists.b[dsbi_offset + fetch_offset]);
+    }
+    if (result_pp == NULL) {
+      return; // Can happen only because predo isn't done atomically.
+    }
+  }
+  prefetch_write(&dsbi.lists.b[dsbi_offset + fetch_offset]); // previously fetched, so just make it writeable
 
   per_folio *next = result_pp->next;
   if (next) {
@@ -142,12 +178,22 @@ static void* do_small_malloc(binnumber_t bin,
   if (fullest == 0) return NULL; // Indicating that a chunk must be allocated.
 
   uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
-  per_folio *result_pp = dsbi.lists.b[dsbi_offset + fullest];
+  uint32_t fetch_offset = fullest;
+  per_folio *result_pp = dsbi.lists.b[dsbi_offset + fetch_offset];
+  if (fullest == o_per_folio && result_pp == NULL) {
+    // Special case, get stuff from the end.
+    fetch_offset++;
+    result_pp = dsbi.lists.b[dsbi_offset + fetch_offset];
+  }
 
   bassert(result_pp);
   // update the linked list.
   per_folio *next = result_pp->next;
-  dsbi.lists.b[dsbi_offset + fullest] = next; // this line is causing most of the trouble. It looks like it's a real conflict problem
+
+  // When I did a study to try to figure out where most of the
+  // transaction conflicts occure, it was here: this line is causing
+  // most of the trouble because the fullest slot doesn't move much.
+  dsbi.lists.b[dsbi_offset + fetch_offset] = next;
 
   if (next) {
     next->prev = NULL;
@@ -168,8 +214,11 @@ static void* do_small_malloc(binnumber_t bin,
   } else {
     // It was the last item in the page, so we must look to see if we have any other pages.
     int use_new_fullest = 0;
-    for (uint32_t new_fullest = 1; new_fullest <= o_per_folio; new_fullest++) {
+    for (uint32_t new_fullest = 1; new_fullest < o_per_folio+2u; new_fullest++) {
       if (dsbi.lists.b[dsbi_offset + new_fullest]) {
+	// If the new fullest is the madvise-done pages then pretend
+	// that the fullest one is the madvise_needed slot.
+	if (new_fullest == o_per_folio+1u) new_fullest = o_per_folio;
 	use_new_fullest = new_fullest;
 	break;
       }
@@ -336,6 +385,7 @@ static bool do_small_free(binnumber_t bin,
     dsbi.fullest_offset[bin] = new_offset_within;
   }
   // Add to new list
+  bassert(new_offset < dsbi_offset + o_per_folio + 1);
   per_folio *new_next = dsbi.lists.b[new_offset];
   pp->prev = NULL;
   pp->next = new_next;

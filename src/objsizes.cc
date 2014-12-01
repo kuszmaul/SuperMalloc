@@ -330,7 +330,7 @@ done_small:
     int count = 0;
     for (int b = 0; b < first_large_bin;  b++ ) {
       printf("      case %d: return %d;\n", b, count);
-      count += static_bins[b].objects_per_folio+1;
+      count += static_bins[b].objects_per_folio+2; // Need two for the empty pages: madvise_done and madvise_not_done cases.
     }
   }
   printf("    }\n");
@@ -342,7 +342,7 @@ done_small:
     for (int b = 0; b < first_large_bin;  b++ ) {
       if (b>0) printf(", ");
       printf("%d", count);
-      count += static_bins[b].objects_per_folio+1;
+      count += static_bins[b].objects_per_folio+2;
     }
   }
   printf("};\n");
