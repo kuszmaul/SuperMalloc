@@ -1,8 +1,8 @@
 #include <sys/mman.h>
+#include <algorithm>
 
 #ifdef TESTING
 #include <stdio.h>
-#include <algorithm>
 #endif
 
 #include "atomically.h"
@@ -97,33 +97,29 @@ static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
 
 void* huge_malloc(size_t size) {
   // allocates something out of the hyperceil(size) bin, which is also hyperceil(size)-aligned.
-  chunknumber_t n_chunks_base = ceil(size, chunksize);
-  chunknumber_t n_chunks = hyperceil(n_chunks_base);
+  chunknumber_t n_chunks = std::max(1ul, hyperceil(size)/chunksize); // at least one chunk always
   void *c = get_power_of_two_n_chunks(n_chunks);
   if (c == NULL) return NULL;
-  size_t n_pages  = ceil(size, pagesize);
-  size_t usable_size = n_pages * pagesize;
-  size_t n_to_purge = n_chunks*chunksize - usable_size;
-  binnumber_t bin;
-  if (n_to_purge < chunksize/8) {
-    // The unused part at the end is insubstantial, so just treat it as a malloc of a full chunk.
-    // The whole region is be eligible for huge pages.
+  madvise(c, n_chunks*chunksize, MADV_DONTNEED);
+  size_t n_whole_chunks = size/chunksize;
+  size_t n_bytes_at_end = size - n_whole_chunks*chunksize;
+  if (n_bytes_at_end==0 ||
+      (chunksize-n_bytes_at_end < chunksize/8)) {
+    // The unused part at the end is either empty, or it's pretty big, so we'll just map it all as huge pages.
     madvise(c, n_chunks*chunksize, MADV_HUGEPAGE); // ignore any error code.  In future skip this call if we always get an error?  Also if we are in madvise=always we shouldn't bother.
-    bin = size_2_bin(n_chunks*chunksize);
   } else {
-    // The last chunk is not fully used.
-    // Make all but the last chunk use huge pages, and the last chunk not.
-    if (0) printf("malloc(%ld) got %d chunks\n", size, n_chunks);
-    if (n_chunks>1) {
-      if (0) printf(" madvise size=%ld HUGEPAGE\n", (n_chunks-1)*chunksize);
-      madvise(c, (n_chunks-1)*chunksize, MADV_HUGEPAGE);
+    // n_bytes_at_end != 0 and 
+    // The unused part is smallish, so we'll use no-huge pages for it.
+    if (n_whole_chunks>0) {
+      madvise(c, n_whole_chunks*chunksize, MADV_HUGEPAGE);
     }
-    madvise((char *)c + (n_chunks-1)*chunksize, (n_pages*pagesize)%chunksize, MADV_NOHUGEPAGE);
-    bin = size_2_bin(n_chunks*chunksize);
+    madvise(reinterpret_cast<char*>(c) + n_whole_chunks*chunksize,
+	    n_bytes_at_end,
+	    MADV_NOHUGEPAGE);
   }
   chunknumber_t chunknum = address_2_chunknumber(c);
+  binnumber_t bin        = size_2_bin(n_chunks*chunksize);
   chunk_infos[chunknum].bin_and_size = bin_and_size_to_bin_and_size(bin, size);
-  if (0) printf(" malloced %p\n", c);
   return c;
 }
 

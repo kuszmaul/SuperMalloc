@@ -583,7 +583,7 @@ void test_object_base() {
 
 bin_and_size_t bin_and_size_to_bin_and_size(binnumber_t bin, size_t size) {
   bassert(bin < 128);
-  uint32_t n_pages = ceil(size,4096);
+  uint32_t n_pages = ceil(size, pagesize);
   if (n_pages  < (1<<24)) {
     return bin + (1<<7) + (n_pages<<8);
   } else {
