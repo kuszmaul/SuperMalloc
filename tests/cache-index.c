@@ -6,7 +6,7 @@
 
 #include "supermalloc.h"
 
-enum { alloc_count = 1024*16*16 };
+enum { alloc_count = 1024*16 };
 void *ptrs[alloc_count];
 enum { index_limit = (1<<6) };
 int indexes[index_limit];

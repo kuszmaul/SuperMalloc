@@ -313,8 +313,8 @@ done_small:
   {
     int count = 0;
     for (int b = 0; b < first_large_bin;  b++ ) {
-      printf("      per_folio *b%d[%d];\n", b, static_bins[b].objects_per_folio+1);
-      count += static_bins[b].objects_per_folio+1;
+      printf("      per_folio *b%d[%d];\n", b, static_bins[b].objects_per_folio+2);
+      count += static_bins[b].objects_per_folio+2;
     }
     printf("    };\n");
     printf("    per_folio *b[%d];\n", count);

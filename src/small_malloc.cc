@@ -2,6 +2,7 @@
 #include "bassert.h"
 #include "generated_constants.h"
 #include "malloc_internal.h"
+#include <sys/mman.h>
 
 lock_t small_locks[first_large_bin_number] = { REPEAT_FOR_SMALL_BINS(LOCK_INITIALIZER) };
 
@@ -347,10 +348,14 @@ static void predo_small_free(binnumber_t bin,
   prefetch_write(&dsbi.lists.b[new_offset]);
 }
 
-static bool do_small_free(binnumber_t bin,
-			  per_folio *pp,
-			  uint64_t objnum,
-			  uint32_t dsbi_offset) {
+static per_folio* do_small_free(binnumber_t bin,
+				per_folio *pp,
+				uint64_t objnum,
+				uint32_t dsbi_offset)
+// Effect: Free the object specified by objnum and pp (that is the
+// objnum'th object in the folio corresponding to pp).  Returns NULL
+// or else a pointer to a folio that should be freed.
+{
   uint16_t o_per_folio = static_bin_info[bin].objects_per_folio;
   uint32_t old_count = 0;
   uint32_t imax = ceil(static_bin_info[bin].objects_per_folio, 64);
@@ -386,14 +391,46 @@ static bool do_small_free(binnumber_t bin,
   }
   // Add to new list
   bassert(new_offset < dsbi_offset + o_per_folio + 1);
-  per_folio *new_next = dsbi.lists.b[new_offset];
+  if (new_offset != dsbi_offset + o_per_folio
+      || dsbi.lists.b[new_offset] == NULL) {
+    // Don't madvise the folio, since either it's not empty or there are no folios in the empty slot.
+    per_folio *new_next = dsbi.lists.b[new_offset];
+    pp->prev = NULL;
+    pp->next = new_next;
+    if (new_next) {
+      new_next->prev = pp;
+    }
+    dsbi.lists.b[new_offset] = pp;
+    return NULL;
+  } else {
+    // Ask the caller madvise the folio (by returning the pp) and add
+    // it to the slot later.
+    //
+    // The fullest_offset is still correct, because we do this only if
+    // there is something in the new_offset.
+    return pp;
+  }
+}
+
+void predo_small_free_post_madvise(per_folio * pp, uint32_t total_dsbi_offset) {
+  per_folio * new_next = atomic_load(&dsbi.lists.b[total_dsbi_offset]);
+  prefetch_write(&pp->prev);
+  prefetch_write(&pp->next);
+  if (new_next) {
+    load_and_prefetch_write(&new_next->prev);
+  }
+  prefetch_write(&dsbi.lists.b[total_dsbi_offset]);
+}
+
+bool small_free_post_madvise(per_folio * pp, uint32_t total_dsbi_offset) {
+  per_folio * new_next = dsbi.lists.b[total_dsbi_offset];
   pp->prev = NULL;
   pp->next = new_next;
   if (new_next) {
-    dsbi.lists.b[new_offset]->prev = pp;
+    new_next->prev = pp;
   }
-  dsbi.lists.b[new_offset] = pp;
-  return true; // cannot return void for functions passed to variadic.
+  dsbi.lists.b[total_dsbi_offset] = pp;
+  return true; // cannot return void from a templated function.
 }
 
 void small_free(void* p) {
@@ -407,7 +444,8 @@ void small_free(void* p) {
   bassert(reinterpret_cast<uint64_t>(p) >= wasted_offset);
   uint32_t       folio_num = divide_offset_by_foliosize(useful_offset, bin);
   per_folio            *pp = &sch->ll[folio_num];
-  uint32_t offset_in_folio = useful_offset - folio_num * static_bin_info[bin].folio_size;
+  uint32_t folio_size      = static_bin_info[bin].folio_size;
+  uint32_t offset_in_folio = useful_offset - folio_num * folio_size;
   uint64_t        objnum   = divide_offset_by_objsize(offset_in_folio, bin);
   if (IS_TESTING) {
     uint32_t o_size     = static_bin_info[bin].object_size;
@@ -417,9 +455,25 @@ void small_free(void* p) {
   if (IS_TESTING) bassert((pp->inuse_bitmap[objnum/64] >> (objnum%64)) & 1);
   uint32_t dsbi_offset = dynamic_small_bin_offset(bin);
 
-  atomically(&small_locks[bin], "small_free",
-	     predo_small_free, do_small_free,
-	     bin, pp, objnum, dsbi_offset);
+  per_folio *madvise_me = atomically(&small_locks[bin], "small_free",
+				     predo_small_free, do_small_free,
+				     bin, pp, objnum, dsbi_offset);
+  if (madvise_me) {
+    // We are the only one that holds this page (it is empty, so no
+    // other thread could free an object into it, and we kept it out
+    // of the dsbi lists, so no other thread can try to allocate out
+    // of it.)
+    bassert(madvise_me == pp);
+    uint64_t madvise_address = (chunk_num * chunksize) + wasted_offset + folio_num * folio_size;
+    madvise(reinterpret_cast<void*>(madvise_address), folio_size, MADV_DONTNEED);
+    // Now put it back into the list.
+    // Doing this will not change the fullest offset, since this is fully empty.
+    // Cannot quite do this with a compare-and-swap since we have to update dsbi.lists[new_offset] as well as the prev pointer
+    // in whatever is there.
+    atomically(&small_locks[bin], "small_free_post_madvise",
+	       predo_small_free_post_madvise, small_free_post_madvise,
+	       pp, dsbi_offset + static_bin_info[bin].objects_per_folio + 1);
+  }
   bin_stats_note_free(bin);
   verify_small_invariants();
 }
@@ -468,6 +522,11 @@ const int n16 = n8/2;
 static void* data16[n16];
 
 void test_small_malloc(void) {
+
+  // test that the dsbi offsets look reasonable.
+  bassert(&dsbi.lists.b0[0] == &dsbi.lists.b[dynamic_small_bin_offset(0)]);
+  bassert(&dsbi.lists.b1[0] == &dsbi.lists.b[dynamic_small_bin_offset(1)]);
+  bassert(&dsbi.lists.b2[0] == &dsbi.lists.b[dynamic_small_bin_offset(2)]);
 
   test_bin_27();
 
