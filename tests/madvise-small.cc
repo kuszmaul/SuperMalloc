@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <vector>
 #include <unistd.h>
 
@@ -22,9 +23,11 @@ size_t get_current_rss() {
 int main (int argc, char *argv[] __attribute__((unused))) {
   assert(argc==1);
   std::vector<void*> v;
-  const int N=1000;
+  const int N=1000000;
   for (int i = 0; i < N; i++) {
-    v.push_back(malloc(100));
+    void * p = malloc(100);
+    v.push_back(p);
+    memset(p, 'c', 100);
   }
   size_t rss0 = get_current_rss();
   for (int i = 0; i < N; i++) {
@@ -33,5 +36,6 @@ int main (int argc, char *argv[] __attribute__((unused))) {
   size_t rss1 = get_current_rss();
   printf("rss=%ld\n", rss0);
   printf("rss=%ld\n", rss1);
+  assert(rss1 * 2 < rss0);
   return 0;
 }
