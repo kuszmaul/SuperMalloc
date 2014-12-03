@@ -42,7 +42,7 @@ int test_size(size_t s) {
     if (largest  < indexes[j]) largest  = indexes[j];
   }
   if (got_null) fprintf(stderr, "One of the maps failed\n");
-  if (got_null || smallest * 2 <= largest) { 
+  if (got_null || (smallest * 3)/2 <= largest) { 
     printf("s=%lu smallest=%d largest=%d\n", s, smallest, largest);
   }
   if (!got_null) {
