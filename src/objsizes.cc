@@ -310,11 +310,16 @@ done_small:
   printf("struct dynamic_small_bin_info {\n");
   printf("  union {\n");
   printf("    struct {\n");
+ // Need two extra list for each folio.  One for the empty folios
+ // which have not been uncommitted (e.g., with
+ // madvise(MADV_DONTNEED)), and one for the empty folios that have
+ // been uncomitted.
+  int n_extra_lists_per_folio = 2;
   {
     int count = 0;
     for (int b = 0; b < first_large_bin;  b++ ) {
-      printf("      per_folio *b%d[%d];\n", b, static_bins[b].objects_per_folio+2);
-      count += static_bins[b].objects_per_folio+2;
+      printf("      per_folio *b%d[%d];\n", b, static_bins[b].objects_per_folio+n_extra_lists_per_folio);
+      count += static_bins[b].objects_per_folio+n_extra_lists_per_folio;
     }
     printf("    };\n");
     printf("    per_folio *b[%d];\n", count);
@@ -330,7 +335,7 @@ done_small:
     int count = 0;
     for (int b = 0; b < first_large_bin;  b++ ) {
       printf("      case %d: return %d;\n", b, count);
-      count += static_bins[b].objects_per_folio+2; // Need two for the empty pages: madvise_done and madvise_not_done cases.
+      count += static_bins[b].objects_per_folio+n_extra_lists_per_folio;
     }
   }
   printf("    }\n");
@@ -342,7 +347,7 @@ done_small:
     for (int b = 0; b < first_large_bin;  b++ ) {
       if (b>0) printf(", ");
       printf("%d", count);
-      count += static_bins[b].objects_per_folio+2;
+      count += static_bins[b].objects_per_folio+n_extra_lists_per_folio;
     }
   }
   printf("};\n");

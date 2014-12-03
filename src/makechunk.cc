@@ -8,7 +8,6 @@
 
 #ifdef TESTING
 #include <string.h>
-#include <unistd.h>
 #endif
 
 // Nothing in this file seems to need locking.  We rely on the thread safety of mmap and munmap.
