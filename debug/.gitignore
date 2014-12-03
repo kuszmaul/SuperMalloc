@@ -7,3 +7,4 @@ posix_memalign
 test-malloc_test
 test22
 unit-tests
+madvise-small
