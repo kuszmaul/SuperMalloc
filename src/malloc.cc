@@ -104,6 +104,29 @@ bool use_transactions = true;
 bool do_predo = true;
 bool use_threadcache = true;
 
+#ifdef TESTING
+#define GLOBAL_LOCK_AT_API
+#endif
+#ifdef GLOBAL_LOCK_AT_API
+pthread_mutex_t global_api_lock = PTHREAD_MUTEX_INITIALIZER;
+
+class with_global_api_lock {
+ public:
+  with_global_api_lock() {
+    int r = pthread_mutex_lock(&global_api_lock);
+    bassert(r==0);
+  }
+  ~with_global_api_lock() {
+    int r = pthread_mutex_unlock(&global_api_lock);
+    bassert(r==0);
+  }
+};
+#else
+class with_global_api_lock {
+};
+#endif
+
+
 #ifndef TESTING
 static
 #else
@@ -212,6 +235,7 @@ static uint64_t max_allocatable_size = (chunksize << 27)-1;
 //   SMALL fit within a chunk.  Everything within a single chunk is the same size.
 // The sizes are the powers of two (1<<X) as well as (1<<X)*1.25 and (1<<X)*1.5 and (1<<X)*1.75
 extern "C" void* malloc(size_t size) {
+  with_global_api_lock l;
   maybe_initialize_malloc();
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
@@ -246,6 +270,7 @@ extern "C" void* malloc(size_t size) {
 }
 
 extern "C" void free(void *p) {
+  with_global_api_lock l;
   maybe_initialize_malloc();
   if (p == NULL) return;
   chunknumber_t cn = address_2_chunknumber(p);
@@ -337,6 +362,8 @@ static void* align_pointer_up(void *p, uint64_t alignment, uint64_t size, uint64
 static void* aligned_malloc_internal(size_t alignment, size_t size) {
   // requires alignment is a power of two.
   maybe_initialize_malloc();
+  with_global_api_lock l;
+
   binnumber_t bin = size_2_bin(size);
   while (bin < first_huge_bin_number) {
     uint64_t bs = bin_2_size(bin);
@@ -410,6 +437,7 @@ extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
 }
 
 extern "C" size_t malloc_usable_size(const void *ptr) {
+  with_global_api_lock l;
   chunknumber_t cn = address_2_chunknumber(ptr);
   binnumber_t bin = bin_from_bin_and_size(chunk_infos[cn].bin_and_size);
   const char *base = reinterpret_cast<const char*>(object_base(const_cast<void*>(ptr)));
