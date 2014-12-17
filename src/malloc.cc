@@ -522,6 +522,7 @@ void* object_base(void *ptr) {
     uint64_t wasted_offset   = static_bin_info[bin].overhead_pages_per_chunk * pagesize;
     if(offset_in_chunk(ptr) < wasted_offset) {
       fprintf(stderr, "count=%ld\n", global_api_lock_count);
+      fsync(trace_file);
     }
     bassert(offset_in_chunk(ptr) >= wasted_offset);
     uint64_t useful_offset   = offset_in_chunk(ptr) - wasted_offset;
