@@ -108,9 +108,11 @@ bool use_threadcache = true;
 #define GLOBAL_LOCK_AT_API
 #endif
 #ifdef GLOBAL_LOCK_AT_API
+#include <unistd.h>
+#include <fcntl.h>
 pthread_mutex_t global_api_lock = PTHREAD_MUTEX_INITIALIZER;
 uint64_t global_api_lock_count = 0;
-FILE *trace_file;
+int trace_file;
 
 class with_global_api_lock {
  public:
@@ -123,12 +125,35 @@ class with_global_api_lock {
     int r = pthread_mutex_unlock(&global_api_lock);
     bassert(r==0);
   }
+  void write_number_internal(unsigned long v) {
+    if (v==0) return;
+    write_number_internal(v/16);
+    char c;
+    if (v%16 < 10) {
+      c = v%16+'0';
+    } else {
+      c = (v%16 + 'a') -10;
+    }
+    write(trace_file, &c, 1);
+  }
+  void write_number(unsigned long v) {
+    if (v==0) write(trace_file, " 0", 2);
+    else {
+      write(trace_file, " ", 1);
+      write_number_internal(v);
+    }
+  }
   void* record_malloc(void*p, size_t s) {
-    fprintf(trace_file, "m %p %ld\n", p, s);
+    write(trace_file, "m", 1);
+    write_number((unsigned long)p);
+    write_number((unsigned long)s);
+    write(trace_file, "\n", 1);
     return p;
   }
   void record_free(void*p) {
-    fprintf(trace_file, "f %p\n", p);
+    write(trace_file, "f", 1);
+    write_number((unsigned long)p);
+    write(trace_file, "\n", 1);
   }
 };
 #else
@@ -197,7 +222,7 @@ void initialize_malloc() {
     }
   }
 #ifdef GLOBAL_LOCK_AT_API
-  trace_file = fopen("/home/bradley/trace.data", "w");
+  trace_file = open("/home/bradley/trace.data", O_CREAT | O_WRONLY | O_TRUNC, 0666);
 #endif
 }
 
