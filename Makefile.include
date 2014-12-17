@@ -30,6 +30,7 @@ else
  IMPLEMENTATION_FILES = $(LIB)/libsupermalloc.so
  LDFLAGS += -L$(LIB) -Wl,-rpath,$(LIB)
 endif
+LDLIBS += -ldl
 
 $(TESTS_IN_DIR): $(IMPLEMENTATION_FILES)
 tests: $(TESTS_IN_DIR)
@@ -96,7 +97,7 @@ $(BLD)/%.o: $(TST)/%.c
 $(BLD)/%.o: $(TST)/%.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 $(BLD)/%: $(BLD)/%.o
-	$(CXX) $(CXXFLAGS) $< $(LDFLAGS) $(IMPLEMENTATION_FILES) -o $@
+	$(CXX) $(CXXFLAGS) $< $(LDFLAGS) $(LDLIBS) $(IMPLEMENTATION_FILES) -o $@
 
 $(PTHREAD_OFILES) $(OFILES): $(wildcard $(SRC)/*.h) $(BLD)/generated_constants.h
 

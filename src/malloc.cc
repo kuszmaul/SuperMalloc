@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <dlfcn.h>
 #include <sys/mman.h>
 #ifdef TESTING
 #include <cstdio>
@@ -104,6 +105,8 @@ bool use_transactions = true;
 bool do_predo = true;
 bool use_threadcache = true;
 
+static void (*free_p)(void*);
+
 #ifndef TESTING
 static
 #else
@@ -163,6 +166,8 @@ void initialize_malloc() {
       }
     }
   }
+
+  free_p = (void(*)(void*)) (dlsym(RTLD_NEXT, "free"));
 }
 
 void maybe_initialize_malloc(void) {
@@ -250,7 +255,20 @@ extern "C" void free(void *p) {
   if (p == NULL) return;
   chunknumber_t cn = address_2_chunknumber(p);
   bin_and_size_t bnt = chunk_infos[cn].bin_and_size;
-  bassert(bnt != 0);
+  if (bnt == 0) {
+    // It's not an object that was allocated using supermalloc.
+    // Maybe another allocator allocated it, so we can pass it to the next
+    // free.
+    if (free_p) {
+      fprintf(stderr, "calling underlying free(%p)\n", p);
+      free_p(p);
+      return;
+    } else {
+      fprintf(stderr, "Bad address passed to free()\n");
+      fflush(stderr);
+      abort();
+    }
+  }
   binnumber_t bin = bin_from_bin_and_size(bnt);
   bassert(!(offset_in_chunk(p) == 0 && bin==0)); // we cannot have a bin 0 item that is chunk-aligned
   if (bin < first_huge_bin_number) {
