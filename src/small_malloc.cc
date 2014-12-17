@@ -441,7 +441,7 @@ void small_free(void* p) {
   small_chunk_header *sch = reinterpret_cast<small_chunk_header*>(chunk);
   chunknumber_t chunk_num  = address_2_chunknumber(p);
   bin_and_size_t b_and_s   = chunk_infos[chunk_num].bin_and_size;
-  basert(b_and_s != 0);
+  bassert(b_and_s != 0);
   binnumber_t   bin        = bin_from_bin_and_size(b_and_s);
   uint64_t wasted_offset =   static_bin_info[bin].overhead_pages_per_chunk * pagesize;
   uint64_t useful_offset =   offset_in_chunk(p) - wasted_offset;
