@@ -109,12 +109,14 @@ bool use_threadcache = true;
 #endif
 #ifdef GLOBAL_LOCK_AT_API
 pthread_mutex_t global_api_lock = PTHREAD_MUTEX_INITIALIZER;
+uint64_t global_api_lock_count = 0;
 
 class with_global_api_lock {
  public:
   with_global_api_lock() {
     int r = pthread_mutex_lock(&global_api_lock);
     bassert(r==0);
+    global_api_lock_count++;
   }
   ~with_global_api_lock() {
     int r = pthread_mutex_unlock(&global_api_lock);
@@ -482,6 +484,9 @@ void* object_base(void *ptr) {
     return address_2_chunkaddress(ptr);
   } else {
     uint64_t wasted_offset   = static_bin_info[bin].overhead_pages_per_chunk * pagesize;
+    if(offset_in_chunk(ptr) < wasted_offset) {
+      fprintf(stderr, "count=%ld\n", global_api_lock_count);
+    }
     bassert(offset_in_chunk(ptr) >= wasted_offset);
     uint64_t useful_offset   = offset_in_chunk(ptr) - wasted_offset;
     uint32_t folio_number    = divide_offset_by_foliosize(useful_offset, bin);
