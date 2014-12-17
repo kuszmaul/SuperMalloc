@@ -110,6 +110,7 @@ bool use_threadcache = true;
 #ifdef GLOBAL_LOCK_AT_API
 pthread_mutex_t global_api_lock = PTHREAD_MUTEX_INITIALIZER;
 uint64_t global_api_lock_count = 0;
+FILE *trace_file;
 
 class with_global_api_lock {
  public:
@@ -121,6 +122,13 @@ class with_global_api_lock {
   ~with_global_api_lock() {
     int r = pthread_mutex_unlock(&global_api_lock);
     bassert(r==0);
+  }
+  void* record_malloc(void*p, size_t s) {
+    fprintf(trace_file, "m %p %ld\n", p, s);
+    return p;
+  }
+  void record_free(void*p) {
+    fprintf(trace_file, "f %p\n", p);
   }
 };
 #else
@@ -188,6 +196,9 @@ void initialize_malloc() {
       }
     }
   }
+#ifdef GLOBAL_LOCK_AT_API
+  trace_file = fopen("/home/bradley/trace.data", "w");
+#endif
 }
 
 void maybe_initialize_malloc(void) {
@@ -237,11 +248,11 @@ static uint64_t max_allocatable_size = (chunksize << 27)-1;
 //   SMALL fit within a chunk.  Everything within a single chunk is the same size.
 // The sizes are the powers of two (1<<X) as well as (1<<X)*1.25 and (1<<X)*1.5 and (1<<X)*1.75
 extern "C" void* malloc(size_t size) {
-  with_global_api_lock l;
   maybe_initialize_malloc();
+  with_global_api_lock l;
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
-    return NULL;
+    return l.record_malloc(nullptr, size);
   }
   if (size < largest_small) {
     binnumber_t bin = size_2_bin(size);
@@ -250,9 +261,9 @@ extern "C" void* malloc(size_t size) {
     // cache line with no issues, since that doesn't cause
     // associativity problems.
     if (size <= cacheline_size || !is_power_of_two(siz)) {
-      return cached_malloc(bin);
+      return l.record_malloc(cached_malloc(bin), size);
     } else {
-      return cached_malloc(bin+1);
+      return l.record_malloc(cached_malloc(bin+1), size);
     }
   } else {
     // For large and up, we need to add our own misalignment.
@@ -261,19 +272,20 @@ extern "C" void* malloc(size_t size) {
     if (allocate_size <= largest_large) {
       binnumber_t bin = size_2_bin(allocate_size);
       void *result = cached_malloc(bin);
-      if (result == NULL) return NULL;
-      return reinterpret_cast<char*>(result) + misalignment;
+      if (result == nullptr) return l.record_malloc(nullptr, size);
+      return l.record_malloc(reinterpret_cast<char*>(result) + misalignment, size);
     } else {
       void *result = huge_malloc(allocate_size);
-      if (result == NULL) return result;
-      return reinterpret_cast<char*>(result) + misalignment;
+      if (result == nullptr) return l.record_malloc(nullptr, size);
+      return l.record_malloc(reinterpret_cast<char*>(result) + misalignment, size);
     }
   }
 }
 
 extern "C" void free(void *p) {
-  with_global_api_lock l;
   maybe_initialize_malloc();
+  with_global_api_lock l;
+  l.record_free(p);
   if (p == NULL) return;
   chunknumber_t cn = address_2_chunknumber(p);
   bin_and_size_t bnt = chunk_infos[cn].bin_and_size;
@@ -371,13 +383,13 @@ static void* aligned_malloc_internal(size_t alignment, size_t size) {
     uint64_t bs = bin_2_size(bin);
     if (0 == (bs & (alignment -1))) {
       // this bin produced blocks that are aligned with alignment
-      return cached_malloc(bin);
+      return l.record_malloc(cached_malloc(bin), size);
     }
     if (bs+1 >= alignment+size) {
       // this bin produces big enough blocks to force alignment by taking a subpiece.
       void *r = cached_malloc(bin);
       if (r == NULL) return NULL;
-      return align_pointer_up(r, alignment, size, bs);
+      return l.record_malloc(align_pointer_up(r, alignment, size, bs), size);
     }
     bin++;
   }
@@ -389,9 +401,9 @@ static void* aligned_malloc_internal(size_t alignment, size_t size) {
     // huge blocks are naturally powers of two, but they aren't always aligned.  Allocate something big enough to align it.
     // huge_malloc sets all the intermediate spots to bin -1 to indicate that it's not really the beginning.
     void *r = huge_malloc(std::max(alignment, size)); // this will be aligned.  The bookkeeping will be messed up if alignment>size, however.
-    if (r == NULL) return NULL;
+    if (r == NULL) return l.record_malloc(nullptr, size);
     bassert((reinterpret_cast<uint64_t>(r) & (alignment-1)) == 0); // make sure it is aligned
-    return r;
+    return l.record_malloc(r, size);
   }
 }
 
@@ -439,7 +451,6 @@ extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
 }
 
 extern "C" size_t malloc_usable_size(const void *ptr) {
-  with_global_api_lock l;
   chunknumber_t cn = address_2_chunknumber(ptr);
   binnumber_t bin = bin_from_bin_and_size(chunk_infos[cn].bin_and_size);
   const char *base = reinterpret_cast<const char*>(object_base(const_cast<void*>(ptr)));
