@@ -119,7 +119,9 @@ void* huge_malloc(size_t size) {
   }
   chunknumber_t chunknum = address_2_chunknumber(c);
   binnumber_t bin        = size_2_bin(n_chunks*chunksize);
-  chunk_infos[chunknum].bin_and_size = bin_and_size_to_bin_and_size(bin, size);
+  bin_and_size_t b_and_s = bin_and_size_to_bin_and_size(bin, size);
+  bassert(b_and_s != 0);
+  chunk_infos[chunknum].bin_and_size = b_and_s;
   return c;
 }
 
@@ -128,6 +130,7 @@ void huge_free(void *m) {
   chunknumber_t  cn  = address_2_chunknumber(m);
   bassert(cn);
   bin_and_size_t bnt = chunk_infos[cn].bin_and_size;
+  bassert(bnt != 0);
   binnumber_t   bin  = bin_from_bin_and_size(bnt);
   uint64_t      siz  = bin_2_size(bin);
   chunknumber_t csiz = ceil(siz, chunksize);

@@ -250,6 +250,7 @@ extern "C" void free(void *p) {
   if (p == NULL) return;
   chunknumber_t cn = address_2_chunknumber(p);
   bin_and_size_t bnt = chunk_infos[cn].bin_and_size;
+  bassert(bnt != 0);
   binnumber_t bin = bin_from_bin_and_size(bnt);
   bassert(!(offset_in_chunk(p) == 0 && bin==0)); // we cannot have a bin 0 item that is chunk-aligned
   if (bin < first_huge_bin_number) {
@@ -411,7 +412,9 @@ extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
 
 extern "C" size_t malloc_usable_size(const void *ptr) {
   chunknumber_t cn = address_2_chunknumber(ptr);
-  binnumber_t bin = bin_from_bin_and_size(chunk_infos[cn].bin_and_size);
+  bin_and_size_t b_and_s = chunk_infos[cn].bin_and_size;
+  bassert(b_and_s != 0);
+  binnumber_t bin = bin_from_bin_and_size(b_and_s);
   const char *base = reinterpret_cast<const char*>(object_base(const_cast<void*>(ptr)));
   bassert(address_2_chunknumber(base)==cn);
   const char *ptr_c = reinterpret_cast<const char*>(ptr);
@@ -449,7 +452,9 @@ void test_malloc_usable_size(void) {
 void* object_base(void *ptr) {
   // Requires: ptr is on the same chunk as the object base.
   chunknumber_t cn = address_2_chunknumber(ptr);
-  binnumber_t bin = bin_from_bin_and_size(chunk_infos[cn].bin_and_size);
+  bin_and_size_t b_and_s = chunk_infos[cn].bin_and_size;
+  bassert(b_and_s != 0);
+  binnumber_t bin = bin_from_bin_and_size(b_and_s);
   if (bin >= first_huge_bin_number) {
     return address_2_chunkaddress(ptr);
   } else {
@@ -583,11 +588,11 @@ void test_object_base() {
 // entry for this table.
 
 bin_and_size_t bin_and_size_to_bin_and_size(binnumber_t bin, size_t size) {
-  bassert(bin < 128);
+  bassert(bin < 127);
   uint32_t n_pages = ceil(size, pagesize);
   if (n_pages  < (1<<24)) {
-    return bin + (1<<7) + (n_pages<<8);
+    return 1+bin + (1<<7) + (n_pages<<8);
   } else {
-    return bin +          (ceil(size,chunksize)<<8);
+    return 1+bin +          (ceil(size,chunksize)<<8);
   }
 }

@@ -274,7 +274,9 @@ void* small_malloc(binnumber_t bin)
       needed = true;
       void *chunk = mmap_chunk_aligned_block(1);
       if (chunk == NULL) return NULL;
-      chunk_infos[address_2_chunknumber(chunk)].bin_and_size = bin_and_size_to_bin_and_size(bin, 0);
+      bin_and_size_t b_and_s = bin_and_size_to_bin_and_size(bin, 0);
+      bassert(b_and_s != 0);
+      chunk_infos[address_2_chunknumber(chunk)].bin_and_size = b_and_s;
 
       small_chunk_header *sch = (small_chunk_header*)chunk;
       for (uint32_t i = 0; i < folios_per_chunk; i++) {
@@ -438,7 +440,9 @@ void small_free(void* p) {
   void *chunk = address_2_chunkaddress(p);
   small_chunk_header *sch = reinterpret_cast<small_chunk_header*>(chunk);
   chunknumber_t chunk_num  = address_2_chunknumber(p);
-  binnumber_t   bin        = bin_from_bin_and_size(chunk_infos[chunk_num].bin_and_size);
+  bin_and_size_t b_and_s   = chunk_infos[chunk_num].bin_and_size;
+  basert(b_and_s != 0);
+  binnumber_t   bin        = bin_from_bin_and_size(b_and_s);
   uint64_t wasted_offset =   static_bin_info[bin].overhead_pages_per_chunk * pagesize;
   uint64_t useful_offset =   offset_in_chunk(p) - wasted_offset;
   bassert(reinterpret_cast<uint64_t>(p) >= wasted_offset);

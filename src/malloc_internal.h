@@ -26,7 +26,8 @@ typedef uint16_t folios_per_chunk_t;
 
 bin_and_size_t bin_and_size_to_bin_and_size(binnumber_t bin, size_t size);
 static inline binnumber_t bin_from_bin_and_size(bin_and_size_t bnt) {
-  return bnt&127;
+  bassert((bnt&127) != 0);
+  return (bnt&127)-1;
 }
 
 static inline uint64_t ceil(uint64_t a, uint64_t b) {

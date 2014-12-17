@@ -116,7 +116,10 @@ void* large_malloc(size_t size)
       for (size_t i = 0; i+1 < objects_per_chunk; i++) {
 	entry[i].next = &entry[i+1];
       }
-      chunk_infos[address_2_chunknumber(chunk)].bin_and_size = bin_and_size_to_bin_and_size(b, footprint);
+      
+      bin_and_size_t b_and_s = bin_and_size_to_bin_and_size(b, footprint);
+      bassert(b_and_s != 0);
+      chunk_infos[address_2_chunknumber(chunk)].bin_and_size = b_and_s;
 
       // Do this atomically. 
       if (0) {
@@ -140,7 +143,9 @@ void* large_malloc(size_t size)
 
 size_t large_footprint(void *p) {
   if (0) printf("large_footprint(%p):\n", p);
-  binnumber_t bin = bin_from_bin_and_size(chunk_infos[address_2_chunknumber(p)].bin_and_size);
+  bin_and_size_t b_and_s = chunk_infos[address_2_chunknumber(p)].bin_and_size;
+  bassert(b_and_s != 0);
+  binnumber_t bin = bin_from_bin_and_size(b_and_s);
   bassert(first_large_bin_number <= bin);
   bassert(bin < first_huge_bin_number);
   uint64_t usable_size = bin_2_size(bin);
@@ -157,7 +162,9 @@ size_t large_footprint(void *p) {
 
 void large_free(void *p) {
   log_command('f', p);
-  binnumber_t bin = bin_from_bin_and_size(chunk_infos[address_2_chunknumber(p)].bin_and_size);
+  bin_and_size_t b_and_s = chunk_infos[address_2_chunknumber(p)].bin_and_size;
+  bassert(b_and_s != 0);
+  binnumber_t bin = bin_from_bin_and_size(b_and_s);
   bassert(first_large_bin_number <= bin  && bin < first_huge_bin_number);
   uint64_t usable_size = bin_2_size(bin);
   madvise(p, usable_size, MADV_DONTNEED);
