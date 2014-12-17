@@ -454,6 +454,7 @@ void* object_base(void *ptr) {
     return address_2_chunkaddress(ptr);
   } else {
     uint64_t wasted_offset   = static_bin_info[bin].overhead_pages_per_chunk * pagesize;
+    bassert(offset_in_chunk(ptr) >= wasted_offset);
     uint64_t useful_offset   = offset_in_chunk(ptr) - wasted_offset;
     uint32_t folio_number    = divide_offset_by_foliosize(useful_offset, bin);
     uint64_t folio_mul       = folio_number * static_bin_info[bin].folio_size;
