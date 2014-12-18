@@ -1,6 +1,6 @@
-#include <cassert>
+#include <assert.h>
 #include <pthread.h>
-#include <cstdio>
+#include <stdio.h>
 #include <unistd.h>
 #include <dlfcn.h>
 #include "tls.h"
@@ -21,11 +21,12 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
   // context x(argc);
   int N = 5;
   pthread_t pt[N];
-  for (int i = 0; i < N ; i++) {
+  int i;
+  for (i = 0; i < N ; i++) {
     int r = pthread_create(&pt[i], NULL, start, NULL);
     assert(r==0);
   }
-  for (int i = 0; i < N ; i++) {
+  for (i = 0; i < N ; i++) {
     void *result;
     int r = pthread_join(pt[i], &result);
     assert(r==0);
