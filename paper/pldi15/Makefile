@@ -39,7 +39,7 @@ measure_gs:
 	LD_PRELOAD=/home/bradley/malloc-implementations/jemalloc-3.6.0/lib/libjemalloc.so /usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
 	LD_PRELOAD=/home/bradley/malloc-implementations/jemalloc-3.6.0/lib/libjemalloc.so /usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
 	echo supermalloc
-	LD_PRELOAD=./lib/libsupermalloc.so /usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
-	LD_PRELOAD=./lib/libsupermalloc.so /usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
-	LD_PRELOAD=./lib/libsupermalloc.so /usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
-	LD_PRELOAD=./lib/libsupermalloc.so /usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
+	LD_PRELOAD=/home/bradley/supermalloc/release/lib/libsupermalloc.so /usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
+	LD_PRELOAD=/home/bradley/supermalloc/release/lib/libsupermalloc.so /usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
+	LD_PRELOAD=/home/bradley/supermalloc/release/lib/libsupermalloc.so /usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
+	LD_PRELOAD=/home/bradley/supermalloc/release/lib/libsupermalloc.so /usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
