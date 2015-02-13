@@ -74,7 +74,7 @@ SuperMalloc achieves these performance advantages using half as much
 code as the alternatives.  SuperMalloc exploits the fact that although
 physical memory is always precious, virtual address space on a 64-bit
 machine is cheap to use simpler faster data structures.
-gb\end{abstract}
+\end{abstract}
 
 \secput{intro}{Introduction}
 
@@ -840,6 +840,10 @@ code run fast.
 \vspace*{-3ex}
 \end{figure}
 
+We ran our experiments compiled with gcc 4.8.3 running on Linux 3.15.7
+with glibc 2.18 on Fedora~20.  We compared SuperMalloc to Hoard 3.10,
+jemalloc 3.6.0, and tbb43\_20140724.
+
 \figref{variance} explores the variance of the allocators we measured
 on the same experiment as for \figref{datahtm}.  We use the difference
 between the slowest run and the fastest run as a measure of the
@@ -881,36 +885,51 @@ very informative.
 least in spirit.  There is a long history of running Ghostscript:
 \cite{DetlefsDoZo94} ran it on an unspecified 126 page manual.
 \cite{Evans06} ran it on an unspecified file named ``ps3.ps''.  So we
-ran an unspecified file.  We found the biggest pdf file extant on one
-of our file systems (it contains \unit{58}\mebi\byte), and ran it
-through Ghostscript~9.14 as
+ran an unspecified file\footnote{If you really want to know, we used the 3251-page, 16,819,944-byte \cite{Intel13}.}
+and ran it through Ghostscript~9.14 as
 \begin{minted}{sh}
 $ gs -dBATCH -dNODISPLAY foo.pdf
 \end{minted}
-on a 4-core i7-4770
-and saw the performance and maximum resident memory (RSS) shown in
-\figref{gs}.  GS apparently allocates large objects and runs its own
-allocator internally, mostly measuring the behavior of large-object
-allocation.  DLmalloc and TBBmalloc are marginally faster than
-JEmalloc or SuperMalloc, which are marginally faster than Hoard.
+on a 4-core i7-4770 and saw the performance and maximum resident
+memory (RSS) shown in \figref{gs}.  GS apparently allocates large
+objects and runs its own allocator internally, mostly measuring the
+behavior of large-object allocation.  The difference between DLmalloc
+and TBBmalloc is small, less than one standard deviation.  SuperMalloc
+is slightly slower, and the difference appears to be just larger than
+the measurement error.  JEmalloc and TBBmalloc are significantly
+slower; it is surprising that memory allocation can have such a large
+performance impact, given that Ghostscript manages its own memory.
+SuperMalloc is, by a small margin the most wasteful of space.
+Interestingly, JEmalloc and Hoard, which are the slowest, also exhibit
+the smallest memory footprint.
 
 \begin{figure}
 \begin{center}
 \begin{tabular}{lrr}
-            & Time$\pm\sigma$           & Max RSS \\
-DLmalloc    & \unit{106.7\pm1.0}\second & \unit{283}\mebi\byte \\
-Hoard       & \unit{113.5\pm1.3}\second & \unit{289}\mebi\byte \\
-JEmalloc    & \unit{108.0\pm0.8}\second & \unit{291}\mebi\byte \\
-TBBmalloc   & \unit{105.9\pm0.4}\second & \unit{339}\mebi\byte \\ % time: 106.3 105.78 105.37 106.03  space: 347,336, 347,328, 347380, 347332,  mean=105.87 stddev=
-SuperMalloc & \unit{108.4\pm0.6}\second & \unit{346}\mebi\byte \\
+            & Time$\pm\sigma$           & Max RSS \\              % user+system time                        maxrss
+DLmalloc    & \unit{195.3\pm1.0}\second & \unit{150}\mebi\byte \\ % 195.27,194.66,194.13,197.30,194.35,194.90,196.30,195.24  153868 143516 146580 147180 151660 149424 143468 145276
+Hoard       & \unit{212.9\pm0.6}\second & \unit{135}\mebi\byte \\ % 213.57,212.46,212.40,213.05,213.01,213.48,213.57,211.85  136396 138524 138524 138524 138524 138516 138524 138524
+JEmalloc    & \unit{207.9\pm0.8}\second & \unit{129}\mebi\byte \\ % 207.86,206.86,206.69,207.66,209.11,208.26,207.93,208.57  129636 131996 132012 129656 129636 129660 131992 129660
+TBBmalloc   & \unit{194.5\pm1.2}\second & \unit{158}\mebi\byte \\ % 194.53,197.07,193.58,193.43,194.07,194.72,193.15,195.18  156788 156788 159528 159520 161472 159532 161472 159528
+SuperMalloc & \unit{197.3\pm1.4}\second & \unit{161}\mebi\byte \\ % 196.94,196.08,198.74,197.35,199.71,197.72,197.18,194.96  158128 164872 156340 158732 155588 166316 162832 155064
+
+% elapsed Numbers from the big .ps
+%DLmalloc 1:40.71
+% eNumbers from the big .ps
+%DLmalloc    & \unit{106.7\pm1.0}\second & \unit{283}\mebi\byte \\
+%Hoard       & \unit{113.5\pm1.3}\second & \unit{289}\mebi\byte \\ %                   215.22                138520
+%JEmalloc    & \unit{108.0\pm0.8}\second & \unit{291}\mebi\byte \\
+%TBBmalloc   & \unit{105.9\pm0.4}\second & \unit{339}\mebi\byte \\ % time: 106.3 105.78 105.37 106.03  space: 347,336, 347,328, 347380, 347332,  mean=105.87 stddev=
+%SuperMalloc & \unit{108.4\pm0.6}\second & \unit{346}\mebi\byte \\
 \end{tabular}
 \end{center}
 \caption{The run time and maximum resident memory of running
-  Ghostscript.  The run time is the average over four runs with the
-  standard deviation shown as a $\pm$.  The maximum resident memory is
-  the maximum over the four runs.}
+  Ghostscript on \cite{Intel13}.  The run time is the average over
+  eight runs with the standard deviation shown as a $\pm$.  The maximum
+  resident memory is the maximum over the four runs.}
 \label{fig:gs}
 \end{figure}
+
 
 {\paragraph{Larson:}} We ran the Larson benchmark \cite{LarsonKr98},
 which is included in the Hoard distribution.  The Larson benchmark
