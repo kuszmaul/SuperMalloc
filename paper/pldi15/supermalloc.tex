@@ -177,12 +177,12 @@ Allocator & Bytes        & LoC \\ \hline
 \label{fig:codesize}
 \end{figure}
 
-{\paragraph{JEmalloc}} \cite{Evans06} is, in our experience, one the
-best allocator now available for production.  JEmalloc ships with BSD
-and Mozilla, as well as with MariaDB in recent Red Hat distributions.
-JEmalloc strives to minimize footprint in long-running processes such
-as browsers and database servers.  Like Hoard, JEmalloc allocates
-large chunks of memory containing objects all the same size.
+{\paragraph{JEmalloc}} \cite{Evans06} is, in our experience, one of
+the best allocators now available for production.  JEmalloc ships with
+BSD and Mozilla, as well as with MariaDB in recent Red Hat
+distributions.  JEmalloc strives to minimize footprint in long-running
+processes such as browsers and database servers.  Like Hoard, JEmalloc
+allocates large chunks of memory containing objects all the same size.
 
 Whereas Hoard uses an allocate-fullest heuristic, JEmalloc uses a
 lowest-address heuristic: Of all the possible objects to allocate,
@@ -237,10 +237,10 @@ TBBmalloc is licensed under GPLv2.
 {\paragraph{Other allocators}:} Many other allocators exist.
 
 For example \cite{Michael04} describes a lock-free allocator based on
-Hoard.  Streamflow \cite{SchneiderAnNi06} is also lock-free.  We
-cannot handle the complexity of lock-free programming for anything
-complicated: we can write reliable lock-free code to push an object
-onto a linked list, but popping a list is trickier.
+Hoard.  Streamflow \cite{SchneiderAnNi06} is also lock-free.  We (the
+authors) cannot handle the complexity of lock-free programming for
+anything complicated: we can write reliable lock-free code to push an
+object onto a linked list, but popping a list is trickier.
 
 The VAM allocator \cite{FengBe05} attempts to improve cache locality,
 especially on long-running jobs.  Although VAM and Hoard share an
@@ -598,7 +598,7 @@ than
 which is still an order of magnitude slower than the uncontended
 per-CPU operation.  To get the contention close to zero, we can apply
 the birthday paradox, and conclude that we might need $P^2$ caches.
-That's probably overkill, since if we go the contention down to, say
+That's probably overkill, since if we got the contention down to, say
 $1/20$ of the accesses, we would get rid of enough contention to get
 to within about half of optimal.  To get the contention to $1/20$
 requires approximately $3P$ caches.  (JEmalloc uses $4P$ caches.)  The
