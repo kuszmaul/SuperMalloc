@@ -1,0 +1,11 @@
+done: Remeasure ghostscript (now that we are madvise'ing better)
+better stats for larson  (what is the 99th percentile?  What is the 95th percentile)
+
+make a better argument on vyukov benchmark:  
+  Hoard is fastest
+ what happens if we run with a bigger footprint so that the 2MiB overheads don't run.
+ Also run vyukov again, since now we call madvise more.
+
+did we measure the value of precaching?
+
+
