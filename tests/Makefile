@@ -13,6 +13,13 @@ TARGETS = \
 default: $(TARGETS)
 $(TARGETS): | ../supermalloc.h
 
+thread-leak: CFLAGS+=-pthread
+thread-leak: LDLIBS=
+check_thread-leak: thread-leak
+	./thread-leak
+	LD_PRELOAD=/home/bradley/malloc-implementations/jemalloc-3.6.0/lib/libjemalloc.so ./thread-leak
+	LD_PRELOAD=../release/lib/libsupermalloc_pthread.so ./thread-leak
+
 clean:
 	rm -f $(TARGETS)
 .PHONY: check check_% \
