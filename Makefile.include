@@ -24,6 +24,7 @@ default: tests $(LIB)/libsupermalloc_pthread.so
 TESTS = aligned_alloc calloc posix_memalign $(UNITTESTS) test-malloc_test new-malloc-test test22 cache-index madvise-small
 TESTS_IN_DIR = $(patsubst %, $(BLD)/%, $(TESTS))
 
+LDFLAGS += -ldl
 ifeq ($LINKMODE,static)
  IMPLEMENTATION_FILES = $(patsubst %,$(BLD)/%.o, $(LIBOBJECTS))
 else
@@ -76,10 +77,10 @@ $(LIB):
 	mkdir -p $(LIB)
 $(LIB)/libsupermalloc.so: $(OFILES) | $(LIB)
 	mkdir -p $(LIB)
-	$(CXX) $(CXXFLAGS) $^ -shared -o $@
+	$(CXX) $(CXXFLAGS) $^ -shared $(LDLIBS) -o $@
 $(LIB)/libsupermalloc_pthread.so: $(PTHREAD_OFILES) | $(LIB)
 	mkdir -p $(LIB)
-	$(CXX) $(CXXFLAGS) $^ -shared -o $@
+	$(CXX) $(CXXFLAGS) $^ -shared $(LDLIBS) -o $@
 
 $(BLD)/supermalloc.a: $(OFILES)
 	ar cr $(BLD)/supermalloc.a $(OFILES)
