@@ -73,6 +73,42 @@ struct CacheForCpu {
 
 static __thread CacheForCpu cache_for_thread ;
 
+static __thread bool cache_inited = false;
+static pthread_key_t key;
+static pthread_once_t once_control = PTHREAD_ONCE_INIT;
+void cache_destructor(void* v) {
+  bassert(v == (void*)(&cache_inited));
+  //unsigned long leaked = 0;
+  for (binnumber_t bin = 0 ; bin < first_huge_bin_number; bin++) {
+    for (int j = 0; j < 2; j++) {
+      //leaked += cache_for_thread.cb[bin].co[j].bytecount;
+      linked_list *next;
+      for (linked_list *head = cache_for_thread.cb[bin].co[j].head;
+	   head;
+	   head = next) {
+	next = head->next;
+	if (bin < first_large_bin_number) {
+	  small_free(head);
+	} else {
+	  large_free(head);
+	}
+      }
+    }
+  }
+  //printf("Leaked %ld\n", leaked);
+}
+static void make_key() {
+  pthread_key_create(&key, cache_destructor);
+}
+
+void init_cache() {
+  if (!cache_inited) {
+    cache_inited = true;
+    pthread_once(&once_control, make_key);
+    pthread_setspecific(key, &cache_inited);
+  }
+}
+
 static CacheForCpu cache_for_cpu[cpulimit];
 
 static const int global_cache_depth = 8;
@@ -359,6 +395,7 @@ static void* try_get_cpu_cached(int processor,
     // 3) Atomically put everything else back into the cpu cache (this requires maintaining tail in the cpu cache after all)
     // 4) Return the one object.
 
+    init_cache();
     CacheForBin *tc = &cache_for_thread.cb[bin];
     CacheForBin *cc = &cache_for_cpu[processor].cb[bin];
 
@@ -492,6 +529,7 @@ void* cached_malloc(binnumber_t bin)
   uint64_t siz = bin_2_size(bin);
 
   if (use_threadcache) {
+    init_cache();
 #ifdef ENABLE_STATS
     cache_for_thread.attempt_count++;
 #endif
@@ -681,6 +719,7 @@ static bool try_put_into_cpu_cache(linked_list *obj,
 // Requires: the threadcache has stuff in it.
 {
   if (use_threadcache) {
+    init_cache();
     return atomically(&cpu_cache_locks[processor][bin], "put_into_cpu_cache",
 		      predo_put_into_cpu_cache,
 		      do_put_into_cpu_cache,
@@ -765,6 +804,7 @@ void cached_free(void *ptr, binnumber_t bin) {
   
   // No lock needed for this.
   if (use_threadcache) {
+    init_cache();
     if (try_put_cached_both(reinterpret_cast<linked_list*>(ptr),
 			    &cache_for_thread.cb[bin],
 			    siz,
