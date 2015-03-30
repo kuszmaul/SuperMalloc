@@ -202,17 +202,23 @@ control.
 
 JEmalloc uses three size categories: small, large, and huge, and
 implements them differently. For small and large objects, JEmalloc
-carves a chunk into page runs using a buddy algorithm, and maintains
-metadata at the beginning of the chunk.  By storing metadata at the
-beginning of the chunk, the pages themselves can remain untouched, and
-uncommitted.
+carves a chunk into page runs using a red-black trees to track
+arbitrary contiguous page runs,~\footnote{Previously JEmalloc employed
+  a buddy algorithm to track runs within a chunk, but changed to
+  red-black trees in 2006--2007.  More recent versions, which we
+  haven't benchmarked, switched to employing a lock-free radix tree
+  rather than a red-black tree to track huge allocations
+  \cite{Evans15-personal-communication}.} and maintains metadata at
+the beginning of the chunk.  By storing metadata at the beginning of
+the chunk, the pages themselves can remain untouched, and uncommitted.
 
 JEmalloc directly maps huge objects using \code{mmap()}.  Huge objects
 are chunk-aligned.  JEmalloc maintains a red-black tree mapping huge
 chunk addresses to metadata.
 
-JEmalloc is licensed under a variant of the modified BSD license.
-Many projects may prefer JEmalloc over Hoard due to the licensing.
+We used JEmalloc 3.6.0, which is licensed under a variant of the
+modified BSD license.  Many projects may prefer JEmalloc over Hoard
+due to the licensing.
 
 {\paragraph{TBBmalloc}} \cite{KukanovVo07} is the allocator shipped
 with Intel's Threading Building Blocks (TBB), and is based on ideas
@@ -265,18 +271,17 @@ objects, the allocation is backed by one or more contiguous chunks.
 
 Unlike the other chunk-oriented allocators, SuperMalloc does not
 divide its chunks into smaller pieces.  For example, JEmalloc divides
-its chunks into runs using a buddy algorithm, and each run can contain
-objects of a different size.  In SuperMalloc, the entire chunk is the
-same size.  The rationale for this decision is that on a 64-bit
-machine, virtual-address space is relatively cheap, while physical
-memory remains dear.  The other allocators' approach of dividing up a
-chunk saves virtual-address space by requiring fewer chunks to be
-allocated.  In the case where that strategy actually does save space,
-it is because the application did not actually allocate a whole
-chunk's worth of objects of a given size.  In that case, in
-SuperMalloc, the rest of the block is an untouched uncommitted
-``wilderness area'' (a term apparently coined by \cite{KornVo85})
-using no memory.
+its chunks into runs, and each run can contain objects of a different
+size.  In SuperMalloc, the entire chunk is the same size.  The
+rationale for this decision is that on a 64-bit machine,
+virtual-address space is relatively cheap, while physical memory
+remains dear.  The other allocators' approach of dividing up a chunk
+saves virtual-address space by requiring fewer chunks to be allocated.
+In the case where that strategy actually does save space, it is
+because the application did not actually allocate a whole chunk's
+worth of objects of a given size.  In that case, in SuperMalloc, the
+rest of the block is an untouched uncommitted ``wilderness area'' (a
+term apparently coined by \cite{KornVo85}) using no memory.
 
 Like JEmalloc, SuperMalloc employs several object sizes.  The sizes
 are organized as into bins.  In SuperMalloc, there are small, medium,
@@ -294,8 +299,8 @@ objects in that chunk are.  Here, for comparison, we focus on the
 comparison with JEmalloc for which the internal data structures are
 explained in some detail.  In JEmalloc, depending on the size of the
 object, the object might be looked up in a global red-black tree (for
-huge objects), or in a buddy-allocation data structure at the
-beginning of a chunk.  
+huge objects), or in a local red-black tree at the beginning of a
+chunk.
 
 SuperMalloc adopted a simpler strategy.  An entire chunk is all the
 same sized, and we can look up the chunk number in a table.  Instead
