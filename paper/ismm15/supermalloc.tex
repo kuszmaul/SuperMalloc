@@ -1,4 +1,4 @@
-\documentclass[pldi]{sigplanconf-pldi15}
+\documentclass[preprint]{sigplanconf}
 % Requires temporary version of sigplanconf style file provided on
 % PLDI'15 web site.
 
@@ -26,7 +26,7 @@
 %\usepackage{listings}          % format code
 \usepackage{enumitem}      % adjust spacing in enums
 \usepackage[colorlinks=true,allcolors=blue,breaklinks,draft=false]{hyperref}   % hyperlinks, including DOIs and URLs in bibliography
-\newcommand{\doi}[1]{doi:~\href{http://dx.doi.org/#1}{\Hurl{#1}}}   % print a hyperlinked DOI
+%\newcommand{\doi}[1]{doi:~\href{http://dx.doi.org/#1}{\Hurl{#1}}}   % print a hyperlinked DOI
 
 \usepackage{minted}
 %\usepackage{pslatex}
@@ -43,9 +43,12 @@
 \newcommand{\ns}[1]{\unit{#1}\nano\second{}}
 
 \begin{document}
-\special{papersize=8.5in,11in}% Still need this even with letterpaper
+%\special{papersize=8.5in,11in}% Still need this even with letterpaper
+\conferenceinfo{ISMM'15}{, June 13-14, 2015, Portland, OR, USA}
+\CopyrightYear{2015}
+\crdata{/15/06}
 \title{SuperMalloc: A Super Fast Multithreaded \texttt{malloc()} for 64-bit Machines}
-%\author{Bradley C. Kuszmaul \hspace{0.2in} \texttt{bradley@mit.edu}}
+\authorinfo{Bradley C. Kuszmaul}{MIT CSAIL}{bradley@mit.edu}
 \date{}
 \maketitle
 \begin{abstract}
@@ -79,6 +82,13 @@ critical section, which makes the critical sections run fast, and for
 HTM improves the odds that the transaction will commit.
 
 \end{abstract}
+\category{D.4.2}{Operating Systems}
+                {Storage Management}
+                {Allocation/deallocation strategies}
+\keywords
+Memory Allocation Library, malloc, Virtual Memory
+
+              
 
 \secput{intro}{Introduction}
 
@@ -1239,6 +1249,10 @@ loads, whether you measure time, variance, or maximum RSS.
 SuperMalloc starts faster and scales further, and uses less code.
 
 We will soon release SuperMalloc under an open-source license.
+
+\acks
+
+\bcknote{Ack funders, also people who contributed}
 
 {\raggedright
 \bibliographystyle{abbrvnat}
