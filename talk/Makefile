@@ -1,7 +1,7 @@
 FIGS = x86-addresses small-number-heap associativity-conflicts
 FIG_PDFS = $(patsubst %,%_pdftex.pdf,$(FIGS))
 FIG_TEXS = $(patsubst %,%_pdftex.tex,$(FIGS))
-supermalloc.pdf: supermalloc.tex  $(FIG_PDFS) $(FIG_TEXS) new-malloc-test-1K-aggregated.pdf new-malloc-test-1K-aggregated-oldallocators.pdf
+supermalloc.pdf: supermalloc.tex  $(FIG_PDFS) $(FIG_TEXS) new-malloc-test-1K-aggregated.pdf
 	pdflatex -shell-escape supermalloc
 
 FIG_MAG_small-number-heap = -m 0.8
