@@ -147,7 +147,13 @@ limiting the size of the thread cache.
 \begin{frame}
 \frametitle{SuperMalloc is $>3\times$ faster}
 
+{\small
 \input{new-malloc-test-1K-tempo-aggregated}
+}
+
+\texttt{malloc-test} on a 16-core, 32-hardware-thread, 2 socket,
+2.4GHz E5-2665 Sandy Bridge.  Shown is the average of 8 trials, with
+the error bars showing the max and min.
 \end{frame}
 
 \end{document}
