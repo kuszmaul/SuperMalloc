@@ -154,6 +154,75 @@ limiting the size of the thread cache.
 \texttt{malloc-test} on a 16-core, 32-hardware-thread, 2 socket,
 2.4GHz E5-2665 Sandy Bridge.  Shown is the average of 8 trials, with
 the error bars showing the max and min.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Whence Came That Performance?}
+
+\begin{itemize}
+\item Per-CPU caching (the biggest performance advantage).
+\item Simpler data structures (arrays instead of red-black trees).
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Costs of Locking vs. Cache Contention}
+
+The cost of updating a variable in a multithreaded code is mostly in
+cache contention, not locking.
+
+\begin{center}
+\begin{tabular}{rr}
+  locked:                               contended global variable &    193.6ns \\
+  locked: per cpu (and call \mintinline{c}{sched_getcpu()})  &     30.2ns \\
+%  with lock:                    per cpu (cache getcpu, refresh/32) &     17.0ns \\
+  no lock:                                              per thread &      3.1ns \\
+  no lock:                                          local in stack &      3.1ns \\
+\end{tabular}
+\end{center}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{SuperMalloc Cache Strategy}
+
+\begin{itemize}
+\item A very small per-thread cache:  Only 10 items per size-bin needed to amortize the cost of the lock.
+\item A small per-CPU cache: Only about 1 megabyte of objects per size-bin, since if the objects don't fit in the CPU cache the application will suffer cache misses anyway.
+\item A medium global cache: A cache that is $O(P)$ bigger than a per-CPU cache.
+\item The global data structures.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Other Space and Time Savers}
+
+\begin{itemize}
+\item 2-mebibyte chunks of uniform-sized objects.
+\item Arrays, not red-black trees, for chunk info.
+\item Bitmaps for free list within a chunk.
+\item Alloc-on-fullest-page heuristic.
+\item \mintinline{c}{madvise(DONT_NEED)} to decommit memory.
+\item Objects are a prime number of cache lines to reduce associativity conflicts.
+\item Perform division (by those prime numbers) by multiplication-and-shift.
+\item Use hardware transactional memory.
+\item Prefetch cache lines before critical sections.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Wishlist}
+
+\begin{description}
+\item[Cheap Uncommit:] I want \mintinline{c}{MADV_FREE}, which makes it cheap to give memory to the OS\@.  BSD has it.
+ Better: the kernel should deliver a memory-pressure event.
+\item[Lock-Aware Scheduling:] I want \mintinline{c}{schedctl()}, which advises the kernel to defer
+  involuntary preemption briefly, reducing lock-holder preemption.  Solaris has it.
+\item[Preload help:] Coding to preload cache is difficult.
+\item[Late lock subscription:] Coding safely is difficult.
+\item[Subscribable mutexes:] OS support to wait until a mutex is unlocked.
+\end{description}
 \end{frame}
 
 \end{document}
