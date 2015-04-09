@@ -1,0 +1,190 @@
+\documentclass[xcolor=dvipsnames,14pt]{beamer}
+\beamertemplatenavigationsymbolsempty%Turn off the navbar
+\usepackage{geometry}
+\usepackage{minted}
+\usepackage{graphicx}
+
+\begin{document}
+\title{SuperMalloc}
+\subtitle{A Super-Fast 64-bit Multithreaded \texttt{malloc(3)}}
+\author{Bradley C. Kuszmaul}
+\date{April 8, 2015, Parlay Meeting}
+\frame{\titlepage}
+\begin{frame}[fragile]
+\frametitle{Malloc and Free}
+\begin{minted}[mathescape]{c}
+void* malloc(size_t s);
+\end{minted}
+
+Effect: Allocate and return a pointer to a block of memory containing at least $s$ bytes.
+
+\begin{minted}{c}
+void free(void *p);
+\end{minted}
+
+Effect: $p$ is a pointer to a block of memory returned by \mintinline{c}{malloc()}.  Deallocate the block.
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Aligned Allocation}
+
+\begin{minted}[mathescape]{c}
+void* memalign(size_t alignment, size_t s);
+\end{minted}
+
+
+Effect: Allocate and return a pointer to a block of memory containing at least $s$ bytes.  
+The returned pointer shall be a multiple of \mintinline{c}{alignment}.  That is,
+\begin{center}
+\mintinline{c}{0 == (size_t)(memalign(a, s)) % a}
+\end{center}
+
+Requires: \mintinline{c}{a} is a power of two.
+\end{frame}
+
+\begin{frame}
+\frametitle{Memory Layout}
+\hspace*{-.3cm}\includegraphics[width=3.35in,angle=90]{memory-layout.jpg}
+\end{frame}
+
+\begin{frame}
+\frametitle{Boundary Tags [Knuth 73]}
+\hspace*{-.35cm}
+\includegraphics[width=3.35in,angle=90]{boundary-tag.jpg}
+\end{frame}
+
+\begin{frame}
+\frametitle{Boundary Tags Are Simple and Slow}
+
+\begin{itemize}
+\item Allocating requires finding a suitable free region, possibly breaking
+it in two.
+
+\item Freeing requires merging adjacent free regions.
+
+\item To run fast, the data structure gets more complex.
+
+\item To run in a multithreaded environment, the DLmalloc protects its data
+structures with a lock.
+
+\item DLmalloc [Lea 87] uses boundary tags is slow, and for
+  multithreaded code, it's even slower. 
+
+\item  DLmalloc is the standard allocator in Linux and has changed little in 28 years.
+
+\item Modern allocators use other data structures.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Thread-local caches}
+
+All modern allocators employ per-thread caches of recently freed objects.
+
+\begin{itemize}
+\item \mintinline{c}{free()} simply puts the object into the
+  per-thread cache, and requires no locking.
+\item \mintinline{c}{alloc()} requires no locking if the cache contains data.
+\end{itemize}
+
+What goes wrong?
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Thread Caches Can Run Really Fast}
+
+\begin{minted}{c}
+// Thread A
+while (1) free(malloc(16));
+
+// Thread B
+while (1) free(malloc(16));
+\end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{The Problem with Thread Caches}
+
+The \texttt{malloc-test} workload [LeverBo00].
+
+\begin{minted}{c}
+queue Q;
+
+// Thread A
+while (1) Q.push(malloc(16));
+
+// Thread B
+while (1) free(Q.pop());
+\end{minted}
+
+
+If Thread~A allocates an object, and hands it to Thread~B which frees
+the object, then Thread~B's cache fills up.
+
+Allocators such as TBBmalloc [KukanovVo07] suffer unbounded space
+blowups for this kind of workload, which seems to be the toughest workload.
+\end{frame}
+
+\begin{frame}
+\frametitle{Useful Allocators Limit Space}
+
+\begin{itemize}
+\item Hoard [BergerMcBl00] provides a competitive space bound by careful
+bookkeeping on the sizes of the thread cache.
+
+\item JEmalloc [Evans06] provides similar bounds in practice by simply
+limiting the size of the thread cache.
+
+\item These days, JEmalloc seems much more popular than Hoard.
+
+\item There are many other allocators [PTmalloc, TCCmalloc, LocklessMalloc, ...]
+
+\item I wrote SuperMalloc.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{SuperMalloc is $>3\times$ faster}
+
+\input{new-malloc-test-1K-tempo-aggregated}
+\end{frame}
+
+\end{document}
+
+\setlength{\unitlength}{0.01in}
+\begin{picture}(200,335)
+\put(10,100){{\includegraphics[width=3.35in,angle=90]{boundary-tag.jpg}
+\end{picture}
+
+
+malloc api
+
+libc malloc uses boundary tags and a monolithic lock
+
+scales badly with threads
+
+tcmalloc uses per-thread cache (tc = thread cache)
+
+tcmalloc works really well when a thread mallocs and frees as fast as it can.
+
+tcmalloc works very badly when a thread mallocs, hands the object to another thread that frees.
+
+hoard has a provably good scheme for managing these thread caches.
+
+still a big performance hit on the table.  Show the graph that we can run faster on.
+
+what does per-thread cache buy?  The issue is the cache contention not the lock
+
+performance of locks and atomic operations for different 
+
+implemenation:  small per-thread cache; per-cpu cache; global cache
+
+other: Use a big array instead of a red-black tree
+
+other: OS wish list.
+
+
+
+
+
