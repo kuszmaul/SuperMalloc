@@ -8,20 +8,22 @@
  *         USENIX 2000 Annual Technical Conference: FREENIX Track.
  *         This file is part of XMALLOC, licensed under the GNU General
  *         Public License version 3. See COPYING for more information.
+ *
+ * This verison does a fixed amount of work rather than running for a fixed amount of time.
  */
 #define _GNU_SOURCE
+#include <assert.h>
+#include <errno.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/types.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
-//#include "xmalloc-config.h"
-//#include "xmalloc.h"
+#include <unistd.h>
 
 #include "../benchmarks/random.h"
 
@@ -35,7 +37,7 @@
 int debug_flag = 0;
 int verbose_flag = 0;
 int num_workers = 4;
-double run_time = 5.0;
+int per_thread_work_count = 20 * 1024 * 1024; // how many mallocs and frees should each thread do?
 int object_size = DEFAULT_OBJECT_SIZE;
 /* array for thread ids */
 pthread_t *thread_ids;
@@ -49,7 +51,6 @@ struct counter {
 };
 struct counter *counters;
 
-int done_flag = 0;
 struct timeval begin;
 
 static void
@@ -81,77 +82,118 @@ static const int n_sizes = sizeof(possible_sizes)/sizeof(long);
 
 #define OBJECTS_PER_BATCH 4096
 struct batch {
-  struct batch *next_batch;
   void *objects[OBJECTS_PER_BATCH];
+  int   objcount;
 };
 
-struct batch *batches = NULL;
-int batch_count = 0;
-const int batch_count_limit = 100;
-pthread_cond_t empty_cv = PTHREAD_COND_INITIALIZER;
-pthread_cond_t full_cv = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
-
-void enqueue_batch(struct batch *batch) {
-  pthread_mutex_lock(&lock);
-  while (batch_count >= batch_count_limit && !done_flag) {
-    pthread_cond_wait(&full_cv, &lock);
-  }
-  batch->next_batch = batches;
-  batches = batch;
-  batch_count++;
-  pthread_cond_signal(&empty_cv);
-  pthread_mutex_unlock(&lock);
-}
-
-struct batch* dequeue_batch() {
-  pthread_mutex_lock(&lock);
-  while (batches == NULL && !done_flag) {
-    pthread_cond_wait(&empty_cv, &lock);
-  }
-  struct batch* result = batches;
-  if (result) {
-    batches = result->next_batch;
-    batch_count--;
-    pthread_cond_signal(&full_cv);
-  }
-  pthread_mutex_unlock(&lock);
-  return result;
-}
+#define BATCH_COUNT_LIMIT 100
+struct batchbag {
+  struct batch *batches[BATCH_COUNT_LIMIT];
+  int n_in_bag;
+  int n_producers_remaining;
+  pthread_cond_t empty_cv, full_cv;
+  pthread_mutex_t lock;
+} batchbag = {
+  .n_in_bag = 0,
+  .empty_cv = PTHREAD_COND_INITIALIZER,
+  .full_cv  = PTHREAD_COND_INITIALIZER,
+  .lock     = PTHREAD_MUTEX_INITIALIZER
+};
 
 #define atomic_load(addr) __atomic_load_n(addr, __ATOMIC_CONSUME)
 #define atomic_store(addr, v) __atomic_store_n(addr, v, __ATOMIC_RELEASE)
 
-void *mem_allocator (void *arg) {
+static void enqueue_batch(struct batch *batch) {
+  pthread_mutex_lock(&batchbag.lock);
+  // Wait until the bag has few enough items in it.
+  while (atomic_load(&batchbag.n_in_bag) >= BATCH_COUNT_LIMIT) {
+    pthread_cond_wait(&batchbag.full_cv, &batchbag.lock);
+  }
+  batchbag.batches[batchbag.n_in_bag++] = batch;
+  pthread_cond_signal(&batchbag.empty_cv);
+  pthread_mutex_unlock(&batchbag.lock);
+}
+
+static void initialize_batchbag(int n_producers) {
+  assert(batchbag.n_in_bag == 0);
+  batchbag.n_producers_remaining = n_producers;
+}
+
+static void close_batchbag_producer(void) {
+  pthread_mutex_lock(&batchbag.lock);
+  assert(batchbag.n_producers_remaining > 0);
+  batchbag.n_producers_remaining--;
+  pthread_cond_signal(&batchbag.empty_cv);
+  pthread_mutex_unlock(&batchbag.lock);
+}
+
+static struct batch* dequeue_batch() {
+  // Return a batch, or NULL if the queue has been closed
+  pthread_mutex_lock(&batchbag.lock);
+  while (atomic_load(&batchbag.n_in_bag) == 0
+	 &&
+	 atomic_load(&batchbag.n_producers_remaining) > 0) {
+    //printf(" n_in_bag=%d, n_producers_remaining=%d\n", batchbag.n_in_bag, batchbag.n_producers_remaining);
+    pthread_cond_wait(&batchbag.empty_cv, &batchbag.lock);
+  }
+  int n_in_bag = atomic_load(&batchbag.n_in_bag);
+  if (n_in_bag > 0) {
+    batchbag.n_in_bag = n_in_bag-1;
+    struct batch *result = batchbag.batches[n_in_bag-1];
+    pthread_cond_signal(&batchbag.full_cv);
+    pthread_mutex_unlock(&batchbag.lock);
+    return result;
+  } else {
+    assert(atomic_load(&batchbag.n_producers_remaining) == 0);
+    pthread_cond_signal(&batchbag.empty_cv); // make sure everyone else got woken up.
+    pthread_mutex_unlock(&batchbag.lock);
+    return NULL;
+  }
+}   
+
+static void *mem_allocator (void *arg) {
   int thread_id = *(int *)arg;
   struct lran2_st lr;
   lran2_init(&lr, thread_id);
 
-  while (!atomic_load(&done_flag)) {
+  int ocount = 0;
+  while (1) {
     struct batch *b = xmalloc(sizeof(*b));
-    for (int i = 0; i < OBJECTS_PER_BATCH; i++) {
+    b->objcount = 0;
+    for (int i = 0; i < OBJECTS_PER_BATCH && ocount < per_thread_work_count; i++) {
       size_t siz = object_size > 0 ? object_size : possible_sizes[lran2(&lr)%n_sizes];
       b->objects[i] = xmalloc(siz);
+      memset(b->objects[i], i%256, siz);
+      b->objcount++;
+      ocount++;
+      if (ocount >= per_thread_work_count) break;
     }
+    //printf("ocount=%d per_thread_work_count=%d\n", ocount, per_thread_work_count);
     enqueue_batch(b);
+    if (ocount >= per_thread_work_count) break;
   }
+  close_batchbag_producer();
+  if (verbose_flag) printf("mem_allocator %d finishing\n", thread_id);
   return NULL;
 }
 
-void *mem_releaser(void *arg) {
+static void *mem_releaser(void *arg) {
   int thread_id = *(int *)arg;
 
-  while(!atomic_load(&done_flag)) {
+  while (1) {
+    if (verbose_flag) printf("%s:%d %d dequeuing\n", __FILE__, __LINE__, thread_id);
     struct batch *b = dequeue_batch();
+    if (verbose_flag) printf("%s:%d %d got %p\n", __FILE__, __LINE__, thread_id,b);
     if (b) {
-      for (int i = 0; i < OBJECTS_PER_BATCH; i++) {
+      for (int i = 0; i < b->objcount; i++) {
 	xfree(b->objects[i]);
       }
+      counters[thread_id].c += b->objcount;
       xfree(b);
+    } else {
+      return NULL;
     }
-    counters[thread_id].c += OBJECTS_PER_BATCH;
   }
-  return NULL;
 }
 
 int run_memory_free_test()
@@ -161,6 +203,8 @@ int run_memory_free_test()
 	double elapse_time = 0.0;
 	long total = 0;
 	int *ids = (int *)xmalloc(sizeof(int) * num_workers);
+
+	initialize_batchbag(num_workers);
 
 	/* Initialize counter */
 	for(i = 0; i < num_workers; ++i) 
@@ -184,17 +228,7 @@ int run_memory_free_test()
 		}
 	}
 
-	if (verbose_flag) printf("Testing for %.2f seconds\n\n", run_time);
-
-	while (1) {
-	  usleep(1000);
-	  if (elapsed_time(&begin) > run_time) {
-	    atomic_store(&done_flag, 1);
-	    pthread_cond_broadcast(&empty_cv);
-	    pthread_cond_broadcast(&full_cv);
-	    break;
-	  }
-	}
+	if (verbose_flag) printf("Testing for %d allocations per thread\n\n", per_thread_work_count);
 
 	for(i = 0; i < num_workers * 2; ++i)
 		pthread_join (thread_ids[i], &ptr);
@@ -222,7 +256,7 @@ int run_memory_free_test()
 void usage(char *prog)
 {
 	printf("%s [-w workers] [-t run_time] [-d] [-v]\n", prog);
-	printf("\t -w number of producer threads (and number of consumer threads), default 2\n");
+	printf("\t -w number of producer threads (and number of consumer threads), default %d\n", num_workers);
 	printf("\t -t run time in seconds, default 20.0 seconds.\n");
 	printf("\t -s size of object to allocate (default %d bytes) (specify -1 to get many different object sizes)\n", DEFAULT_OBJECT_SIZE);
 	printf("\t -d debug mode\n");
@@ -233,15 +267,15 @@ void usage(char *prog)
 int main(int argc, char **argv)
 {
 	int c;
-	while ((c = getopt(argc, argv, "w:t:ds:v")) != -1) {
+	while ((c = getopt(argc, argv, "w:n:ds:v")) != -1) {
 		
 		switch (c) {
 
 		case 'w':
 			num_workers = atoi(optarg);
 			break;
-		case 't':
-			run_time = atof(optarg);
+		case 'n':
+		        per_thread_work_count = atof(optarg);
 			break;
 		case 'd':
 			debug_flag = 1;
@@ -262,13 +296,6 @@ int main(int argc, char **argv)
 	counters = (struct counter *) xmalloc(sizeof(*counters) * num_workers);
 	
 	run_memory_free_test();
-	while (batches) {
-	  struct batch *b = batches;
-	  batches = b->next_batch;
-	  for (int i = 0 ; i < OBJECTS_PER_BATCH; i++) {
-	    xfree(b->objects[i]);
-	  }
-	  xfree(b);
-	}
+	assert(batchbag.n_in_bag == 0);
 	return 0;
 }

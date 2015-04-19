@@ -1,7 +1,7 @@
 OPTFLAGS = -O2
-CPPFLAGS = -I..
+CPPFLAGS = -I../src
 CFLAGS = -ggdb -W -Wall -Werror -std=c99 $(OPTFLAGS)
-LDFLAGS = -L.. -Wl,-rpath,..
+LDFLAGS = -L../release/lib -Wl,-rpath,../release/lib
 LDLIBS = -lsupermalloc
 TARGETS = \
  aligned_alloc \
@@ -11,7 +11,10 @@ TARGETS = \
  #end
 
 default: $(TARGETS)
-$(TARGETS): | ../supermalloc.h
+.PHONY: lib
+lib:
+	cd ../release;make
+$(TARGETS): | ../src/supermalloc.h lib
 
 thread-leak: CFLAGS+=-pthread
 thread-leak: LDLIBS=
