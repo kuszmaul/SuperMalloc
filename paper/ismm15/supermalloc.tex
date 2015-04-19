@@ -52,6 +52,8 @@
 \date{}
 \maketitle
 \begin{abstract}
+\bcknote{First-person singular, but not too much.}
+
 SuperMalloc is an implementation of \texttt{malloc(3)} originally
 designed for X86 Hardware Transactional Memory (HTM)\@.  It turns out
 that the same design decisions also make it fast even without HTM\@.
@@ -154,8 +156,8 @@ number of processors.  Hoard provides a provable bound on its space
 blowup.  Hoard organizes small objects into \defn{chunks}, which
 contain objects all the same size.\footnote{Chunks are called
   ``superblocks'' in \cite{BergerMcBl00}.  They are called ``chunks''
-  in \cite{Evans06} and \cite{KukanovVo07}.}  (Large objects are dealt
-with using heavier-weight mechanisms).  Hoard puts metadata at the
+  in \cite{Evans06} and \cite{KukanovVo07}.}  Large objects are dealt
+with using heavier-weight mechanisms.  Hoard puts metadata at the
 beginning of each superblock indicating the size of the objects in the
 superblock.  Since the objects within a superblock are all the same,
 Hoard does not need boundary tags.
@@ -383,10 +385,21 @@ threads on different cache lines.  As explained below, we take a
 different tack on avoiding false sharing, focusing on objects that are
 larger than a cache line.
 
+\bcknote{supermalloc does fullest fit}
+
+Early versions of JEmalloc used fullest fit, but abandoned it because
+although individual groups of equal-sized regions might benefit from
+fullest fit, chunks as a whole did not drain as well because a single
+``fullest'' page could keep a chunk mapped indefinitely
+\cite{Evans15-personal-communication}.
+\bcknote{this is not a concern for supermalloc, since we make the entire chunk the same sized objects, and we never unmap an entire chunk} 
+
 We reserve the first few pages of each \unit{2}\mebi\byte{} chunk for
 bookkeeping.  The bookkeeping comprises a bitmap of the free objects
 and a heap-like data structure for implementing the fullest-fit
-heuristic. %\bcknote{Explain how we implement fullest fit}
+heuristic. 
+
+\bcknote{Explain how we implement fullest fit}
 
 \secput{medium}{Medium objects:}
 
@@ -499,6 +512,8 @@ page table entries.  Some users do not like transparent huge pages.
 When using SuperMalloc, a user can avoid transparent huge pages for
 these large objects by calling \code{madvise()}.  The user does not
 need to fight transparent huge pages for smaller objects, however.
+
+\bcknote{Jevans said: You mention relying on uncommitted memory to e.g. make 2 MiB chunks of 16-byte regions cheap, but you also mention how 2 MiB chunks play well with huge pages.  One of the frustrations of transparent huge pages is that they can subvert this reliance on uncommitted memory, resulting in extra CPU and/or memory overhead.  I got the sense that you've considered this issue, but it wasn't very clear whether you explicitly avoid huge pages for small allocations.}
 
 Thus, although when we allocated \unit{8}\mebi\byte{} to implement a
 \unit{5}\mebi\byte{} allocation, only \unit{5}\mebi\byte{} is
@@ -1098,6 +1113,34 @@ and general-purpose allocators \cite{AlexandrescuBe05}.  SuperMalloc
 isn't trying to enable to construction of special-purpose allocators,
 so our code is smaller.
 
+\secput{alignment}{Object Alignment}
+
+The C standard says.
+
+Don't have to align things that don't fit, but if it fits it must be suitably aligned.
+ Array of length 0 idiom.
+
+The x86-64 API says that the alignment of structs is
+ * aligned on the most stringent alignment
+ * structs are a multiple of the length (but watch out for those arrays of length 0)
+ * There are 32-byte aligned requirements (used in vectorization)
+
+DLmalloc provides only 8-byte alignment, so that all Linux code has had to work around the failure to actually provide suitably aligned code.  In partiuclar, vectorized code must use one of the aligned-memory calls.
+
+Supermalloc had to give up objects of size 10, 12, 14, 20, and 28.  So the sizes are
+ 8, 16, 24, 32, 40, 48, 56, 64,
+ 80, 96, 112 /* start going by 16 after 64 */ 
+ 128, 160,  192, 224 /* start going by 32 after 128 */
+ 256 (4 cache lines), 5 cache lines, 6 cache lines, uuuubb  /* start going by 64 after 256, now it's always cache-line alined and the sizes are dif
+Redo the code above for the sizes.
+
+If you don't use the 0-byte array trick, your actual sizes will always be a multiple of the most stringent alignment.
+
+Supermalloc guarantees that if your size is a multiple of a power of two (up to 64) then the alignment will be a multiple of that power of two. 
+ E.g., if you ask for 16, 32, 48, 64, etc you will get 16-byte aligned.
+       If you ask for 32, 64, 96, 128, etc you will get 32-byte aligned
+       If you ask for 64, 128, etc. you will get 64-byte aligned.  
+
 \secput{wishlist}{An Operating-System Wish List}
 
 There are two features that Linux does not provide which are provided
@@ -1134,6 +1177,14 @@ that the data could still be the same data.  Since the kernel is in a
 position to understand memory pressure as well as the overall system
 load, it can decide when and whether to spend the CPU cycles to
 reclaim memory.
+
+\bcknote{Jevans says: Regarding madvise(ptr, len, MADV_FREE), you say,
+  "... until the process touches the pages again".  It's a subtle
+  point, but "touches" should actually be "writes", because the page
+  table bit that tracks whether a page is reclaimable only gets
+  cleared during a write.  You may well imagine the sort of
+  maddeningly subtle application bug that burned this lesson deep into
+  my psyche.}
 
 Evans complains that ``\code{MADV_FREE} is \textit{way} nicer than
 \code{MADV_DONTNEED} in the context of malloc.  JEmalloc has a really
@@ -1251,6 +1302,11 @@ SuperMalloc starts faster and scales further, and uses less code.
 We will soon release SuperMalloc under an open-source license.
 
 \acks
+
+JEvans helped me understand the role of alignment, explained the
+subtleties of \code{MADV_FREE}, proded me to more carefully explain
+how I deal with huge pages, and corrected several misconceptions I had
+about how JEmalloc works.
 
 \bcknote{Ack funders, also people who contributed}
 
