@@ -2,6 +2,12 @@ aligned_alloc
 calloc
 generated_constants.cc
 generated_constants.h
+malloc-test-fixed-work
+malloc-test-fixed-work-dlmalloc
+malloc-test-fixed-work-hoard
+malloc-test-fixed-work-jemalloc
+malloc-test-fixed-work-libc
+malloc-test-fixed-work-tbbmalloc
 new-malloc-test
 new-malloc-test-dlmalloc
 new-malloc-test-hoard
