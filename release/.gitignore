@@ -1,4 +1,10 @@
 aligned_alloc
+bradley-malloc-test
+bradley-malloc-test-dlmalloc
+bradley-malloc-test-hoard
+bradley-malloc-test-jemalloc
+bradley-malloc-test-libc
+bradley-malloc-test-tbbmalloc
 calloc
 generated_constants.cc
 generated_constants.h

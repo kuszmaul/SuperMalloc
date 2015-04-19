@@ -5,54 +5,74 @@ UNITTESTS = # don't include unit tests
 LINKMODE = dynamic
 include ../Makefile.include
 
-
-
 DLMALLOC_DIR = /home/bradley/malloc-implementations/dlmalloc/
-$(BLD)/test-malloc_test-dlmalloc: $(BLD)/test-malloc_test.o
-	$(CXX) $< -L$(DLMALLOC_DIR) -ldlmalloc -Wl,-rpath,$(DLMALLOC_DIR) -pthread -o $@
-
-$(BLD)/malloc-test-fixed-work-dlmalloc: $(BLD)/malloc-test-fixed-work.o
-	$(CXX) $< -L$(DLMALLOC_DIR) -ldlmalloc -Wl,-rpath,$(DLMALLOC_DIR) -pthread -o $@
+DLMALLOC_FLAGS = -L$(DLMALLOC_DIR) -ldlmalloc -Wl,-rpath,$(DLMALLOC_DIR) -pthread
 
 HOARD_DIR = /home/bradley/malloc-implementations/Hoard/src
-$(BLD)/test-malloc_test-hoard:  $(BLD)/test-malloc_test.o
-	$(CXX) $< -L$(HOARD_DIR) -lhoard -Wl,-rpath,$(HOARD_DIR) -pthread -o $@
-$(BLD)/malloc-test-fixed-work-hoard: $(BLD)/malloc-test-fixed-work.o
-	$(CXX) $< -L$(HOARD_DIR) -lhoard -Wl,-rpath,$(HOARD_DIR) -pthread -o $@
+HOARD_FLAGS = -L$(HOARD_DIR) -lhoard -Wl,-rpath,$(HOARD_DIR) -pthread
 
+JEMALLOC_DIR = /home/bradley/malloc-implementations/jemalloc-3.6.0/lib
+JEMALLOC_FLAGS = -L$(JEMALLOC_DIR) -ljemalloc -Wl,-rpath,$(JEMALLOC_DIR) -pthread
+
+TBBMALLOC_DIR = /home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release
+TBBMALLOC_FLAGS = -L$(TBBMALLOC_DIR) -ltbbmalloc_proxy -ltbbmalloc -Wl,-rpath,$(TBBMALLOC_DIR) -pthread 
+
+$(BLD)/test-malloc_test-dlmalloc: $(BLD)/test-malloc_test.o
+	$(CXX) $< $(DLMALLOC_FLAGS) -o $@
+$(BLD)/test-malloc_test-hoard:  $(BLD)/test-malloc_test.o
+	$(CXX) $< $(HOARD_FLAGS) -o $@
+
+$(BLD)/malloc-test-fixed-work-libc: $(BLD)/malloc-test-fixed-work.o
+	$(CXX) $< -pthread -o $@
+$(BLD)/malloc-test-fixed-work-dlmalloc: $(BLD)/malloc-test-fixed-work.o
+	$(CXX) $< $(DLMALLOC_FLAGS) -o $@
+$(BLD)/malloc-test-fixed-work-hoard: $(BLD)/malloc-test-fixed-work.o
+	$(CXX) $< $(HOARD_FLAGS) -o $@
+$(BLD)/malloc-test-fixed-work-jemalloc:  $(BLD)/malloc-test-fixed-work.o
+	$(CXX) $< $(JEMALLOC_FLAGS) -o $@
+$(BLD)/malloc-test-fixed-work-tbbmalloc: $(BLD)/malloc-test-fixed-work.o
+	$(CXX) $< $(TBBMALLOC_FLAGS) -o $@
 
 $(BLD)/new-malloc-test-libc: $(BLD)/new-malloc-test.o
 	$(CXX) $< -pthread -o $@
-$(BLD)/malloc-test-fixed-work-libc: $(BLD)/malloc-test-fixed-work.o
-	$(CXX) $< -pthread -o $@
+$(BLD)/new-malloc-test-dlmalloc: $(BLD)/new-malloc-test.o
+	$(CXX) $< $(DLMALLOC_FLAGS) -o $@
+$(BLD)/new-malloc-test-hoard:  $(BLD)/new-malloc-test.o
+	$(CXX) $< $(HOARD_FLAGS) -o $@
+$(BLD)/new-malloc-test-jemalloc:  $(BLD)/new-malloc-test.o
+	$(CXX) $< $(JEMALLOC_FLAGS) -o $@
+$(BLD)/new-malloc-test-tbbmalloc: $(BLD)/new-malloc-test.o
+	$(CXX) $< $(TBBMALLOC_FLAGS) -o $@
 
+$(BLD)/bradley-malloc-test-libc: $(BLD)/bradley-malloc-test.o
+	$(CXX) $< -pthread -o $@
+$(BLD)/bradley-malloc-test-dlmalloc: $(BLD)/bradley-malloc-test.o
+	$(CXX) $< $(DLMALLOC_FLAGS) -o $@
+$(BLD)/bradley-malloc-test-hoard: $(BLD)/bradley-malloc-test.o
+	$(CXX) $< $(HOARD_FLAGS) -o $@
+$(BLD)/bradley-malloc-test-jemalloc: $(BLD)/bradley-malloc-test.o
+	$(CXX) $< $(JEMALLOC_FLAGS) -o $@
+$(BLD)/bradley-malloc-test-tbbmalloc: $(BLD)/bradley-malloc-test.o
+	$(CXX) $< $(TBBMALLOC_FLAGS) -o $@
 
 $(BLD)/new-malloc-test-supermalloc_pthread: $(BLD)/new-malloc-test.o $(LIB)/libsupermalloc_pthread.so
 	$(CXX) $< -L$(LIB) -lsupermalloc_pthread -Wl,-rpath,$(LIB) -pthread -o $@
 
-$(BLD)/new-malloc-test-dlmalloc: $(BLD)/new-malloc-test.o
-	$(CXX) $< -L$(DLMALLOC_DIR) -ldlmalloc -Wl,-rpath,$(DLMALLOC_DIR) -pthread -o $@
 
-$(BLD)/new-malloc-test-hoard:  $(BLD)/new-malloc-test.o
-	$(CXX) $< -L$(HOARD_DIR) -lhoard -Wl,-rpath,$(HOARD_DIR) -pthread -o $@
-
-JEMALLOC_DIR = /home/bradley/malloc-implementations/jemalloc-3.6.0/lib
-$(BLD)/new-malloc-test-jemalloc:  $(BLD)/new-malloc-test.o
-	$(CXX) $< -L$(JEMALLOC_DIR) -ljemalloc -Wl,-rpath,$(JEMALLOC_DIR) -pthread -o $@
-$(BLD)/malloc-test-fixed-work-jemalloc:  $(BLD)/malloc-test-fixed-work.o
-	$(CXX) $< -L$(JEMALLOC_DIR) -ljemalloc -Wl,-rpath,$(JEMALLOC_DIR) -pthread -o $@
-
-TBBMALLOC_DIR = /home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release
-$(BLD)/new-malloc-test-tbbmalloc: $(BLD)/new-malloc-test.o
-	$(CXX) $< -L$(TBBMALLOC_DIR) -ltbbmalloc_proxy -ltbbmalloc -Wl,-rpath,$(TBBMALLOC_DIR) -pthread -o $@
-$(BLD)/malloc-test-fixed-work-tbbmalloc: $(BLD)/malloc-test-fixed-work.o
-	$(CXX) $< -L$(TBBMALLOC_DIR) -ltbbmalloc_proxy -ltbbmalloc -Wl,-rpath,$(TBBMALLOC_DIR) -pthread -o $@
 
 TBBMALLOCNOTSX_DIR = /home/bradley/malloc-implementations/tbb_no_tsx/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release
 $(BLD)/new-malloc-test-tbbmallocnotsx: $(BLD)/new-malloc-test.o
 	$(CXX) $< -L$(TBBMALLOCNOTSX_DIR) -ltbbmalloc_proxy -ltbbmalloc -Wl,-rpath,$(TBBMALLOCNOTSX_DIR) -pthread -o $@
 
-timings-simple: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-libc $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-tbbmalloc
+timings-simple: $(BLD)/bradley-malloc-test $(BLD)/bradley-malloc-test-libc $(BLD)/bradley-malloc-test-dlmalloc $(BLD)/bradley-malloc-test-hoard $(BLD)/bradley-malloc-test-jemalloc $(BLD)/bradley-malloc-test-tbbmalloc
+	/usr/bin/time ./bradley-malloc-test           -w 2
+	/usr/bin/time ./bradley-malloc-test-libc      -w 2
+	/usr/bin/time ./bradley-malloc-test-dlmalloc  -w 2
+	/usr/bin/time ./bradley-malloc-test-hoard     -w 2
+	/usr/bin/time ./bradley-malloc-test-jemalloc  -w 2
+	/usr/bin/time ./bradley-malloc-test-tbbmalloc -w 2
+
+timings-simple-old: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-libc $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-tbbmalloc
 	/usr/bin/time -f "%U %S %E %M MAXRSS" ./new-malloc-test -w 2 -t 10
 	/usr/bin/time -f "%U %S %E %M MAXRSS" ./new-malloc-test-libc -w 2 -t 10
 	/usr/bin/time -f "%U %S %E %M MAXRSS" ./new-malloc-test-dlmalloc -w 2 -t 10
@@ -67,6 +87,7 @@ timings-fixed-work: $(BLD)/malloc-test-fixed-work $(BLD)/malloc-test-fixed-work-
 	/usr/bin/time ./malloc-test-fixed-work-hoard     -w 2
 	/usr/bin/time ./malloc-test-fixed-work-jemalloc  -w 2
 	/usr/bin/time ./malloc-test-fixed-work-tbbmalloc -w 2
+
 
 
 x240-timings: new-malloc-test-1K-x240.data new-malloc-test-vK-x240.data
