@@ -1181,7 +1181,7 @@ position to understand memory pressure as well as the overall system
 load, it can decide when and whether to spend the CPU cycles to
 reclaim memory.
 
-\bcknote{Jevans says: Regarding madvise(ptr, len, MADV_FREE), you say,
+\bcknote{Jevans says: Regarding madvise(ptr, len, MADV\_FREE), you say,
   "... until the process touches the pages again".  It's a subtle
   point, but "touches" should actually be "writes", because the page
   table bit that tracks whether a page is reclaimable only gets
@@ -1244,12 +1244,19 @@ abstraction.  There is a single field in the mutex object that
 indicates whether the lock is held.  It would better if the mutex
 provided a way to subscribe to the lock abstractly.
 
+\bcknote{Berger says: The only thing I would have added is that Hoard also uses thread-local allocation. }
+
 A more difficult problem is what we should do when we are waiting for
 a mutex to become free.  We do not want to spin indefinitely, but
 there is no way to wait ask the operating system to wake us up when
 the mutex becomes unlocked, except to lock the mutex.  What we need is
 a way to wait for the mutex to become free without locking the mutex. 
 
+
+
+\bcknote{berger says: Otherwise, looks good. I would also note that we talked and implemented OS hooks in Linux to indicate memory pressure or to indicate that a page was being scheduled for eviction, etc., in our work on Bookmarking Garbage Collection (PLDI) and CRAMM (OSDI).}
+
+\cite{HertzFeBe05, YangBeKa06}
 
 %* Tradeoff: Code size and complexity, speed, footprint, variability.  Supermalloc appears to disprove this tradeoff.
 %* Allocators use trees, buddy systems: supermalloc doesn't.
