@@ -44,7 +44,7 @@
 
 \begin{document}
 %\special{papersize=8.5in,11in}% Still need this even with letterpaper
-\conferenceinfo{ISMM'15}{, June 13-14, 2015, Portland, OR, USA}
+\conferenceinfo{ISMM'15}{June 14, 2015, Portland, OR, USA}
 \CopyrightYear{2015}
 \crdata{/15/06}
 \title{SuperMalloc: A Super Fast Multithreaded \texttt{malloc()} for 64-bit Machines}
@@ -162,9 +162,10 @@ beginning of each superblock indicating the size of the objects in the
 superblock.  Since the objects within a superblock are all the same,
 Hoard does not need boundary tags.
 
-Hoard uses an \defn{allocate-fullest} heuristic.  Hoard sometimes
-finds itself in a situation where an object could be allocated out of
-any one of several superblocks.  Hoard allocates the object out of the
+Hoard uses thread-local allocation, and when the thread cache empties,
+uses an \defn{allocate-fullest} heuristic.  Hoard sometimes finds
+itself in a situation where an object could be allocated out of any
+one of several superblocks.  Hoard allocates the object out of the
 fullest such superblock. By allocating into the fullest superblock,
 Hoard improves the chances that a superblock will completely empty and
 can be uncommitted or reused for other purposes.
@@ -1201,7 +1202,11 @@ it would speed up and exhibit less performance variance.
 An alternative approach would be for the kernel to deliver an event to
 a process indicating that it should use less memory.  The allocator
 generally has a big list of empty pages lying around that it could
-quickly return to the kernel.
+quickly return to the kernel.  Both CRAMM~\cite{YangBeKa06} and
+Bookmarking Garbage Collection~\cite{HertzFeBe05} discussed a
+modified Linux kernel that can indicate memory pressure or that a page
+is being scheduled for eviction, which can improve the performance
+garbage-collected systems under memory pressure.
 
 {\paragraph{Lock-aware scheduling:}} The second problem shows up when
 we are running in locking mode (that is, without transactional
@@ -1244,19 +1249,11 @@ abstraction.  There is a single field in the mutex object that
 indicates whether the lock is held.  It would better if the mutex
 provided a way to subscribe to the lock abstractly.
 
-\bcknote{Berger says: The only thing I would have added is that Hoard also uses thread-local allocation. }
-
 A more difficult problem is what we should do when we are waiting for
 a mutex to become free.  We do not want to spin indefinitely, but
 there is no way to wait ask the operating system to wake us up when
 the mutex becomes unlocked, except to lock the mutex.  What we need is
 a way to wait for the mutex to become free without locking the mutex. 
-
-
-
-\bcknote{berger says: Otherwise, looks good. I would also note that we talked and implemented OS hooks in Linux to indicate memory pressure or to indicate that a page was being scheduled for eviction, etc., in our work on Bookmarking Garbage Collection (PLDI) and CRAMM (OSDI).}
-
-\cite{HertzFeBe05, YangBeKa06}
 
 %* Tradeoff: Code size and complexity, speed, footprint, variability.  Supermalloc appears to disprove this tradeoff.
 %* Allocators use trees, buddy systems: supermalloc doesn't.
@@ -1314,9 +1311,10 @@ We will soon release SuperMalloc under an open-source license.
 \acks
 
 JEvans helped me understand the role of alignment, explained the
-subtleties of \code{MADV_FREE}, proded me to more carefully explain
+subtleties of \code{MADV_FREE}, prodded me to more carefully explain
 how I deal with huge pages, and corrected several misconceptions I had
-about how JEmalloc works.
+about how JEmalloc works.  Emery Berger helped me better understand
+how Hoard works and pointed out \cite{HertzFeBe05, YangBeKa06}.
 
 \bcknote{Ack funders, also people who contributed}
 
