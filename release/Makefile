@@ -92,7 +92,14 @@ timings-fixed-work: $(BLD)/malloc-test-fixed-work $(BLD)/malloc-test-fixed-work-
 
 x240-timings: new-malloc-test-1K-x240.data new-malloc-test-vK-x240.data
 
-new-malloc-test-1K-x240.data new-malloc-test-1K-lutestring.data: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-supermalloc_pthread Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
+new-malloc-test-1K-x240.data new-malloc-test-1K-lutestring.data: $(BLD)/new-malloc-test \
+ $(BLD)/new-malloc-test-dlmalloc \
+ $(BLD)/new-malloc-test-hoard \
+ $(BLD)/new-malloc-test-jemalloc \
+ $(BLD)/new-malloc-test-tbbmalloc \
+ $(BLD)/new-malloc-test-supermalloc_pthread \
+ $(BLD)/new-malloc-test-tbbmallocnotsx \
+ Makefile $(LIB)/libsupermalloc.so $(LIB)/libsupermalloc_pthread.so
 	echo threads supermalloc-rtm-nothreadcache supermalloc-rtm supermalloc-lock supermalloc-rtm-nopredo supermalloc-lock-nopredo dlmalloc hoard jemalloc tbbmalloc supermalloc_pthread tbbmallocnotsx | tee $@
 	for trial in $$(seq 1 8); do for thread in $$(seq 1 8); do \
           echo $$thread $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -w $$thread) \

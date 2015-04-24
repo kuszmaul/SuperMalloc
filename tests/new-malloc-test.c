@@ -10,15 +10,16 @@
  *         Public License version 3. See COPYING for more information.
  */
 #define _GNU_SOURCE
+#include <errno.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/types.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <unistd.h>
 //#include "xmalloc-config.h"
 //#include "xmalloc.h"
@@ -132,6 +133,7 @@ void *mem_allocator (void *arg) {
     for (int i = 0; i < OBJECTS_PER_BATCH; i++) {
       size_t siz = object_size > 0 ? object_size : possible_sizes[lran2(&lr)%n_sizes];
       b->objects[i] = xmalloc(siz);
+      //memset(b->objects[i], i%256, siz);
     }
     enqueue_batch(b);
   }
