@@ -179,6 +179,8 @@ extern int    failed_counts_n;
 extern struct failed_counts_s failed_counts [max_failed_counts];
 #endif
 
+//#define LATE_LOCK_SUBSCRIPTION
+
 template<typename ReturnType, typename... Arguments>
 static inline ReturnType atomically(lock_t *mylock,
 				    const char *name __attribute__((unused)),
@@ -194,8 +196,13 @@ static inline ReturnType atomically(lock_t *mylock,
     if (mylock_subscribe(mylock) == 0) {
       xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
+#ifndef LATE_LOCK_SUBSCRIPTION
 	if (mylock_subscribe(mylock)) _xabort(XABORT_LOCK_HELD);
+#endif
 	ReturnType r = fun(args...);
+#ifdef LATE_LOCK_SUBSCRIPTION
+	if (mylock_subscribe(mylock)) _xabort(XABORT_LOCK_HELD);
+#endif
 	_xend();
 	return r;
       }
@@ -211,8 +218,13 @@ static inline ReturnType atomically(lock_t *mylock,
       }
       xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
+#ifndef LATE_LOCK_SUBSCRIPTION
 	if (mylock_subscribe(mylock)) _xabort(XABORT_LOCK_HELD);
+#endif
 	ReturnType r = fun(args...);
+#ifdef LATE_LOCK_SUBSCRIPTION
+	if (mylock_subscribe(mylock)) _xabort(XABORT_LOCK_HELD);
+#endif
 	_xend();
 	return r;
       } else if ((xr & _XABORT_EXPLICIT) && (_XABORT_CODE(xr) == XABORT_LOCK_HELD)) {
@@ -271,8 +283,13 @@ static inline ReturnType atomically2(lock_t *lock0,
 	mylock_subscribe(lock1) == 0) {
       xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
+#ifndef LATE_LOCK_SUBSCRIPTION
 	if (mylock_subscribe(lock0) || mylock_subscribe(lock1)) _xabort(XABORT_LOCK_HELD);
+#endif
 	ReturnType r = fun(args...);
+#ifdef LATE_LOCK_SUBSCRIPTION
+	if (mylock_subscribe(lock0) || mylock_subscribe(lock1)) _xabort(XABORT_LOCK_HELD);
+#endif
 	_xend();
 	return r;
       }
@@ -289,8 +306,13 @@ static inline ReturnType atomically2(lock_t *lock0,
       }
       xr = _xbegin();
       if (xr == _XBEGIN_STARTED) {
+#ifndef LATE_LOCK_SUBSCRIPTION
 	if (mylock_subscribe(lock0) || mylock_subscribe(lock1)) _xabort(XABORT_LOCK_HELD);
+#endif
 	ReturnType r = fun(args...);
+#ifdef LATE_LOCK_SUBSCRIPTION
+	if (mylock_subscribe(lock0) || mylock_subscribe(lock1)) _xabort(XABORT_LOCK_HELD);
+#endif
 	_xend();
 	return r;
       } else if ((xr & _XABORT_EXPLICIT) && (_XABORT_CODE(xr) == XABORT_LOCK_HELD)) {

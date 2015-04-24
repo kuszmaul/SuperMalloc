@@ -92,6 +92,17 @@ timings-fixed-work: $(BLD)/malloc-test-fixed-work $(BLD)/malloc-test-fixed-work-
 
 x240-timings: new-malloc-test-1K-x240.data new-malloc-test-vK-x240.data
 
+just-test-supermalloc: $(BLD)/new-malloc-test
+	for trial in $$(seq 1 8); do for thread in $$(seq 8 8); do \
+          echo $$thread \
+          $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=0 ./$< -w $$thread) \
+          $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
+          $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=1 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
+          $$(SUPERMALLOC_TRANSACTIONS=1 SUPERMALLOC_PREDO=0 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
+          $$(SUPERMALLOC_TRANSACTIONS=0 SUPERMALLOC_PREDO=0 SUPERMALLOC_THREADCACHE=1 ./$< -w $$thread) \
+        ;done;done
+
+
 new-malloc-test-1K-x240.data new-malloc-test-1K-lutestring.data: $(BLD)/new-malloc-test \
  $(BLD)/new-malloc-test-dlmalloc \
  $(BLD)/new-malloc-test-hoard \
