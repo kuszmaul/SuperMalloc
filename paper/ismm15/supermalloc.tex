@@ -752,7 +752,9 @@ feel confident that we can guarantee that the code avoids all the
 pitfalls of late subscription.  (2) Our data structures are closely
 related to our locks.  It's unlikely that the lock conflicts but that
 we don't actually conflict on the data.  (3) Our transactions are all
-so short that it probably doesn't matter.
+so short that it probably doesn't matter.  The performance advantage
+of late lock subscription appears to be about half a percent for
+high-threadcount runs of the malloc-test benchmark.
 
 In order to make the critical sections short, both for HTM and
 locking, we try to prefetch everything that will be accessed, then
@@ -818,6 +820,15 @@ These changes not only made malloc-test run more evenly, but they made
 it run much faster.  Malloc-test was so slow and noisy that we could
 not tell the difference between any of the allocators except for
 DLmalloc.  Sometimes benchmarks need work so that they can run fast.
+
+As we mentioned above, the cost of early lock subscription inside
+transactions is about half a percent for a high-threadcount run of our
+improved implementation of malloc-test; that is almost unmeasurable,
+since the standard deviation of the runtime is also about half a
+percent.  This situation illustrates the importance of reducing the
+variation in runtime for benchmarks.  With the original version of
+malloc-test the variance is more than ten percent, and we would be
+unable to see the advantage of late lock subscription.
 
 \figref{datahtm} compares the performance of SuperMalloc against
 DLmalloc, Hoard, and JEmalloc on the malloc-test benchmark running on
