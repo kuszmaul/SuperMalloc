@@ -1,4 +1,4 @@
-\documentclass[preprint]{sigplanconf}
+\documentclass{sigplanconf}
 % Requires temporary version of sigplanconf style file provided on
 % PLDI'15 web site.
 
@@ -43,16 +43,19 @@
 \newcommand{\ns}[1]{\unit{#1}\nano\second{}}
 
 \begin{document}
-%\special{papersize=8.5in,11in}% Still need this even with letterpaper
+\special{papersize=8.5in,11in}% Still need this even with letterpaper
+\setlength{\pdfpageheight}{\paperheight}
+\setlength{\pdfpagewidth}{\paperwidth}
+
 \conferenceinfo{ISMM'15}{June 14, 2015, Portland, OR, USA}
 \CopyrightYear{2015}
-\crdata{/15/06}
+\crdata{978-1-4503-3589-8/15/06}
+\doi{2754169.2754178}
 \title{SuperMalloc: A Super Fast Multithreaded \texttt{malloc()} for 64-bit Machines}
-\authorinfo{Bradley C. Kuszmaul}{MIT CSAIL}{bradley@mit.edu}
+\authorinfo{Bradley C. Kuszmaul}{MIT CSAIL, Cambridge, MA, USA}{bradley@mit.edu}
 \date{}
 \maketitle
 \begin{abstract}
-\bcknote{First-person singular, but not too much.}
 
 SuperMalloc is an implementation of \texttt{malloc(3)} originally
 designed for X86 Hardware Transactional Memory (HTM)\@.  It turns out
