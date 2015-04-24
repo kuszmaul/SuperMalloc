@@ -209,9 +209,19 @@ Whereas Hoard uses an allocate-fullest heuristic, JEmalloc uses a
 lowest-address heuristic: Of all the possible objects to allocate,
 JEmalloc allocates the one with the lowest address.  This strategy is
 something akin to a first-fit strategy, except that all the objects
-are the same size.  First fit for fixed-size objects is generally
-pretty good at freeing up entire blocks, but it seems likely that
-fullest-fit is generally better.
+are the same size.  Although fullest-fit seems, in principle, to allow
+more blocks to be uncommitted, first fit for fixed-size objects is
+generally pretty good at freeing up entire blocks, and in practice
+seems to be just as good as fullest-fit.  In an earlier version of
+JEmalloc, Evans used fullest-fit on groups of equal-sized objects, but
+later abandoned it.  When JEmalloc returns memory to the operating
+system it unmaps an entire chunk --- there are several groups per
+chunk --- and fullest-fit on groups does not correspond to fullest fit
+on chunks~\cite{Evans15-personal-communication}.  This decision makes
+sense on a 32-bit machine, where virtual memory is as dear as physical
+memory, but on a 64-bit machine uncommitting the group without
+unmapping the chunk would be good enough.  In contrast, SuperMalloc
+was simplified by the decision to support only 64-bit machines.
 
 JEmalloc uses a thread-local cache, and eventually returns objects
 from the thread-local cache into the globally accessible data
