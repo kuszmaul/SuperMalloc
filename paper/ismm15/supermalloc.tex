@@ -60,37 +60,39 @@
 SuperMalloc is an implementation of \texttt{malloc(3)} originally
 designed for X86 Hardware Transactional Memory (HTM)\@.  It turns out
 that the same design decisions also make it fast even without HTM\@.
-We compared SuperMalloc to DLmalloc, JEmalloc, Hoard, and TBBmalloc,
-For the malloc-test benchmark, with one thread SuperMalloc is about
-2.1 times faster than the best alternatives, with 8 threads and HTM
-SuperMalloc is 2.75 times faster, and on 32 threads without HTM
-SuperMalloc is 3.4 times faster.  SuperMalloc generally compares
-favorably with the other allocators on speed, scalability, speed
-variance, memory footprint, and code size.
+For the malloc-test benchmark, which is one of the most difficult
+workloads for an allocator, with one thread SuperMalloc is about 2.1
+times faster than the best of DLmalloc, JEmalloc, Hoard, and
+TBBmalloc; with 8 threads and HTM, SuperMalloc is 2.75 times faster;
+and on 32 threads without HTM SuperMalloc is 3.4 times faster.
+SuperMalloc generally compares favorably with the other allocators on
+speed, scalability, speed variance, memory footprint, and code size.
 
 SuperMalloc achieves these performance advantages using less than half
-as much code as the alternatives.  We exploit the fact that although
-physical memory is always precious, virtual address space on a 64-bit
-machine is relatively cheap.  We allocate \unit{2}\mebi\byte{} chunks
-which contain objects all the same size.  To translate chunk numbers
-to chunk metadata, we use a simple array (most of which is uncommitted
-to physical memory).  We take care to avoid associativity conflicts in
-the cache: most of the size classes are a prime number of cache lines,
-and nonaligned huge accesses are randomly aligned within a page.
-Objects are allocated from the fullest non-full page in the
-appropriate size class.  For each size class, we employ a 10-object
-per-thread cache, a per-CPU cache that holds up a few megabytes per
-size class, and a global cache that is organized so we can move about
-a megabyte between a per-CPU cache and the global cache using $O(1)$
-instructions.  We prefetch everything we can before starting a
-critical section, which makes the critical sections run fast, and for
-HTM improves the odds that the transaction will commit.
+as much code as the alternatives.  SuperMalloc exploits the fact that
+although physical memory is always precious, virtual address space on
+a 64-bit machine is relatively cheap.  It allocates
+\unit{2}\mebi\byte{} chunks which contain objects all the same size.
+To translate chunk numbers to chunk metadata, SuperMalloc uses a
+simple array (most of which is uncommitted to physical memory).
+SuperMalloc takes care to avoid associativity conflicts in the cache:
+most of the size classes are a prime number of cache lines, and
+nonaligned huge accesses are randomly aligned within a page.  Objects
+are allocated from the fullest non-full page in the appropriate size
+class.  For each size class, SuperMalloc employs a 10-object
+per-thread cache, a per-CPU cache that holds about an level-2-cache
+worth of objects per size class, and a global cache that is organized
+to allow the movement many objects between a per-CPU cache and the
+global cache using $O(1)$ instructions.  SuperMalloc prefetch
+everything it can before starting a critical section, which makes the
+critical sections run fast, and for HTM improves the odds that the
+transaction will commit.
 
 \end{abstract}
 \category{D.4.2}{Operating Systems}
                 {Storage Management}
                 {Allocation/deallocation strategies}
-\keywords
+\keywords{}
 Memory Allocation Library, malloc, Virtual Memory
 
               
@@ -101,7 +103,7 @@ C/C++ dynamic memory allocation functions (\code{malloc(3)} and
 \code{free(3)}) can impact the cost of running applications.  The cost
 can show up in several ways: allocation operations can be slow for
 serial programs, they can fail to scale with the number of cores in a
-multithreaded multicore environment, they can occasionally be slow,
+multithreaded multicore environment, they can be occasionally slow,
 and they can induce a large memory footprint.  Furthermore, if the
 allocator itself is too complex, it can inhibit improvements.  We can
 divide these problems roughly into three categories: speed, footprint,
@@ -130,10 +132,10 @@ underlying physical memory back to the operating system.
 {\paragraph{DLmalloc}} \cite{Lea96} is the default single-threaded
 allocator in Linux.  DLmalloc is relatively simple and has been stable
 for decades.  DLmalloc employs per-object boundary tags (which are due
-to~\cite{Knuth73}).  On a 64-bit machine, each allocated object is
-immediately preceded by 8 bytes which indicate the size of the object
-(and hence the address of the next object, as well as whether the
-object is allocated or free, and whether the previous object is
+to Knuth~\cite{Knuth73}).  On a 64-bit machine, each allocated object
+is immediately preceded by 8 bytes which indicate the size of the
+object (and hence the address of the next object), as well as whether
+the object is allocated or free, and whether the previous object is
 allocated or free.  When the previous object is free, the last 8 bytes
 of that object also indicate the size.  When DLmalloc frees an object,
 it can immediately coalesce the object with the next object (if it is
@@ -153,10 +155,14 @@ of the first multithreaded allocators.  The original Cilk
 allocator~\cite{BlumofeLe94} and the STL allocator of the
 time~\cite{SGI97} provided per-thread allocation, which was very fast
 (no locking was required), but also produced unbounded memory blowups.
-Some allocators, such as PTmalloc~\cite{Gloger06} and
+The problem can occur, for example when one thread allocates objects
+and a second thread frees them.  The thread cache for the second
+thread can end up with an unbounded number of objects.  Some
+allocators, such as PTmalloc~\cite{Gloger06} and
 LKmalloc~\cite{LarsonKr98} exhibit memory blowup bounded by $P$, the
 number of processors.  Hoard provides a provable bound on its space
-blowup.  Hoard organizes small objects into \defn{chunks}, which
+blowup by moving objects out of its per-thread caches under certain
+conditions.  Hoard organizes small objects into \defn{chunks}, which
 contain objects all the same size.\footnote{Chunks are called
   ``superblocks'' in \cite{BergerMcBl00}.  They are called ``chunks''
   in \cite{Evans06} and \cite{KukanovVo07}.}  Large objects are dealt
@@ -165,10 +171,9 @@ beginning of each superblock indicating the size of the objects in the
 superblock.  Since the objects within a superblock are all the same,
 Hoard does not need boundary tags.
 
-Hoard uses thread-local allocation, and when the thread cache empties,
-uses an \defn{allocate-fullest} heuristic.  Hoard sometimes finds
-itself in a situation where an object could be allocated out of any
-one of several superblocks.  Hoard allocates the object out of the
+Hoard uses an \defn{allocate-fullest} heuristic.  Hoard sometimes
+finds itself in a situation where an object could be allocated out of
+any one of several superblocks.  Hoard allocates the object out of the
 fullest such superblock. By allocating into the fullest superblock,
 Hoard improves the chances that a superblock will completely empty and
 can be uncommitted or reused for other purposes.
