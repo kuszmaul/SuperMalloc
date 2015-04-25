@@ -6,25 +6,25 @@
 
 #include "malloc_internal.h"
 
-static bool is_prime_or_9_or_15(uint32_t x) {
-  if (x == 9 || x==15) return true;
+static bool is_prime_or_4_or_9_or_15(uint32_t x) {
+  if (x==4 || x == 9 || x==15) return true;
   for (uint32_t y = 2; y*y <= x; y++) {
     if (x%y == 0) return false;
   }
   return true;
 }
 
-static uint32_t next_prime_or_9_or_15(uint32_t x) {
+static uint32_t next_prime_or_4_or_9_or_15(uint32_t x) {
   while (1) {
     x++;
-    if (is_prime_or_9_or_15(x)) return x;
+    if (is_prime_or_4_or_9_or_15(x)) return x;
   }
 }
 
-static uint32_t next_prime_or_9_or_15_or_power_of_two(uint32_t x) {
+static uint32_t next_prime_or_4_or_9_or_15_or_power_of_two(uint32_t x) {
   while (1) {
     x++;
-    if (is_prime_or_9_or_15(x)) return x;
+    if (is_prime_or_4_or_9_or_15(x)) return x;
     if (is_power_of_two(x)) return x;
   }
 }
@@ -196,27 +196,13 @@ int main (int argc, const char *argv[]) {
   fprintf(cf, "%s", header_line);
   int bin = 0;
 
-  uint64_t prev_non_aligned_size = 8; // a size that could be returned by a non-aligned malloc
-  for (uint64_t k = 8; 1; k*=2) {
-    for (uint64_t c = 4; c <= 7; c++) {
-      uint32_t objsize = (c*k)/4;
-      if (objsize > 4*cacheline_size) goto done_small;
-      static_bin_t b(BIN_SMALL, objsize);
-      double wasted = (chunksize - b.folios_per_chunk * b.objects_per_folio * objsize)/(double)chunksize;
-      b.print(cf, bin++);
-      fprintf(cf, "    %3.1f%%", wasted*100.0);
-      if (objsize==8 || (is_power_of_two(objsize) && objsize > cacheline_size)) {
-	fprintf(cf, "       %4.1f%%\n", wasted*100.0);
-      } else {
-	double bin_wastage = (objsize-prev_non_aligned_size-1)/(double)objsize;
-	prev_non_aligned_size = objsize;
-	fprintf(cf, " %4.1f%% %4.1f%%\n", bin_wastage*100.0, ((1+bin_wastage)*(1+wasted)-1)*100.0);
-      }
-
-      static_bins.push_back(b);
-    }
+  for (uint64_t k = 8; k <= 64; k*=2) {
+    uint32_t objsize = k;
+    static_bin_t b(BIN_SMALL, objsize);
+    b.print(cf, bin++);
+    double wasted = (chunksize - b.folios_per_chunk * b.objects_per_folio * objsize)/(double)chunksize;
+    fprintf(cf, "   %3.2f%%\n", wasted*100.0);
   }
-done_small:
 
   fprintf(cf, "// Class 2 small objects are prime multiples of a cache line.\n");
   fprintf(cf, "// The folio size is such that the number of 4K pages equals the\n");
@@ -225,9 +211,9 @@ done_small:
 
   fprintf(cf, "%s", header_line);
 
-  uint32_t prev_objsize_in_cachelines = 4;
+  uint32_t prev_objsize_in_cachelines = 1;
   size_t largest_small = 0;
-  for (uint32_t objsize_in_cachelines = 5; objsize_in_cachelines < 64*4; objsize_in_cachelines = next_prime_or_9_or_15_or_power_of_two(objsize_in_cachelines)) {
+  for (uint32_t objsize_in_cachelines = 2; objsize_in_cachelines < 64*4; objsize_in_cachelines = next_prime_or_4_or_9_or_15_or_power_of_two(objsize_in_cachelines)) {
     // Must trade off two kinds of internal fragmentation and external
     // fragmentation.
     //
@@ -242,7 +228,7 @@ done_small:
     // chunk, but it could grow out of hand), and (b) the fact that we
     // must round up to the next chunk when allocating memory.
     if (is_power_of_two(objsize_in_cachelines) ||
-	prev_objsize_in_cachelines  < .7 * next_prime_or_9_or_15(objsize_in_cachelines) // not next power of two
+	prev_objsize_in_cachelines  < .7 * next_prime_or_4_or_9_or_15(objsize_in_cachelines) // not next power of two
 	) {
       uint32_t objsize = objsize_in_cachelines * cacheline_size;
       static_bin_t b(BIN_SMALL, objsize);
@@ -357,13 +343,14 @@ done_small:
 
   printf("static binnumber_t size_2_bin(size_t size) __attribute((unused)) __attribute((const));\n");
   printf("static binnumber_t size_2_bin(size_t size) {\n");
-  printf("  if (size <= 8) return 0;\n");
+  printf("  if (size <= 8) return 0; // builtin_clzl does not like size==0, so we test <= separately \n");
+  printf("  if (size <= 128) return 61 - __builtin_clzl(size-1);\n");
   printf("  if (size <= 320) {\n");
   printf("    // bit hacking to calculate the bin number for the first group of small bins.\n");
   printf("    int nzeros = __builtin_clzl(size);\n");
   printf("    size_t roundup = size + (1ul<<(61-nzeros)) -1;\n");
   printf("    int nzeros2 = __builtin_clzl(roundup);\n");
-  printf("    return 4*(60-nzeros2)+ ((roundup>>(61-nzeros2))&3);\n");
+  printf("    return 3+4*(57-nzeros2)+ ((roundup>>(61-nzeros2))&3);\n");
   printf("  }\n");
   for (binnumber_t b = 0; b < first_huge_bin; b++) {
     if (static_bins[b].object_size <= 320) printf("  //");
