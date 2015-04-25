@@ -178,7 +178,7 @@ fullest such superblock. By allocating into the fullest superblock,
 Hoard improves the chances that a superblock will completely empty and
 can be uncommitted or reused for other purposes.
 
-Hoard is licensed under GPLv2.
+I used Hoard~3.10, which is licensed under GPLv2.
 
 \begin{figure}
 \begin{center}
@@ -234,9 +234,9 @@ control.
 JEmalloc uses three size categories: small, large, and huge, and
 implements them differently. For small and large objects, JEmalloc
 carves a chunk into page runs using a red-black trees to track
-arbitrary contiguous page runs,~\footnote{Previously JEmalloc employed
+arbitrary contiguous page runs,\footnote{Previously JEmalloc employed
   a buddy algorithm to track runs within a chunk, but changed to
-  red-black trees in 2006--2007.  More recent versions, which we
+  red-black trees in 2006--2007.  More recent versions, which I
   haven't benchmarked, switched to employing a lock-free radix tree
   rather than a red-black tree to track huge allocations
   \cite{Evans15-personal-communication}.} and maintains metadata at
@@ -247,7 +247,7 @@ JEmalloc directly maps huge objects using \code{mmap()}.  Huge objects
 are chunk-aligned.  JEmalloc maintains a red-black tree mapping huge
 chunk addresses to metadata.
 
-We used JEmalloc 3.6.0, which is licensed under a variant of the
+I used JEmalloc 3.6.0, which is licensed under a variant of the
 modified BSD license.  Many projects may prefer JEmalloc over Hoard
 due to the licensing.
 
@@ -255,7 +255,7 @@ due to the licensing.
 with Intel's Threading Building Blocks (TBB), and is based on ideas
 developed in McRT-malloc \cite{HudsonSaAd06}.  TBBmalloc is about as
 fast as SuperMalloc, but has an unbounded space blowup in theory and
-in practice.  TBB use a thread-private heap, and never returns space
+in practice.  TBB uses a thread-private heap, and never returns space
 for small objects to the operating system.  TBBmalloc always allocates
 out of a per-thread pool with no locking.  If the same thread returns
 the object as allocated it, then no locking is needed, otherwise the
@@ -267,22 +267,28 @@ each containing objects of homogeneous size, and places metadata at
 the beginning of each chunk.
 
 TBBmalloc can have an unbounded footprint.  One case was documented by
-\cite{Vyukov08}.
+\cite{Vyukov08}.  In this case, one thread allocates a large number of
+objects, and a second thread then frees them, placing them into the
+first threads foreign block.  If the first thread then does not call
+\code{free()}, then the memory will never be removed from the foreign
+block to be reused.  There appears to be no easy fix to this problem
+in TBBmalloc, since the thread-local locking policy assumes, deep in
+its design, that every thread calls \code{free()} periodically.
 
-TBBmalloc is licensed under GPLv2.
+I used TBBmalloc 4.3, which is licensed under GPLv2.
 
 {\paragraph{Other allocators}:} Many other allocators exist.
 
 For example \cite{Michael04} describes a lock-free allocator based on
-Hoard.  Streamflow \cite{SchneiderAnNi06} is also lock-free.  We (the
-authors) cannot handle the complexity of lock-free programming for
-anything complicated: we can write reliable lock-free code to push an
-object onto a linked list, but popping a list is trickier.
+Hoard.  Streamflow \cite{SchneiderAnNi06} is also lock-free.  I cannot
+handle the complexity of lock-free programming for anything
+complicated: I can write reliable lock-free code to push an object
+onto a linked list, but popping a list is trickier.
 
 The VAM allocator \cite{FengBe05} attempts to improve cache locality,
 especially on long-running jobs.  Although VAM and Hoard share an
 author, the VAM paper dos not compare VAM to Hoard, nor does the VAM
-software appear to be on the web, so we could not compare SuperMalloc
+software appear to be on the web, so I could not compare SuperMalloc
 to VAM\@.
 
 \secput{supermalloc}{SuperMalloc}
@@ -312,7 +318,9 @@ In the case where that strategy actually does save space, it is
 because the application did not actually allocate a whole chunk's
 worth of objects of a given size.  In that case, in SuperMalloc, the
 rest of the block is an untouched uncommitted ``wilderness area'' (a
-term apparently coined by \cite{KornVo85}) using no memory.
+term apparently coined by \cite{KornVo85}) using no physical memory.
+
+\bcknote{Switch to powers of two for less than a cache line.  Discuss how this will make everything work right, so that people won't have to call aligned\_malloc in order to use avx instructions.}
 
 Like JEmalloc, SuperMalloc employs several object sizes.  The sizes
 are organized as into bins.  In SuperMalloc, there are small, medium,
