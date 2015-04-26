@@ -217,11 +217,10 @@ JEmalloc, Evans used fullest-fit on groups of equal-sized objects, but
 later abandoned it.  When JEmalloc returns memory to the operating
 system it unmaps an entire chunk --- there are several groups per
 chunk --- and fullest-fit on groups does not correspond to fullest fit
-on chunks~\cite{Evans15-personal-communication}.  This decision makes
-sense on a 32-bit machine, where virtual memory is as dear as physical
-memory, but on a 64-bit machine uncommitting the group without
-unmapping the chunk would be good enough.  In contrast, SuperMalloc
-was simplified by the decision to support only 64-bit machines.
+on chunks. Evans found that, although individual groups of equal-sized
+regions might benefit from fullest fit, chunks as a whole did not
+drain as well because a single ``fullest'' page could keep a chunk
+mapped indefinitely~\cite{Evans15-personal-communication}.  
 
 JEmalloc uses a thread-local cache, and eventually returns objects
 from the thread-local cache into the globally accessible data
@@ -320,7 +319,7 @@ worth of objects of a given size.  In that case, in SuperMalloc, the
 rest of the block is an untouched uncommitted ``wilderness area'' (a
 term apparently coined by \cite{KornVo85}) using no physical memory.
 
-\bcknote{Switch to powers of two for less than a cache line.  Discuss how this will make everything work right, so that people won't have to call aligned\_malloc in order to use avx instructions.}
+
 
 Like JEmalloc, SuperMalloc employs several object sizes.  The sizes
 are organized as into bins.  In SuperMalloc, there are small, medium,
@@ -400,26 +399,29 @@ int size_2_bin(size_t s) {
 \label{fig:size2bin}
 \end{figure}
 
-For small objects, we make no particular effort to avoid false
-sharing.  Like JEmalloc, we assume that users who care about false
-sharing will explicitly ask for cache-line alignment, using e.g.,
-\code{posix_memalign()}.  This decision stands in contrast to
-allocators, such as Hoard, that try to use temporal locality to induce
-spatial locality: Hoard has heuristics that try to arrange to place
-objects that were allocated at the same time by the same thread onto
-the same cache line, and objects that were allocated by different
+For small objects, we make no particular effort to avoid false sharing
+\cite{BoloskySc93}.  Like JEmalloc, we assume that users who care
+about false sharing will explicitly ask for cache-line alignment,
+using e.g., \code{posix_memalign()}.  This decision stands in contrast
+to allocators, such as Hoard, that try to use temporal locality to
+induce spatial locality: Hoard has heuristics that try to arrange to
+place objects that were allocated at the same time by the same thread
+onto the same cache line, and objects that were allocated by different
 threads on different cache lines.  As explained below, we take a
 different tack on avoiding false sharing, focusing on objects that are
 larger than a cache line.
 
-\bcknote{supermalloc does fullest fit}
+\bcknote{supermalloc does fullest fit.}
 
-Early versions of JEmalloc used fullest fit, but abandoned it because
-although individual groups of equal-sized regions might benefit from
-fullest fit, chunks as a whole did not drain as well because a single
-``fullest'' page could keep a chunk mapped indefinitely
-\cite{Evans15-personal-communication}.
-\bcknote{this is not a concern for supermalloc, since we make the entire chunk the same sized objects, and we never unmap an entire chunk} 
+As mentioned above, JEMalloc abandonded fullest-fit on subchunks
+because it was not conducive to unmapping an entire chunk.  The
+decision to try to unmap an entire chunk makes sense on a 32-bit
+machine, where virtual memory space is about as expensive as physical
+memory, but on a 64-bit machine uncommitting the group without
+unmapping the chunk would be good enough.  In contrast, SuperMalloc
+was simplified by the decision to support only 64-bit machines ---
+SuperMalloc never unmaps or change the size of the objects in a chunk.
+
 
 We reserve the first few pages of each \unit{2}\mebi\byte{} chunk for
 bookkeeping.  The bookkeeping comprises a bitmap of the free objects
@@ -427,6 +429,8 @@ and a heap-like data structure for implementing the fullest-fit
 heuristic. 
 
 \bcknote{Explain how we implement fullest fit}
+
+\bcknote{Switch to powers of two for less than a cache line.  Discuss how this will make everything work right, so that people won't have to call aligned\_malloc in order to use avx instructions.}
 
 \secput{medium}{Medium objects:}
 
@@ -597,6 +601,7 @@ shows the faster code.  We use metaprogramming to generate all the
 object sizes and magic numbers (e.g., to find prime numbers that are
 spaced no more than 25\% apart, and to calculate the multiplication
 and shift constants to implement division.).
+
 
 \secput{caching}{Caching}
 
@@ -1352,6 +1357,8 @@ subtleties of \code{MADV_FREE}, prodded me to more carefully explain
 how I deal with huge pages, and corrected several misconceptions I had
 about how JEmalloc works.  Emery Berger helped me better understand
 how Hoard works and pointed out \cite{HertzFeBe05, YangBeKa06}.
+Michael A. Bender showed me how to implement the fullest-fit priority
+queue with $O(1)$ amortized time per operation.
 
 \bcknote{Ack funders, also people who contributed}
 
