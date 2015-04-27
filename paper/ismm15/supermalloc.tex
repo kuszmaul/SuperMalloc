@@ -2,7 +2,7 @@
 % Requires temporary version of sigplanconf style file provided on
 % PLDI'15 web site.
 
-\usepackage{flushend}
+%\usepackage{flushend}
 
 %\def\inlinecode{\code}
 %\def\code{\lstinline[basicstyle=\ttfamily]}
@@ -86,22 +86,22 @@ most of the size classes are a prime number of cache lines, and
 nonaligned huge accesses are randomly aligned within a page.  Objects
 are allocated from the fullest non-full page in the appropriate size
 class.  For each size class, SuperMalloc employs a 10-object
-per-thread cache, a per-CPU cache that holds about an level-2-cache
+per-thread cache, a per-CPU cache that holds about a level-2-cache
 worth of objects per size class, and a global cache that is organized
-to allow the movement many objects between a per-CPU cache and the
-global cache using $O(1)$ instructions.  SuperMalloc prefetch
+to allow the movement of many objects between a per-CPU cache and the
+global cache using $O(1)$ instructions.  SuperMalloc prefetches
 everything it can before starting a critical section, which makes the
 critical sections run fast, and for HTM improves the odds that the
 transaction will commit.
 
 \end{abstract}
-\category{D.4.2}{Operating Systems}
-                {Storage Management}
-                {Allocation/deallocation strategies}
-\keywords{}
-Memory Allocation Library, malloc, Virtual Memory
 
-              
+
+%\category{D.4.2}{Operating Systems}{Storage Management}[Allocation/deallocation strategies]
+\paragraph{Categories and Subject Descriptors} D.4.2 Operating Systems [\textit{Storage Management}] Allocation/deallocation strategies
+
+%\keywords{}
+\paragraph{Keywords} Memory Allocation Library, malloc, Virtual Memory
 
 \secput{intro}{Introduction}
 
@@ -119,8 +119,7 @@ The rest of this section explores this space in the context of several
 allocators.  The allocators include DLmalloc~\cite{Lea96},
 Hoard~\cite{BergerMcBl00}, JEmalloc~\cite{Evans06},
 TBBmalloc~\cite{KukanovVo07}, and our allocator, SuperMalloc.
-\figref{codesize} shows the code size for the allocators, including
-our allocator, SuperMalloc.
+\figref{codesize} shows the code size for the allocators.
 
 Many modern allocators take advantage of the fact that the operating
 system allocates memory in two steps corresponding to virtual
@@ -135,13 +134,13 @@ page is \defn{uncommitted}.  An application or library can use
 \code{madvise()} to uncommit a committed page, returning the
 underlying physical memory back to the operating system.
 
-{\paragraph{DLmalloc}} \cite{Lea96} is the default single-threaded
-allocator in Linux.  DLmalloc is relatively simple and has been stable
-for decades.  DLmalloc employs per-object boundary tags (which are due
-to Knuth~\cite{Knuth73}).  On a 64-bit machine, each allocated object
-is immediately preceded by 8 bytes which indicate the size of the
-object (and hence the address of the next object), as well as whether
-the object is allocated or free, and whether the previous object is
+{\paragraph{DLmalloc}} \cite{Lea96} is the default allocator in Linux.
+DLmalloc is relatively simple and has been stable for decades.
+DLmalloc employs per-object boundary tags (which are due to
+Knuth~\cite{Knuth73}).  On a 64-bit machine, each allocated object is
+immediately preceded by 8 bytes which indicate the size of the object
+(and hence the address of the next object), as well as whether the
+object is allocated or free, and whether the previous object is
 allocated or free.  When the previous object is free, the last 8 bytes
 of that object also indicate the size.  When DLmalloc frees an object,
 it can immediately coalesce the object with the next object (if it is
@@ -150,11 +149,10 @@ previous object is freed, it can also coalesce the newly freed object
 with the previous one.  The boundary tags can contribute up to a 50\%
 space overhead when allocating small (8-byte) objects.  DLmalloc
 employs a first-fit heuristic, and has no provision for multithreading
-performance beyond using a single lock to protect the entire
-allocation data structure.  For example, DLmalloc has no per-thread
-caching.
+beyond using a single lock to protect the entire allocation data
+structure.  For example, DLmalloc has no per-thread caching.
 
-DLmalloc has been placed in the public domain.
+This study used DLmalloc 2.8.6, which has been placed in the public domain.
 
 {\paragraph{Hoard}} \cite{BergerMcBl00} was introduced during the era
 of the first multithreaded allocators.  The original Cilk
@@ -184,7 +182,7 @@ fullest such superblock. By allocating into the fullest superblock,
 Hoard improves the chances that a superblock will completely empty and
 can be uncommitted or reused for other purposes.
 
-I used Hoard~3.10, which is licensed under GPLv2.
+This study used Hoard~3.10, which is licensed under GPLv2.
 
 \begin{figure}
 \begin{center}
@@ -204,12 +202,12 @@ Allocator & Bytes        & LoC \\ \hline
 \label{fig:codesize}
 \end{figure}
 
-{\paragraph{JEmalloc}} \cite{Evans06} is, in our experience, one of
-the best allocators now available for production.  JEmalloc ships with
-BSD and Mozilla, as well as with MariaDB in recent Red Hat
-distributions.  JEmalloc strives to minimize footprint in long-running
-processes such as browsers and database servers.  Like Hoard, JEmalloc
-allocates large chunks of memory containing objects all the same size.
+{\paragraph{JEmalloc}} \cite{Evans06} is, in my experience, one of the
+best allocators now available for production.  JEmalloc ships with BSD
+and Mozilla, as well as with MariaDB in recent Red Hat distributions.
+JEmalloc strives to minimize footprint in long-running processes such
+as browsers and database servers.  Like Hoard, JEmalloc allocates
+large chunks of memory containing objects all the same size.
 
 Whereas Hoard uses an allocate-fullest heuristic, JEmalloc uses a
 lowest-address heuristic: Of all the possible objects to allocate,
@@ -249,12 +247,11 @@ the beginning of the chunk.  By storing metadata at the beginning of
 the chunk, the pages themselves can remain untouched, and uncommitted.
 
 JEmalloc directly maps huge objects using \code{mmap()}.  Huge objects
-are chunk-aligned.  JEmalloc maintains a red-black tree mapping huge
-chunk addresses to metadata.
+are chunk-aligned.  JEmalloc maintains another red-black tree mapping
+huge chunk addresses to metadata.
 
-I used JEmalloc 3.6.0, which is licensed under a variant of the
-modified BSD license.  Many projects may prefer JEmalloc over Hoard
-due to the licensing.
+This study used JEmalloc 3.6.0, which is licensed under a variant of the
+modified BSD license.
 
 {\paragraph{TBBmalloc}} \cite{KukanovVo07} is the allocator shipped
 with Intel's Threading Building Blocks (TBB), and is based on ideas
@@ -264,12 +261,12 @@ in practice.  TBB uses a thread-private heap, and never returns space
 for small objects to the operating system.  TBBmalloc always allocates
 out of a per-thread pool with no locking.  If the same thread returns
 the object as allocated it, then no locking is needed, otherwise the
-object is being returned to a \defn{foreign} block, and requires
-lightweight synchronization to place the object into a linked list
-that will be dealt with the next time the owner of the foreign block
-tries to allocate.  Like JEmalloc and Hoard, TBBmalloc uses chunks
-each containing objects of homogeneous size, and places metadata at
-the beginning of each chunk.
+object is returned to a \defn{foreign} block, and requires lightweight
+synchronization to place the object into a linked list that will be
+dealt with the next time the owner of the foreign block tries to
+allocate.  Like JEmalloc and Hoard, TBBmalloc uses chunks each
+containing objects of homogeneous size, and places metadata at the
+beginning of each chunk.
 
 TBBmalloc can have an unbounded footprint.  One case was documented by
 \cite{Vyukov08}.  In this case, one thread allocates a large number of
@@ -280,7 +277,7 @@ block to be reused.  There appears to be no easy fix to this problem
 in TBBmalloc, since the thread-local locking policy assumes, deep in
 its design, that every thread calls \code{free()} periodically.
 
-I used TBBmalloc 4.3, which is licensed under GPLv2.
+This study used TBBmalloc 4.3, which is licensed under GPLv2.
 
 {\paragraph{Other allocators}:} Many other allocators exist.
 
@@ -328,7 +325,7 @@ term apparently coined by \cite{KornVo85}) using no physical memory.
 
 
 Like JEmalloc, SuperMalloc employs several object sizes.  The sizes
-are organized as into bins.  In SuperMalloc, there are small, medium,
+are organized into bins.  In SuperMalloc, there are small, medium,
 large, and huge objects.  The first 45 bins are specific sizes, and
 larger bin numbers encode the number of pages that the application
 actually allocated (so that when SuperMalloc maps a
@@ -339,24 +336,22 @@ objects of up to just under $2^{32}$ pages ($2^{44}$ bytes).
 
 Given a pointer to an object, a chunk-based allocator must be able to
 determine which chunk an object belongs to, and what the size of the
-objects in that chunk are.  Here, for comparison, we focus on the
-comparison with JEmalloc for which the internal data structures are
-explained in some detail.  In JEmalloc, depending on the size of the
-object, the object might be looked up in a global red-black tree (for
-huge objects), or in a local red-black tree at the beginning of a
-chunk.
+objects in that chunk are.  For example, in JEmalloc, depending on the
+size of the object, the object might be looked up in a global
+red-black tree (for huge objects), or in a local red-black tree at the
+beginning of a chunk.
 
 SuperMalloc adopted a simpler strategy.  An entire chunk is all the
-same sized, and SuperMalloc can look up the chunk number in a table.
-Instead of using a tree, SuperMalloc uses an array to implement that
-table, however.  Since the usable x86 address space is $2^{48}$ bytes
-and chunks are $2^{21}$ bytes, there are only $2^{27}$ entries in the
-table.  Each entry is a 4-byte bin number.  The SuperMalloc table
-consumes \unit{512}\mebi\byte{} of virtual address space, but since
-the operating system employs a lazy commit strategy, it typically needs
-only a few of pages physical memory for the chunk table.  This is
-another instance of the design principle for 64-bit software that ``it
-is OK to waste some virtual address space.''
+same size objects, and SuperMalloc can look up the chunk number in a
+table.  Instead of using a tree, SuperMalloc uses an array to
+implement that table, however.  Since the usable x86 address space is
+$2^{48}$ bytes and chunks are $2^{21}$ bytes, there are only $2^{27}$
+entries in the table.  Each entry is a 4-byte bin number.  The
+SuperMalloc table consumes \unit{512}\mebi\byte{} of virtual address
+space, but since the operating system employs a lazy commit strategy,
+it typically needs only a few of pages physical memory for the chunk
+table.  This is another instance of the design principle for 64-bit
+software that ``it is OK to waste some virtual address space.''
 
 \secput{small}{Small Objects}
 
@@ -408,29 +403,31 @@ int size_2_bin(size_t s) {
 For small objects, SuperMalloc makes no particular effort to avoid
 false sharing \cite{BoloskySc93}.  Like JEmalloc, SuperMalloc assumes
 that users who care about false sharing will explicitly ask for
-cache-line alignment, using e.g., \code{posix\_memalign()}.  This
+cache-line alignment, using e.g., \code{memalign()}.  This
 decision stands in contrast to allocators, such as Hoard, that try to
 use temporal locality to induce spatial locality: Hoard has heuristics
-that try to arrange to place objects that were allocated at the same
-time by the same thread onto the same cache line, and objects that
-were allocated by different threads on different cache lines.  As
-explained below, SuperMalloc take a different tack on avoiding false
-sharing, focusing on objects that are larger than a cache line.
+that try to place objects that were allocated at the same time by the
+same thread onto the same cache line, and objects that were allocated
+by different threads on different cache lines.  As explained below,
+SuperMalloc takes a different tack on avoiding false sharing, focusing
+on objects that are larger than a cache line.
 
 SuperMalloc employs a fullest fit algorithm; when allocating an
 object, it finds the fullest non-full page that holds objects of that
 size.\footnote{As we'll discuss in \secref{medium}, these `pages' are
-  in some cases several operating systems pages.}  In theory this
-should help empty out nearly empty pages so that they can be returned
-to the operating system.  As mentioned above, JEMalloc abandoned
-fullest-fit on subchunks because it was not conducive to unmapping an
-entire chunk.  The decision to try to unmap an entire chunk makes
-sense on a 32-bit machine, where virtual memory space is about as
-expensive as physical memory, but on a 64-bit machine uncommitting the
-group without unmapping the chunk would be good enough.  In contrast,
-SuperMalloc was simplified by the decision to support only 64-bit
-machines --- SuperMalloc only uncommits pages and chunks, and never
-unmaps or change the size of the objects in a chunk.
+  in some cases more than \unit{4}\kibi\byte, but for now it suffices
+  to imagine that they are ordinary \unit{4}\kibi\byte pages.}  In
+theory this should help empty out nearly empty pages so that they can
+be returned to the operating system.  As mentioned above, JEMalloc
+abandoned fullest-fit on subchunks because it was not conducive to
+unmapping an entire chunk.  The decision to try to unmap an entire
+chunk makes sense on a 32-bit machine, where virtual memory space is
+about as expensive as physical memory, but on a 64-bit machine,
+uncommitting the group without unmapping the chunk would be good
+enough.  In contrast, SuperMalloc was simplified by the decision to
+support only 64-bit machines --- SuperMalloc only uncommits pages and
+chunks, and never unmaps or changes the size of the objects in a
+chunk.
 
 To implement fullest fit, SuperMalloc provides, for each object size,
 a heap-like data structure to sort pages by how full they are.  This
@@ -438,11 +435,12 @@ data structure solves a simpler problem than the general
 priority-queue problem because pages have a bounded number of
 different fullness states.  For example, pages containing 64-byte
 objects can be in only one of 65 different states corresponding to 0
-objects free, 1 object free, \ldots 64 objects free.  SuperMalloc
-simply maintains an array of length 65 linked lists of pages, along
-with a bitmap to indicate which sizes have nonempty linked lists.  The
-linked list cells are kept outside the pages so that the pages can be
-uncommitted when they become empty.
+objects free, 1 object free, and so forth up to 64 objects free.  For
+each size class, SuperMalloc simply maintains an array of length 65
+containing linked lists of pages, along with a bitmap to indicate
+which sizes have nonempty linked lists.  The linked list cells are
+kept outside the pages so that the pages can be uncommitted when they
+become empty.
 
 SuperMalloc reserves the first few pages of each \unit{2}\mebi\byte{}
 chunk for bookkeeping.  The bookkeeping comprises a bitmap of the free
@@ -452,32 +450,33 @@ each page).  A metaprogram generates the data structures so that, for
 example the interal arrays are properly sized for each object-size
 class.
 
-SuperMalloc's small objects are not all suitably aligned, and I expect
-to remove the objects of size $10$, $12$, $14$, $20$, and $28$
-(leaving small sizes $8$, $16$, $24$, $32$, and then continuing with
-the current scheme that limits internal fragmentation to $25$\%).  The
-disadvantage of doing so is that it increases internal fragmentation.
-For example, currently, when allocating a string of size $9$,
-SuperMalloc returns an object of size $10$, but after making this
-change SuperMalloc will return an object of size $16$.  Here I will
-discuss the rationale for this decision, starting with a discussion of
-what the standards require and of the current practice.
+SuperMalloc's small objects are not all suitably aligned, and in an
+upcoming release I expect to remove the objects of size $10$, $12$,
+$14$, $20$, and $28$ (leaving small sizes $8$, $16$, $24$, $32$, and
+then continuing with the current scheme that limits internal
+fragmentation to $25$\%).  The disadvantage of doing so is that it
+increases internal fragmentation.  For example, currently, when
+allocating a string of size $9$, SuperMalloc returns an object of size
+$10$, but after making this change SuperMalloc will return an object
+of size $16$.  Here I will discuss the rationale for this decision,
+starting with a discussion of what the standards require and of the
+current practice.
 
 The C11 standard \cite{ISOIEC11} is widely interpreted to mean that
 \code{malloc()} must return objects aligned suitably for any data
 type. On modern x86-64 processors, this appears to mean that all
-objects must be $32$-byte aligned, since the \code{\_m256} data type is
-$32$-byte aligned \cite{MatzHuJa07}.  Arguably, small objects could
+objects must be $32$-byte aligned, since the \code{\_m256} data type
+is $32$-byte aligned \cite{MatzHuJa07}.  Arguably, small objects could
 use less alignment.  For example, any object less than $16$ bytes long
 would need to be only 8-byte aligned, since all the objects that
 require $16$-byte alignment are at least $16$ bytes long.  DLmalloc,
-the most commonly used allocator in Linux returns only 8-byte-aligned
-objects, necessitating the use of \code{posix\_memalign()} when using
+the most commonly used allocator in Linux, returns only 8-byte-aligned
+objects, necessitating the use of \code{memalign()} when using
 SSE and AVX data types.  A long discussion of this issue, and how
 Linux works around the 8-byte-aligned practice, can be found at
-\cite{Schanda04}.  Some allocators, such as JEmalloc,
-return 16-byte aligned objects for objects of size $16$ or larger.  As
-far as I know, no Linux allocator returns $32$-byte aligned objects.
+\cite{Schanda04}.  Some allocators, such as JEmalloc, return 16-byte
+aligned objects for objects of size $16$ or larger.  As far as I know,
+no Linux allocator returns $32$-byte aligned objects.
 
 A careful reading of the standards \cite{ISOIEC11, MatzHuJa07} does
 not actually appear to require $8$-byte alignment for a $9$-byte
@@ -511,7 +510,9 @@ struct line {
   char contents[0];
 };
 
-struct line *thisline = malloc(sizeof(struct line) + this_length;
+struct line *thisline = 
+  malloc(sizeof(struct line) + 
+  this_length;
 thisline->length = this_length;
 \end{minted}
 \caption{A frequently-seen non-standards-compliant idiom is to
@@ -531,7 +532,7 @@ Thus there are three possible options for a mallocator.
   $16$-byte-and-larger objects to be $16$-byte aligned, and 
   $32$-byte-and-larger objects to be $32$-byte aligned.  This approach
   wastes memory space, but allows all x86-64 ABI-compliant codes to
-  run without using \code{posix\_memalign()}.
+  run without using \code{memalign()}.
 \item Follow the Linux practice of providing 8-byte alignment.
 \end{itemize}
 I plan to switch SuperMalloc from the first option to the last option.
@@ -551,7 +552,7 @@ lead of \cite{AfekDiMo11}, who propose \defn{punctuated arrays} to
 reduce associativity conflicts, I wanted to avoid aligning objects
 into the same cache associativity set. (Apparently punctuated arrays
 are appearing in most of the Solaris~12 allocators \cite{Dice14b}.)
-I, however, took the more ``radical'' approach mentioned by
+SuperMalloc, however, took the more ``radical'' approach mentioned by
 \cite{Dice14a} of making all the size classes a prime multiple of the
 cache line, which not only reduces conflicts within a class size but
 reduces inter-size cache-index conflicts.
@@ -575,14 +576,14 @@ Supermalloc avoids this internal fragmentation by using larger logical
 pages, called \defn{folios}, for allocation bookkeeping.  For example,
 in the 832-byte bin, rather than wasting those 768 bytes, SuperMalloc
 allocates objects out of a folio containing 13 pages (53,248
-bytes). When SuperMalloc allocates an 832-byte object, it finds the fullest
-13-page folio (among all folios holding 832-byte objects) that has a
-free slot, and allocate that slot.  When a folio becomes empty, SuperMalloc
-uncommits the entire folio, rather than trying to uncommit individual
-pages of a folio.  There is still fragmentation at the end of the
-\unit{2}\mebi\byte{} chunk (5 unused pages in this case), but that
-fragmentation comprises whole pages which are never touched and remain
-uncommited.  Once again, I do not mind wasting a little virtual
+bytes). When SuperMalloc allocates an 832-byte object, it finds the
+fullest 13-page folio (among all folios holding 832-byte objects) that
+has a free slot, and allocates that slot.  When a folio becomes empty,
+SuperMalloc uncommits the entire folio, rather than trying to uncommit
+individual pages of a folio.  There is still fragmentation at the end
+of the \unit{2}\mebi\byte{} chunk (5 unused pages in this case), but
+that fragmentation comprises whole pages which are never touched and
+remain uncommited.  Once again, I do not mind wasting a little virtual
 address space.
 
 Except for the way their sizes are chosen, medium and small objects
@@ -599,25 +600,25 @@ When a large object is freed its pages can be uncommitted, so
 SuperMalloc does not need to keep track of anything for a fullest-fit
 heuristic.
 
-In order to avoid associativity issues, SuperMalloc adds random number
-of cache lines, up to a page's worth, to the allocation, and adjusts
-the returned pointer by that random number.  For example when asked to
-allocate $20,000$ bytes, SuperMalloc picks a random number from 0 to
-63 and adds that many cache lines to the request.  If, for example,
-SuperMalloc picked 31 for the random number, it would allocate $21,984
-= 20,000+31\cdot64$ bytes.  That would be allocated out of bin~40,
-which contains $32$KiB objects.  Instead of returning a pointer to the
-beginning of the $32$KiB object, SuperMalloc returns the pointer plus
-$1984$ bytes.  This strategy wastes at most an extra page per object,
-and since this strategy is employed only on objects that are $4$ pages
-or larger, it can result in at most $25$\% internal fragmentation
-(which matches the fragmentation we were willing to tolerate for the
-small objects), and on average wastes only $12.5$\%.  If the
-application explicitly asks for a page-aligned allocation, SuperMalloc
-skips the random rigamarole.  Adding a random-offset to what would
-otherwise be a page-aligned allocation appeared in \cite{LvinNoBe08}
-for a page-per-object allocator, and is applied in a more systematic
-fashion by \cite{AfekDiMo11}.
+In order to avoid associativity issues, SuperMalloc adds a random
+number of cache lines, up to a page's worth, to the allocation, and
+adjusts the returned pointer by that random number.  For example when
+asked to allocate $20,000$ bytes, SuperMalloc picks a random number
+from 0 to 63 and adds that many cache lines to the request.  If, for
+example, SuperMalloc picked 31 for the random number, it would
+allocate $21,984 = 20,000+31\cdot64$ bytes.  That would be allocated
+out of bin~40, which contains $32$KiB objects.  Instead of returning a
+pointer to the beginning of the $32$KiB object, SuperMalloc returns
+the pointer plus $1984$ bytes.  This strategy wastes at most an extra
+page per object, and since this strategy is employed only on objects
+that are $4$ pages or larger, it can result in at most $25$\% internal
+fragmentation (which matches the fragmentation we were willing to
+tolerate for the small objects), and on average wastes only $12.5$\%.
+If the application explicitly asks for a page-aligned allocation,
+SuperMalloc skips the random rigamarole.  Adding a random-offset to
+what would otherwise be a page-aligned allocation appeared in
+\cite{LvinNoBe08} for a page-per-object allocator, and is applied in a
+more systematic fashion by \cite{AfekDiMo11}.
 
 \secput{huge}{Huge objects}
 
@@ -641,7 +642,7 @@ table so that the chunk itself does not need to be in committed
 memory.  To free a huge object SuperMalloc explicitly uncommits the
 memory using \code{madvise()}.
 
-SuperMalloc uses \code{madvise()} to ask to the kernel to map the huge
+SuperMalloc uses \code{madvise()} to ask the kernel to map the huge
 chunk using huge pages (recent Linux kernels support
 \unit{2}\mebi\byte{} pages, which can reduce TLB pressure and reduces
 the cost of walking the page table in the case of a TLB miss
@@ -649,16 +650,21 @@ the cost of walking the page table in the case of a TLB miss
 \unit{2}\mebi\byte{} in size, the last fractional part of the huge
 page is mapped only with normal \unit{4}\kibi\byte page table entries.
 Some users do not like transparent huge pages, and if a user wants
-fine-grained commitment within a huge object, they should call
+fine-grained commitment within a huge object, they must call
 \code{madvise(MADV\_NOHUGEPAGE)} to ensure the small pages.
+
+Thus, although SuperMalloc allocated \unit{8}\mebi\byte{} to implement
+a \unit{5}\mebi\byte{} allocation, only \unit{5}\mebi\byte{} would
+actually ever be committed to memory (and then only when the
+application code touches it.)
 
 For small, medium, and large objects, SuperMalloc makes no explicit
 use of huge pages, meaning that on most systems huge pages are not
 used for those non-huge objects.  On most Linux systems, huge pages are enabled
 only when explicitly asked for with madvise, e.g., with
 \begin{minted}{csh}
-$ echo madvise > \
-  /sys/kernel/mm/transparent_hugepage/enabled
+$ echo madvise > /sys/kernel/mm/\
+  transparent_hugepage/enabled
 \end{minted}
 and on such systems the non-huge chunks will all be mapped with
 \unit{4}\kibi\byte pages.  I hope to make better use of huge pages in
@@ -672,11 +678,6 @@ uncommit operations, and then when, say, only 80\% of the pages are in
 use, run all the deferred uncommit operations.  The system would need
 some hysteresis so that it would not bounce between huge-page and
 no-huge-page mode too frequently.
-
-Thus, although SuperMalloc allocated \unit{8}\mebi\byte{} to implement
-a \unit{5}\mebi\byte{} allocation, only \unit{5}\mebi\byte{} would
-actually ever be committed to memory (and then only when the
-application code touches it.)
 
 \secput{arith}{Arithmetic}
 
@@ -723,11 +724,12 @@ which isn't a power of two, and isn't known at compile time, however.
 Division is slow, so SuperMalloc follows the approach of
 \cite{MagenheimerPePe87} to convert division to multiplication and
 shift.  For example, for 32-bit values of \code{x}, we have
-\code{x / 320 == (x*6871947674lu)>>41}.  \figref{bitindex}(b)
-shows the faster code.  SuperMalloc uses metaprogramming to generate
-all the object sizes and magic numbers (e.g., to find prime numbers
-that are spaced no more than 25\% apart, and to calculate the
-multiplication and shift constants to implement division.).
+\[\mbox{\code{x / 320 == (x*6871947674lu)>>41}}.\]
+\figref{bitindex}(b) shows the faster code.  SuperMalloc uses
+metaprogramming to generate all the object sizes and magic numbers,
+for example, to find prime numbers that are spaced no more than 25\%
+apart, and to calculate the multiplication and shift constants to
+implement division..
 
 
 \secput{caching}{Caching}
@@ -736,7 +738,7 @@ Like other multithreaded allocators, SuperMalloc employs per-thread
 caching.  In addition to the per-thread cache SuperMalloc also employs
 a per-CPU cache, as well as a global cache in front of the true data
 structures.  Each cache is size-segregated (that is, there is a cache
-for each size bin), but we'll describe it here as though there were
+for each size bin), but we will describe it here as though there were
 only one size.  Each cache comprises a small number of doubly-linked
 lists of objects that belong in its bin.  A single doubly-linked list
 can be moved from one level of the cache to the other in $O(1)$
@@ -791,16 +793,18 @@ the birthday paradox, and conclude that we might need $P^2$ caches.
 That's probably overkill, since if we got the contention down to, say
 $1/20$ of the accesses, we would get rid of enough contention to get
 to within about half of optimal.  To get the contention to $1/20$
-requires approximately $3P$ caches.  (JEmalloc uses $4P$ caches.)  The
-biggest advantage to using only $P$ per-CPU caches instead of $3P$ (or
-$P^2$) caches indexed by a hash of the thread index, is that the cache
-takes less space.  All the objects in the caches are likely to be
-using committed memory, and we want to waste as little physical memory
-as possible.  The biggest disadvantage of per-CPU caches is calling
-\code{sched\_getcpu()}, which is not very expensive, and can be reduced
-by calling it less frequently (say, only $1/16$th of the time): if
-\texttt{malloc()} is being called frequently, it will be using the
-right CPU most of the time, and if called infrequently, the
+requires approximately $3P$ caches.  (JEmalloc uses $4P$ caches.)  One
+advantage of using only $P$ per-CPU caches instead of $3P$ (or $P^2$)
+caches indexed by a hash of the thread index, is that the cache takes
+less space.  All the objects in the caches are likely to be using
+committed memory, and we want to waste as little physical memory as
+possible.  Another advantage is that the software cache is likely to
+be in the right hardware cache to allow the processor to access it
+without cache misses.  The biggest disadvantage of per-CPU caches is
+calling \code{sched\_getcpu()}, which is not very expensive, and can
+be reduced by calling it less frequently (say, only $1/16$th of the
+time): if \texttt{malloc()} is being called frequently, it will be
+using the right CPU most of the time, and if called infrequently, the
 performance will not matter much.
 
 \begin{figure}
@@ -823,12 +827,12 @@ Per-thread                   & \ns{  3.3}            & \ns{  2.1}            & \
 \label{fig:overhead}
 \end{figure}
 
-The SuperMalloc per-thread cache is just big enough to amortize the
-\unit{34}\nano\second{} uncontended locking overhead compared to the
-\unit{3.1}\nano\second{} unlocked overhead, so we want about $10$
-objects in the per-thread cache.  I decided to store two linked lists
-each containing up to 8~KiB worth of objects for each bin in the
-thread cache.
+The SuperMalloc per-thread cache needs to be just big enough to
+amortize the \unit{34}\nano\second{} uncontended locking overhead
+compared to the \unit{3.1}\nano\second{} unlocked overhead, so we want
+about $10$ objects in the per-thread cache.  I decided to store two
+linked lists each containing up to 8~KiB worth of objects for each bin
+in the thread cache.
 
 I tried to tune the per-CPU cache to be just big enough to fill up
 the processor's data cache.  I reasoned that that if the working set
@@ -876,19 +880,19 @@ The logic for deallocating an object is similar:
 \item Otherwise access the global data structures to free the object.
 \end{enumerate}
 
-Most of the critical-sections are on the CPU cache, and since there is
-no guarantee that we stay on the same CPU for the duration of a
-critical section, we need locks.  The CPU cache employs a lock for
-each CPU-bin pairing.  Since there are 45~bins and 32~CPU's on the
-biggest machine I measured, that's 1,440~locks in use.  I placed each
-lock on its own cache line.  We considered placing the locks and the
-doubly linked list heads into the same cache line, but concluded that
-that might cause performance trouble.  For example, on the HTM
-hardware, the code spin on the lock before starting the transaction.
-But that spin could cause the transaction to fail if the lock were on
-the same cache line as the data being modified.  Without HTM, spinning
-on the lock could interfere with the updates being made to the linked
-lists by causing the cache line to bounce around.
+Dynamically, most of the critical-sections are on the CPU cache, and
+since there is no guarantee that we stay on the same CPU for the
+duration of a critical section, we need locks.  The CPU cache employs
+a lock for each CPU-bin pairing.  Since there are 45~bins and 32~CPU's
+on the biggest machine I measured, that's 1,440~locks in use.  I
+placed each lock on its own cache line.  I considered placing the
+locks and the doubly linked list heads into the same cache line, but
+concluded that that might cause performance trouble.  For example, on
+the HTM hardware, the code spins on the lock before starting the
+transaction.  But that spin could cause a transaction to fail if the
+lock were on the same cache line as the data being modified.  Without
+HTM, spinning on the lock could interfere with the updates being made
+to the linked lists by causing the cache line to bounce around.
 
 For the global data structure, SuperMalloc has a lock for each bin.
 Since the code accesses the global data structure relatively
@@ -919,12 +923,13 @@ is correct for SuperMalloc, since I do not want to leave half a
 percent on the table.
 
 In order to make the critical sections short, both for HTM and
-locking, SuperMalloc try to prefetch everything that will be accessed,
-then wait for the lock to become free (and if the lock wasn't free, it
-prefetches everything again, and checks the lock again.)  The goal is
-to make it so that while the lock is held (or the transaction is
-running), as few cache misses as possible are incurred.  This
-prefetching improves performance by a few percent, as shown below.
+locking, SuperMalloc tries to prefetch everything that will be
+accessed, then waits for the lock to become free (and if the lock
+wasn't free, it prefetches everything again, and checks the lock
+again.)  The goal is to make it so that while the lock is held (or the
+transaction is running), as few cache misses as possible are incurred.
+This prefetching improves performance by a few percent, as shown
+below.
 
 \secput{performance}{Performance}
 
@@ -944,11 +949,11 @@ a database server, which would be too slow for a social-networking
 site, for example. (I traced the problem in JEmalloc to the code
 inside \code{free()} which occasionally gathers together a large
 number of unused pages and uncommits them using \code{madvise()}.  The
-delay is not inside the\code{madvise()} call, but is in the code that
-gathers together the unused pages.  But I do not understand why it
-takes \unit{3}\second{} to do it.)  It was this \unit{3}\second{}
-pause that got me interested in building SuperMalloc.  (I do not yet
-have any evidence that SuperMalloc actually solves the
+delay is not inside the \code{madvise()} call, rather it is in the
+code that gathers together the unused pages.  But I do not understand
+why it takes \unit{3}\second{}.)  It was this \unit{3}\second{} pause
+that got me interested in building SuperMalloc.  (I do not yet have
+any evidence that SuperMalloc actually solves the
 \unit{3}\second{}-pause problem.)
 
 One of the best benchmarks for a multicore allocator is
@@ -1010,11 +1015,11 @@ faster---and scales nearly linearly up to 4 producer threads, which is
 8 total threads and the hardware runs out of parallelism.
 
 This is one workload for which Intel's Hyperthreading technology
-essentially gives perfect speedup, because the code is not actually
-bound by the arithmetic performance of the CPU nor by the memory
-subsystem.  Instead the performance appears to be limited by the rate
-at which the processor issues memory operations that miss cache.
-Hyperthreading doubles that rate.
+essentially gives perfect speedup, because the code is not bound by
+the arithmetic performance of the CPU nor by the memory subsystem.
+Instead the performance appears to be limited by the rate at which the
+processor issues memory operations that miss cache.  Hyperthreading
+doubles that rate.
 
 I measured SuperMalloc with the per-transaction prefetching disabled,
 and can see that prefetching the data needed by a transaction before
@@ -1235,7 +1240,7 @@ So $k=1$ is chosen with probability $1/2$, and $k=2$ is chosen with
 probability $1/4$, and so forth with $k=m$ chosen with probability
 $1/2^m$.  (To avoid giving SuperMalloc an unfair advantage for small
 objects, which SuperMalloc aligns less rigorously than do the other
-allocators, we set $k$ to a minimum value of $4$.)  Having picked $k$
+allocators, I set $k$ to a minimum value of $4$.)  Having picked $k$,
 the benchmark picks a random number chosen uniformly from the range
 $2^k$ (inclusive) to $2^{k+1}$ (exclusive).  Each object's expected
 lifetime is proportional to its size.  The object will, at the end of
@@ -1278,7 +1283,7 @@ the idea of \cite{Vyukov08}, which operates by Thread~0 allocating
 data and giving it to Thread~1 which frees the data.  Thread~1 then
 allocates data and gives it to Thread~2, which frees the data.
 Thread~2 then allocates and gives to Thread~3.  I configured the
-vyukov benchmark to allocate 50,000 random objects per thread, each
+Vyukov benchmark to allocate 50,000 random objects per thread, each
 object chosen to be a random size less than \unit{4}\kibi\byte, and
 $200$ threads.  The application thus never asked for more than
 \unit{100}\mebi\byte{} at a time.  The results are shown in
@@ -1318,7 +1323,7 @@ TBBmalloc  & \unit{17.3}\second &  \unit{5.3}\second & \unit{111.3}\second & \un
 SuperMalloc& \unit{16.0}\second &  \unit{0.2}\second &  \unit{21.3}\second &  \unit{219}\mebi\byte \\
 \end{tabular}
 \end{center}
-\caption{The performance of the vyukov benchmark, showing measurements of user time, system time, elapsed time, and max RSS.}
+\caption{The performance of the Vyukov benchmark, showing measurements of user time, system time, elapsed time, and max RSS.}
 \label{fig:vyukov}
 \end{figure}
 
@@ -1413,7 +1418,7 @@ reclaim memory.
   maddeningly subtle application bug that burned this lesson deep into
   my psyche.}
 
-Evans complains \cite{Evans12}
+Evans notes \cite{Evans12}
 \begin{quote}
  \code{MADV\_FREE} is \textit{way} nicer than \code{MADV\_DONTNEED} in
  the context of malloc.  JEmalloc has a really discouraging amount of
