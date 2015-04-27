@@ -1222,21 +1222,25 @@ SuperMalloc  & \unit{1.42}\micro\second& \unit{39}\micro\second& \unit{7.3}\mebi
 \label{fig:larson}
 \end{figure}
 
-I wrote another server benchmark, inspired by Larson, in which the
-object sizes are distributed over a wide range of sizes.  First a
-number $k$ is chosen, which gives a range of object sizes.  The object
-sizes range from $2^k$--$2^{k+1}-1$.  The number $k$ is chosen so that
-$k=1$ is chosen with probability $1/2$, $k=2$ is chosen with
+{\paragraph{SuperServer:}} I wrote another server benchmark, inspired
+by Larson, in which the object sizes are distributed over a wide range
+of sizes.  For each allocation, conceptually flips coin several times
+and counts how many tails in a row came up, calling that number $k$.
+So $k=1$ is chosen with probability $1/2$, and $k=2$ is chosen with
 probability $1/4$, and so forth with $k=m$ chosen with probability
-$1/2^m$.  Each object's lifetime is proportional to its size.  The
-object will, at the end of its life, be freed by a randomly chosen
-other thread.  (This benchmark can be found in the SuperMalloc
-distribution).
+$1/2^m$.  (To avoid giving SuperMalloc an unfair advantage for small
+objects, which SuperMalloc aligns less rigorously than do the other
+allocators, we set $k$ to a minimum value of $4$.)  Having picked $k$
+the benchmark picks a random number chosen uniformly from the range
+$2^k$ (inclusive) to $2^{k+1}$ (exclusive).  Each object's expected
+lifetime is proportional to its size.  The object will, at the end of
+its life, be freed by a randomly chosen other thread.  (This benchmark
+can be found in the SuperMalloc distribution).
 
-\figref{server} shows the results of my server benchmark on the five
-allocators tested.  The fastest allocators are Hoard and TBBmalloc,
-with JEmalloc running close behind, followed by SuperMalloc and
-DLmalloc.  SuperMalloc has the smallest footprint by a significant
+\figref{server} shows the results of this SuperServer benchmark on the
+five allocators tested.  The fastest allocators are Hoard and
+TBBmalloc, with JEmalloc running close behind, followed by SuperMalloc
+and DLmalloc.  SuperMalloc has the smallest footprint by a significant
 margin, with Hoard and DLmalloc off by a factor of two.  TBBmalloc and
 DLmalloc both have an occasionally slow allocation that takes more
 than a millisecond, whereas the others keep the slowest allocation
@@ -1244,19 +1248,19 @@ down to about half a millisecond.  All of the allocators are pretty
 fast at calling \code{free()}.
 
 \begin{figure*}
-\begin{center}{lrrrr
+\begin{center}
+\begin{tabular}{lrrrrrr}
             & User                & System               & Elapsed             & Max RSS               & Slowest Allocation      & Slowest Free \\
 DLmalloc    & \unit{38.43}\second & \unit{4.15}\second   & \unit{13.01}\second & \unit{1833}\mebi\byte & \unit{2.534}\milli\second & \unit{0.007}\milli\second \\
 Hoard       & \unit{36.24}\second & \unit{4.95}\second   & \unit{11.68}\second & \unit{1853}\mebi\byte & \unit{0.534}\milli\second & \unit{0.045}\milli\second \\
 JEmalloc    & \unit{37.36}\second & \unit{4.15}\second   & \unit{11.95}\second & \unit{1437}\mebi\byte & \unit{0.546}\milli\second & \unit{0.009}\milli\second \\
 TBBmalloc   & \unit{36.45}\second & \unit{4.62}\second   & \unit{11.52}\second & \unit{1525}\mebi\byte & \unit{1.149}\milli\second & \unit{0.025}\milli\second \\
 SuperMalloc & \unit{41.81}\second & \unit{0.95}\second   & \unit{12.81}\second &  \unit{941}\mebi\byte & \unit{0.532}\milli\second & \unit{0.040}\milli\second \\
+\end{tabular}
 \end{center}
-\caption{The performance of my server benchmark running on the same 4-core Haswell as in \figref{datahtm}.  The numbers present the data from run, of five runs, with the fastest elapsed time.}
+\caption{The performance of the SuperServer benchmark running on the same 4-core Haswell as in \figref{datahtm}.  The numbers present the data from run, of five runs, with the fastest elapsed time.}
 \label{fig:server}
 \end{figure*}
-
-
 
 {\paragraph{Footprint:}} The \defn{memory footprint} of an
 application, the amount of physical memory that the application
@@ -1280,22 +1284,6 @@ TBBmalloc used \unit{4.1}\gibi\byte.  Also interesting is that
 JEmalloc used a great deal of system time, apparently aggressively
 calling \code{madvise()} to uncommit memory.
 
-\begin{figure}
-\begin{center}
-\begin{tabular}{lrrrr}
-           & User                & System              &  Elapsed             & MaxRSS \\
-DLmalloc   & \unit{15.5}\second &  \unit{5.8}\second &  \unit{26.5}\second & \unit{2375}\mebi\byte \\
-Hoard      & \unit{14.7}\second &  \unit{0.3}\second &  \unit{20.1}\second &  \unit{284}\mebi\byte \\
-JEmalloc   & \unit{16.2}\second & \unit{10.3}\second &  \unit{30.6}\second &  \unit{228}\mebi\byte \\
-TBBmalloc  & \unit{17.3}\second &  \unit{5.3}\second & \unit{111.3}\second & \unit{4214}\mebi\byte \\
-SuperMalloc& \unit{16.0}\second &  \unit{0.2}\second &  \unit{21.3}\second &  \unit{219}\mebi\byte \\
-\end{tabular}
-\end{center}
-\caption{The performance of the vyukov benchmark, showing measurements of user time, system time, elapsed time, and max RSS.}
-\label{fig:vyukov}
-\end{figure}
-
-
 {\paragraph{Complexity:}} A simple memory allocator can operate using
 only a few hundred lines of code \cite{KernighanRi88}.  Since
 allocator performance is so important, however, most allocators have
@@ -1313,6 +1301,21 @@ code for invoking locks or hardware transactional memory, and the
 metaprogram that computes the bin sizes and sets up all the constants
 are each also about 350 lines of code.  The code for interfacing to
 mmap to get chunk-aligned memory is 123 lines.
+
+\begin{figure}
+\begin{center}
+\begin{tabular}{lrrrr}
+           & User                & System              &  Elapsed             & MaxRSS \\
+DLmalloc   & \unit{15.5}\second &  \unit{5.8}\second &  \unit{26.5}\second & \unit{2375}\mebi\byte \\
+Hoard      & \unit{14.7}\second &  \unit{0.3}\second &  \unit{20.1}\second &  \unit{284}\mebi\byte \\
+JEmalloc   & \unit{16.2}\second & \unit{10.3}\second &  \unit{30.6}\second &  \unit{228}\mebi\byte \\
+TBBmalloc  & \unit{17.3}\second &  \unit{5.3}\second & \unit{111.3}\second & \unit{4214}\mebi\byte \\
+SuperMalloc& \unit{16.0}\second &  \unit{0.2}\second &  \unit{21.3}\second &  \unit{219}\mebi\byte \\
+\end{tabular}
+\end{center}
+\caption{The performance of the vyukov benchmark, showing measurements of user time, system time, elapsed time, and max RSS.}
+\label{fig:vyukov}
+\end{figure}
 
 \begin{figure}
 \begin{center}
@@ -1352,8 +1355,6 @@ hundred lines of code, which can be used to build good special-purpose
 and general-purpose allocators \cite{AlexandrescuBe05}.  SuperMalloc
 isn't trying to enable to construction of special-purpose allocators,
 so our code is smaller.
-
-\bcknote{what about the server test I wrote in benchmarks:  rss is much better than hoard.}
 
 \secput{wishlist}{An Operating-System Wish List}
 
@@ -1521,10 +1522,11 @@ madv\_dontneed (and other wishlists from the talk)
 
 \secput{concl}{Conclusion}
 
-SuperMalloc appears to be faster and more scalable than the other
-scalable allocators.  Hoard and JEmalloc do pretty well under all
-loads, whether you measure time, variance, or maximum RSS.
-SuperMalloc starts faster and scales further, and uses less code.
+SuperMalloc compares well to the other scalable allocators.  Hoard and
+JEmalloc do pretty well under all loads, whether you measure time,
+variance, or maximum RSS.  Under difficult high-contention workloads
+or workloads in which the objects vary in size, SuperMalloc appears to
+scale better, use less physical memory, all while using less code.
 
 SuperMalloc is available from
 \url{https://github.com/kuszmaul/SuperMalloc}, licensed under either
@@ -1570,4 +1572,4 @@ CNS-1409238, and IIS-1447786.
 %%  LocalWords:  incrementing prefetch deallocating prefetching Glibc
 %%  LocalWords:  transactional atomicity uncommits dequeues pthread
 %%  LocalWords:  mutexes Hyperthreading Ghostscript mutex POSIX
-%%  LocalWords:  prefetches unmeasurable
+%%  LocalWords:  prefetches unmeasurable SuperServer Haswell
