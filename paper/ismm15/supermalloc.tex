@@ -1222,6 +1222,41 @@ SuperMalloc  & \unit{1.42}\micro\second& \unit{39}\micro\second& \unit{7.3}\mebi
 \label{fig:larson}
 \end{figure}
 
+I wrote another server benchmark, inspired by Larson, in which the
+object sizes are distributed over a wide range of sizes.  First a
+number $k$ is chosen, which gives a range of object sizes.  The object
+sizes range from $2^k$--$2^{k+1}-1$.  The number $k$ is chosen so that
+$k=1$ is chosen with probability $1/2$, $k=2$ is chosen with
+probability $1/4$, and so forth with $k=m$ chosen with probability
+$1/2^m$.  Each object's lifetime is proportional to its size.  The
+object will, at the end of its life, be freed by a randomly chosen
+other thread.  (This benchmark can be found in the SuperMalloc
+distribution).
+
+\figref{server} shows the results of my server benchmark on the five
+allocators tested.  The fastest allocators are Hoard and TBBmalloc,
+with JEmalloc running close behind, followed by SuperMalloc and
+DLmalloc.  SuperMalloc has the smallest footprint by a significant
+margin, with Hoard and DLmalloc off by a factor of two.  TBBmalloc and
+DLmalloc both have an occasionally slow allocation that takes more
+than a millisecond, whereas the others keep the slowest allocation
+down to about half a millisecond.  All of the allocators are pretty
+fast at calling \code{free()}.
+
+\begin{figure*}
+\begin{center}{lrrrr
+            & User                & System               & Elapsed             & Max RSS               & Slowest Allocation      & Slowest Free \\
+DLmalloc    & \unit{38.43}\second & \unit{4.15}\second   & \unit{13.01}\second & \unit{1833}\mebi\byte & \unit{2.534}\milli\second & \unit{0.007}\milli\second \\
+Hoard       & \unit{36.24}\second & \unit{4.95}\second   & \unit{11.68}\second & \unit{1853}\mebi\byte & \unit{0.534}\milli\second & \unit{0.045}\milli\second \\
+JEmalloc    & \unit{37.36}\second & \unit{4.15}\second   & \unit{11.95}\second & \unit{1437}\mebi\byte & \unit{0.546}\milli\second & \unit{0.009}\milli\second \\
+TBBmalloc   & \unit{36.45}\second & \unit{4.62}\second   & \unit{11.52}\second & \unit{1525}\mebi\byte & \unit{1.149}\milli\second & \unit{0.025}\milli\second \\
+SuperMalloc & \unit{41.81}\second & \unit{0.95}\second   & \unit{12.81}\second &  \unit{941}\mebi\byte & \unit{0.532}\milli\second & \unit{0.040}\milli\second \\
+\end{center}
+\caption{The performance of my server benchmark running on the same 4-core Haswell as in \figref{datahtm}.  The numbers present the data from run, of five runs, with the fastest elapsed time.}
+\label{fig:server}
+\end{figure*}
+
+
 
 {\paragraph{Footprint:}} The \defn{memory footprint} of an
 application, the amount of physical memory that the application
