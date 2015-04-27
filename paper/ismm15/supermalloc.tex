@@ -1,16 +1,20 @@
-\documentclass[natbib,sort&compress]{sigplanconf}
+\documentclass[natbib,sort&compress,10pt]{sigplanconf}
 % Requires temporary version of sigplanconf style file provided on
 % PLDI'15 web site.
 
+\usepackage{flushend}
+
 %\def\inlinecode{\code}
 %\def\code{\lstinline[basicstyle=\ttfamily]}
-\newcommand{\code}[1]{\mintinline{c}{#1}}
+
+\newcommand{\code}[1]{\texttt{#1}}
 
 \usepackage{supertech}
 \usepackage[binary]{SIunits}            % typset units correctly
 \usepackage{courier}            % standard fixed width font
 \usepackage[scaled]{helvet} % see www.ctan.org/get/macros/latex/required/psnfss/psnfss2e.pdf
 \usepackage[hyphens]{url}                  % format URLs
+
 
 \pdfsuppresswarningdupdest 1
 
@@ -27,7 +31,7 @@
 
 %\usepackage{listings}          % format code
 \usepackage{enumitem}      % adjust spacing in enums
-\usepackage[colorlinks=true,allcolors=blue,breaklinks,draft=false]{hyperref}   % hyperlinks, including DOIs and URLs in bibliography
+\usepackage[colorlinks=true,allcolors=black,breaklinks,draft=false]{hyperref}   % hyperlinks, including DOIs and URLs in bibliography
 \newcommand{\doi}[1]{\href{http://dx.doi.org/#1}{\Hurl{doi:#1}}}   % print a hyperlinked DOI
 
 \usepackage{minted}
@@ -404,7 +408,7 @@ int size_2_bin(size_t s) {
 For small objects, SuperMalloc makes no particular effort to avoid
 false sharing \cite{BoloskySc93}.  Like JEmalloc, SuperMalloc assumes
 that users who care about false sharing will explicitly ask for
-cache-line alignment, using e.g., \code{posix_memalign()}.  This
+cache-line alignment, using e.g., \code{posix\_memalign()}.  This
 decision stands in contrast to allocators, such as Hoard, that try to
 use temporal locality to induce spatial locality: Hoard has heuristics
 that try to arrange to place objects that were allocated at the same
@@ -462,13 +466,13 @@ what the standards require and of the current practice.
 The C11 standard \cite{ISOIEC11} is widely interpreted to mean that
 \code{malloc()} must return objects aligned suitably for any data
 type. On modern x86-64 processors, this appears to mean that all
-objects must be $32$-byte aligned, since the \code{_m256} data type is
+objects must be $32$-byte aligned, since the \code{\_m256} data type is
 $32$-byte aligned \cite{MatzHuJa07}.  Arguably, small objects could
 use less alignment.  For example, any object less than $16$ bytes long
 would need to be only 8-byte aligned, since all the objects that
 require $16$-byte alignment are at least $16$ bytes long.  DLmalloc,
 the most commonly used allocator in Linux returns only 8-byte-aligned
-objects, necessitating the use of \code{posix_memalign()} when using
+objects, necessitating the use of \code{posix\_memalign()} when using
 SSE and AVX data types.  A long discussion of this issue, and how
 Linux works around the 8-byte-aligned practice, can be found at
 \cite{Schanda04}.  Some allocators, such as JEmalloc,
@@ -527,7 +531,7 @@ Thus there are three possible options for a mallocator.
   $16$-byte-and-larger objects to be $16$-byte aligned, and 
   $32$-byte-and-larger objects to be $32$-byte aligned.  This approach
   wastes memory space, but allows all x86-64 ABI-compliant codes to
-  run without using \code{posix_memalign()}.
+  run without using \code{posix\_memalign()}.
 \item Follow the Linux practice of providing 8-byte alignment.
 \end{itemize}
 I plan to switch SuperMalloc from the first option to the last option.
@@ -646,14 +650,15 @@ the cost of walking the page table in the case of a TLB miss
 page is mapped only with normal \unit{4}\kibi\byte page table entries.
 Some users do not like transparent huge pages, and if a user wants
 fine-grained commitment within a huge object, they should call
-\code{madvise(MADV_NOHUGEPAGE)} to ensure the small pages.
+\code{madvise(MADV\_NOHUGEPAGE)} to ensure the small pages.
 
 For small, medium, and large objects, SuperMalloc makes no explicit
 use of huge pages, meaning that on most systems huge pages are not
 used for those non-huge objects.  On most Linux systems, huge pages are enabled
 only when explicitly asked for with madvise, e.g., with
 \begin{minted}{csh}
-$ echo madvise >/sys/kernel/mm/transparent_hugepage/enabled
+$ echo madvise > \
+  /sys/kernel/mm/transparent_hugepage/enabled
 \end{minted}
 and on such systems the non-huge chunks will all be mapped with
 \unit{4}\kibi\byte pages.  I hope to make better use of huge pages in
@@ -661,7 +666,7 @@ the future for SuperMalloc.  One idea is to do the bookkeeping to keep
 track of when a chunk becomes, say, 90\% allocated, and then enable
 huge pages on that chunk.  Part of the problem is that as soon as we
 uncommit a single \unit{4}\kibi\byte page using
-\code{madvise(MADV_DONTNEED)}, then the entire chunk becomes
+\code{madvise(MADV\_DONTNEED)}, then the entire chunk becomes
 ineligible for huge pages.  The allocator would need to defer the
 uncommit operations, and then when, say, only 80\% of the pages are in
 use, run all the deferred uncommit operations.  The system would need
@@ -718,7 +723,7 @@ which isn't a power of two, and isn't known at compile time, however.
 Division is slow, so SuperMalloc follows the approach of
 \cite{MagenheimerPePe87} to convert division to multiplication and
 shift.  For example, for 32-bit values of \code{x}, we have
-\mintinline{c}{x / 320 == (x*6871947674lu)>>41}.  \figref{bitindex}(b)
+\code{x / 320 == (x*6871947674lu)>>41}.  \figref{bitindex}(b)
 shows the faster code.  SuperMalloc uses metaprogramming to generate
 all the object sizes and magic numbers (e.g., to find prime numbers
 that are spaced no more than 25\% apart, and to calculate the
@@ -756,9 +761,9 @@ So instead of paying for all the cache-coherence traffic, one pays
 only the cost of executing the lock instruction and the increment
 instruction.  For the per-CPU cache the system also must determine
 which CPU is running which SuperMalloc determines using a call to
-\code{sched_getcpu()}.  If we factor out the cost of
-\code{sched_getcpu()}, the per-CPU data structure costs only
-\unit{13.3}\nano\second.  Even with the call to \code{sched_getcpu()},
+\code{sched\_getcpu()}.  If we factor out the cost of
+\code{sched\_getcpu()}, the per-CPU data structure costs only
+\unit{13.3}\nano\second.  Even with the call to \code{sched\_getcpu()},
 the per-CPU structure is fast. Based on these numbers, I concluded
 that a per-CPU cache gets most of the advantage of a per-thread cache,
 but that SuperMalloc still needs a small per-thread cache.
@@ -792,7 +797,7 @@ $P^2$) caches indexed by a hash of the thread index, is that the cache
 takes less space.  All the objects in the caches are likely to be
 using committed memory, and we want to waste as little physical memory
 as possible.  The biggest disadvantage of per-CPU caches is calling
-\code{sched_getcpu()}, which is not very expensive, and can be reduced
+\code{sched\_getcpu()}, which is not very expensive, and can be reduced
 by calling it less frequently (say, only $1/16$th of the time): if
 \texttt{malloc()} is being called frequently, it will be using the
 right CPU most of the time, and if called infrequently, the
@@ -811,9 +816,9 @@ Per-thread                   & \ns{  3.3}            & \ns{  2.1}            & \
 \end{tabular}
 \caption{Lock vs.~contention overhead.  ``Global'' is the cost of
   accessing a global lock and incrementing a global counter.
-  ``Per-CPU'' is the cost of call \code{sched_getcpu()} and accessing
+  ``Per-CPU'' is the cost of call \code{sched\_getcpu()} and accessing
   a per-cpu lock and increment a counter.  ``Per-CPU no getcpu'' is
-  same thing without the call to \code{sched_getcpu()}.  Per-thread is
+  same thing without the call to \code{sched\_getcpu()}.  Per-thread is
   the cost of incrementing a thread-local variable without a lock .}
 \label{fig:overhead}
 \end{figure}
@@ -1367,7 +1372,7 @@ appear in any operating system, as far as I know.
 {\paragraph{Cheap uncommit:}} The first problem is to uncommit memory
 cheaply.  Linux provides a function
 \begin{center}
-\code{madvise(ptr, len, MADV_DONTNEED)}
+\code{madvise(ptr, len, MADV\_DONTNEED)}
 \end{center}
 which informs the operating system that the \code{len} bytes of memory
 starting at address \code{ptr} are no longer needed.  For anonymously
@@ -1376,17 +1381,17 @@ page from the page table, freeing the physical page.  The next time
 the process touches the page it will cause another page fault, at
 which point the operating system will allocate and zero-fill a
 physical page.  That is a fairly expensive operation --- it takes
-\ns{1800} to call \code{madvise(MADV_DONTNEED)} to uncommit a page,
+\ns{1800} to call \code{madvise(MADV\_DONTNEED)} to uncommit a page,
 whereas if the page is already uncommited it costs only \ns{240} to
 make the same system call.
 
 One potential alternative is to use
 \begin{center}
-\code{madvise(ptr, len, MADV_FREE)},
+\code{madvise(ptr, len, MADV\_FREE)},
 \end{center}
 which is provided by FreeBSD and Solaris.  The semantics of this call
 is to give the kernel freedom to uncommit the page the way
-\code{MADV_DONTNEED} does at any time until the process writes the
+\code{MADV\_DONTNEED} does at any time until the process writes the
 page again.\footnote{Evans notes \cite{Evans15-personal-communication}
   that the page-table bit that tracks whether a page is reclaimable
   gets cleared only during a write, whereas the BSD and Solaris manual
@@ -1410,14 +1415,14 @@ reclaim memory.
 
 Evans complains \cite{Evans12}
 \begin{quote}
- \code{MADV_FREE} is \textit{way} nicer than \code{MADV_DONTNEED} in
+ \code{MADV\_FREE} is \textit{way} nicer than \code{MADV\_DONTNEED} in
  the context of malloc.  JEmalloc has a really discouraging amount of
  complexity that is directly a result of working around the
- performance overhead of \code{MADV_DONTNEED}.
+ performance overhead of \code{MADV\_DONTNEED}.
 \end{quote}
 I agree with Evans' sentiments, although the SuperMalloc caches reduce
 the impact of the \code{madvise()} calls.  Although SuperMalloc would
-not get much simpler with \code{MADV_FREE}, it would speed up and
+not get much simpler with \code{MADV\_FREE}, it would speed up and
 exhibit less performance variance.
 
 An alternative approach would be for the kernel to deliver an event to
@@ -1535,7 +1540,7 @@ the Apache 2.0 or GPLv3 license.
 \acks
 
 Jason Evans helped me understand the role of alignment, explained the
-subtleties of \code{MADV_FREE}, prodded me to more carefully explain
+subtleties of \code{MADV\_FREE}, prodded me to more carefully explain
 how I deal with huge pages, and corrected several misconceptions I had
 about how JEmalloc works.  Emery Berger helped me better understand
 how Hoard works and directed my attention to \cite{HertzFeBe05,
