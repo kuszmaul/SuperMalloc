@@ -12,14 +12,14 @@
 
 #include "random.h"
 
+#include <cassert>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <ctime>
 #include <queue>
-#include <thread>
-
-#include <assert.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <sys/resource.h>
-#include <time.h>
+#include <thread>
 #include <unistd.h>
 #include <valgrind/helgrind.h>
 
@@ -37,6 +37,7 @@ struct object {
         struct timespec start,end;
         clock_gettime(CLOCK_MONOTONIC, &start);
         data            = malloc(s);
+	memset(data, 3, s);
         clock_gettime(CLOCK_MONOTONIC, &end);
         time_to_alloc = (end.tv_sec - start.tv_sec) * 1000000000ul + (end.tv_nsec - start.tv_nsec); 
     }
@@ -187,6 +188,8 @@ static void run_malloc_run(thread_info *ti) {
             assert(total_size_for_this_thread > 0);
             struct timespec start,end;
             clock_gettime(CLOCK_MONOTONIC, &start);
+            kill_me->data = NULL;
+            delete kill_me;
             clock_gettime(CLOCK_MONOTONIC, &end);
             int64_t time_to_free = (end.tv_sec - start.tv_sec) * 1000000000ul + (end.tv_nsec - start.tv_nsec);
             assert(time_to_free >= 0);
@@ -194,8 +197,6 @@ static void run_malloc_run(thread_info *ti) {
                 biggest_d_time = time_to_free;
                 printf("big d time = %ld\n", biggest_d_time);
             }
-            kill_me->data = NULL;
-            delete kill_me;
             d_count++;
         }
     }
