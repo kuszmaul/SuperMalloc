@@ -243,12 +243,10 @@ FUNCTION {format.names}
 }
 
 FUNCTION {format.key}
-{
-% Key should not be formatted. -Bradley
-% empty$
-%    { key field.or.null }
-%    { "" }
-% if$
+{ empty$
+    { key field.or.null }
+    { "" }
+  if$
 }
 
 FUNCTION {format.authors}

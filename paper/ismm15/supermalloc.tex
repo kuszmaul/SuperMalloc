@@ -1,4 +1,4 @@
-\documentclass{sigplanconf}
+\documentclass[natbib,sort&compress]{sigplanconf}
 % Requires temporary version of sigplanconf style file provided on
 % PLDI'15 web site.
 
@@ -28,7 +28,7 @@
 %\usepackage{listings}          % format code
 \usepackage{enumitem}      % adjust spacing in enums
 \usepackage[colorlinks=true,allcolors=blue,breaklinks,draft=false]{hyperref}   % hyperlinks, including DOIs and URLs in bibliography
-\newcommand{\doi}[1]{doi:~\href{http://dx.doi.org/#1}{\Hurl{#1}}}   % print a hyperlinked DOI
+\newcommand{\doi}[1]{\href{http://dx.doi.org/#1}{\Hurl{doi:#1}}}   % print a hyperlinked DOI
 
 \usepackage{minted}
 %\usepackage{pslatex}
@@ -1449,6 +1449,7 @@ IIS-1447786.
 
 {\raggedright
 \bibliographystyle{abbrvnat}
+\renewcommand{\bibfont}{\normalsize}
 \bibliography{allpapers}
 }
 
