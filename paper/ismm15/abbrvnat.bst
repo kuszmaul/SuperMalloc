@@ -1414,14 +1414,14 @@ FUNCTION {begin.bib}
   write$ newline$
   "\providecommand{\natexlab}[1]{#1}"
   write$ newline$
-  "\providecommand{\url}[1]{\texttt{#1}}"
-  write$ newline$
-  "\expandafter\ifx\csname urlstyle\endcsname\relax"
-  write$ newline$
-  "  \providecommand{\doi}[1]{doi: #1}\else"
-  write$ newline$
-  "  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi"
-  write$ newline$
+%%  "\providecommand{\url}[1]{\texttt{#1}}"
+%%  write$ newline$
+%%  "\expandafter\ifx\csname urlstyle\endcsname\relax"
+%%  write$ newline$
+%%  "  \providecommand{\doi}[1]{doi: #1}\else"
+%%  write$ newline$
+%%  "  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi"
+%%  write$ newline$
 }
 
 EXECUTE {begin.bib}

@@ -1,1 +1,30 @@
 Todo: Measure space blowup (Larson might do it...)
+
+
+\secput{alignment}{Object Alignment}
+
+Don't have to align things that don't fit, but if it fits it must be suitably aligned.
+ Array of length 0 idiom.
+
+The x86-64 API says that the alignment of structs is
+ * aligned on the most stringent alignment
+ * structs are a multiple of the length (but watch out for those arrays of length 0)
+ * There are 32-byte aligned requirements (used in vectorization)
+
+DLmalloc provides only 8-byte alignment, so that all Linux code has had to work around the failure to actually provide suitably aligned code.  In partiuclar, vectorized code must use one of the aligned-memory calls.
+
+Supermalloc had to give up objects of size 10, 12, 14, 20, and 28.  So the sizes are
+ 8, 16, 24, 32, 40, 48, 56, 64,
+ 80, 96, 112 /* start going by 16 after 64 */ 
+ 128, 160,  192, 224 /* start going by 32 after 128 */
+ 256 (4 cache lines), 5 cache lines, 6 cache lines, uuuubb  /* start going by 64 after 256, now it's always cache-line alined and the sizes are dif
+Redo the code above for the sizes.
+
+If you don't use the 0-byte array trick, your actual sizes will always be a multiple of the most stringent alignment.
+
+Supermalloc guarantees that if your size is a multiple of a power of two (up to 64) then the alignment will be a multiple of that power of two. 
+ E.g., if you ask for 16, 32, 48, 64, etc you will get 16-byte aligned.
+       If you ask for 32, 64, 96, 128, etc you will get 32-byte aligned
+       If you ask for 64, 128, etc. you will get 64-byte aligned.  
+
+}

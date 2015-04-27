@@ -28,7 +28,7 @@
 %\usepackage{listings}          % format code
 \usepackage{enumitem}      % adjust spacing in enums
 \usepackage[colorlinks=true,allcolors=blue,breaklinks,draft=false]{hyperref}   % hyperlinks, including DOIs and URLs in bibliography
-%\newcommand{\doi}[1]{doi:~\href{http://dx.doi.org/#1}{\Hurl{#1}}}   % print a hyperlinked DOI
+\newcommand{\doi}[1]{doi:~\href{http://dx.doi.org/#1}{\Hurl{#1}}}   % print a hyperlinked DOI
 
 \usepackage{minted}
 %\usepackage{pslatex}
@@ -52,7 +52,7 @@
 \conferenceinfo{ISMM'15}{June 14, 2015, Portland, OR, USA}
 \CopyrightYear{2015}
 \crdata{978-1-4503-3589-8/15/06}
-\doi{2754169.2754178}
+\paperdoi{2754169.2754178}
 \title{SuperMalloc: A Super Fast Multithreaded \texttt{malloc()} for 64-bit Machines}
 \authorinfo{Bradley C. Kuszmaul}{MIT CSAIL, Cambridge, MA, USA}{bradley@mit.edu}
 \date{}
@@ -879,15 +879,18 @@ the transaction.  Subscribing late sounds enticing because it reduces
 the time during which we conflict on the lock (when in fact we might
 not conflict on the data structure).  Subscribing late can be
 dangerous, however, since it can be difficult to prove that your code
-does not get tricked into committing \cite{DiceHaKo14}.  We subscribe
-to the lock early in the transaction for three reasons.  (1) We do not
-feel confident that we can guarantee that the code avoids all the
-pitfalls of late subscription.  (2) Our data structures are closely
-related to our locks.  It's unlikely that the lock conflicts but that
-we don't actually conflict on the data.  (3) Our transactions are all
-so short that it probably doesn't matter.  The performance advantage
-of late lock subscription appears to be about half a percent for
-high-threadcount runs of the malloc-test benchmark.
+does not get tricked into committing \cite{DiceHaKo14}.  SuperMalloc
+subscribes to the lock early in the transaction for three reasons.
+(1) I do not feel confident that I can guarantee that the code avoids
+all the pitfalls of late subscription.  (2) SuperMalloc's data
+structures are closely related to its locks.  It's unlikely that the
+lock conflicts but that the data does not conflict.  (3) SuperMalloc's
+transactions are all so short that the performance impact is small;
+the performance advantage of late lock subscription appears to be
+about half a percent for high-threadcount runs of the malloc-test
+benchmark.  In the future, I hope to show that late lock subscription
+is correct for SuperMalloc, since I do not want to leave half a
+percent on the table.
 
 In order to make the critical sections short, both for HTM and
 locking, we try to prefetch everything that will be accessed, then
@@ -961,7 +964,7 @@ since the standard deviation of the runtime is also about half a
 percent.  This situation illustrates the importance of reducing the
 variation in runtime for benchmarks.  With the original version of
 malloc-test the variance is more than ten percent, and we would be
-unable to see the advantage of late lock subscription.\bcknote{Note that we probably should try to do late lock.}
+unable to see the advantage of late lock subscription.
 
 \figref{datahtm} compares the performance of SuperMalloc against
 DLmalloc, Hoard, and JEmalloc on the malloc-test benchmark running on
@@ -1258,35 +1261,6 @@ and general-purpose allocators \cite{AlexandrescuBe05}.  SuperMalloc
 isn't trying to enable to construction of special-purpose allocators,
 so our code is smaller.
 
-\secput{alignment}{Object Alignment}
-
-The C standard says.
-
-Don't have to align things that don't fit, but if it fits it must be suitably aligned.
- Array of length 0 idiom.
-
-The x86-64 API says that the alignment of structs is
- * aligned on the most stringent alignment
- * structs are a multiple of the length (but watch out for those arrays of length 0)
- * There are 32-byte aligned requirements (used in vectorization)
-
-DLmalloc provides only 8-byte alignment, so that all Linux code has had to work around the failure to actually provide suitably aligned code.  In partiuclar, vectorized code must use one of the aligned-memory calls.
-
-Supermalloc had to give up objects of size 10, 12, 14, 20, and 28.  So the sizes are
- 8, 16, 24, 32, 40, 48, 56, 64,
- 80, 96, 112 /* start going by 16 after 64 */ 
- 128, 160,  192, 224 /* start going by 32 after 128 */
- 256 (4 cache lines), 5 cache lines, 6 cache lines, uuuubb  /* start going by 64 after 256, now it's always cache-line alined and the sizes are dif
-Redo the code above for the sizes.
-
-If you don't use the 0-byte array trick, your actual sizes will always be a multiple of the most stringent alignment.
-
-Supermalloc guarantees that if your size is a multiple of a power of two (up to 64) then the alignment will be a multiple of that power of two. 
- E.g., if you ask for 16, 32, 48, 64, etc you will get 16-byte aligned.
-       If you ask for 32, 64, 96, 128, etc you will get 32-byte aligned
-       If you ask for 64, 128, etc. you will get 64-byte aligned.  
-
-
 \bcknote{what about the server test I wrote in benchmarks:  rss is much better than hoard.}
 
 \secput{wishlist}{An Operating-System Wish List}
@@ -1319,14 +1293,21 @@ One potential alternative is to use
 \end{center}
 which is provided by FreeBSD and Solaris.  The semantics of this call
 is to give the kernel freedom to uncommit the page the way
-\code{MADV_DONTNEED} does at any time until the process touches the
-page again.  The kernel also has the freedom not to touch the page, so
+\code{MADV_DONTNEED} does at any time until the process writes the
+page again.\footnote{Evans notes \cite{Evans15-personal-communication}
+  that the page-table bit that tracks whether a page is reclaimable
+  gets cleared only during a write, whereas the BSD and Solaris manual
+  pages refer to ``the next time the page is referenced''.  This
+  subtle difference can result in difficult-to-debug application
+  errors.}
+
+  The kernel also has the freedom not to touch the page, so
 that the data could still be the same data.  Since the kernel is in a
 position to understand memory pressure as well as the overall system
 load, it can decide when and whether to spend the CPU cycles to
 reclaim memory.
 
-\bcknote{Jevans says: Regarding madvise(ptr, len, MADV\_FREE), you say,
+\punt{Jevans says: Regarding madvise(ptr, len, MADV\_FREE), you say,
   "... until the process touches the pages again".  It's a subtle
   point, but "touches" should actually be "writes", because the page
   table bit that tracks whether a page is reclaimable only gets
