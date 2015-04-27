@@ -12,6 +12,8 @@
 \usepackage[scaled]{helvet} % see www.ctan.org/get/macros/latex/required/psnfss/psnfss2e.pdf
 \usepackage[hyphens]{url}                  % format URLs
 
+\pdfsuppresswarningdupdest 1
+
 \ifnotes
 \newcommand{\bcknote}[1]{\cnote{red}{#1}{bck}}
 \else
@@ -286,7 +288,7 @@ onto a linked list, but popping a list is trickier.
 
 The VAM allocator \cite{FengBe05} attempts to improve cache locality,
 especially on long-running jobs.  Although VAM and Hoard share an
-author, the VAM paper dos not compare VAM to Hoard, nor does the VAM
+author, the VAM paper does not compare VAM to Hoard, nor does the VAM
 software appear to be on the web, so I could not compare SuperMalloc
 to VAM\@.
 
@@ -355,7 +357,7 @@ is OK to waste some virtual address space.''
 \secput{small}{Small Objects}
 
 Small objects are as small as 8 bytes, and increase in size by at most
-25\% to limit internal fragmentation.  Small object sizes are
+$25$\% to limit internal fragmentation.  Small object sizes are
 regularly spaced: the sizes are $8$, $10$, $12$, $14$, $16$, $20$,
 $24, \ldots, 224$, and their sizes take the form $k\cdot2^i$ for
 $4\leq k \leq 7$ and $1\leq i \leq 5$.  In other words, a small object
@@ -383,7 +385,7 @@ int size_2_bin(size_t s) {
   }
   if (s <= 448) return 22;
   if (s <= 512) return 23;
-  ..
+  ...
   if (size <= 1044480) return 45;
   return 45 + ceil(size-1044480, 4096);
 }
@@ -411,26 +413,126 @@ threads on different cache lines.  As explained below, we take a
 different tack on avoiding false sharing, focusing on objects that are
 larger than a cache line.
 
-\bcknote{supermalloc does fullest fit.}
+SuperMalloc employs a fullest fit algorithm; when allocating an
+object, it finds the fullest non-full page that holds objects of that
+size.\footnote{As we'll discuss in \secref{medium}, these `pages' are
+  in some cases several operating systems pages.}  In theory this
+should help empty out nearly empty pages so that they can be returned
+to the operating system.  As mentioned above, JEMalloc abandoned
+fullest-fit on subchunks because it was not conducive to unmapping an
+entire chunk.  The decision to try to unmap an entire chunk makes
+sense on a 32-bit machine, where virtual memory space is about as
+expensive as physical memory, but on a 64-bit machine uncommitting the
+group without unmapping the chunk would be good enough.  In contrast,
+SuperMalloc was simplified by the decision to support only 64-bit
+machines --- SuperMalloc only uncommits pages and chunks, and never
+unmaps or change the size of the objects in a chunk.
 
-As mentioned above, JEMalloc abandonded fullest-fit on subchunks
-because it was not conducive to unmapping an entire chunk.  The
-decision to try to unmap an entire chunk makes sense on a 32-bit
-machine, where virtual memory space is about as expensive as physical
-memory, but on a 64-bit machine uncommitting the group without
-unmapping the chunk would be good enough.  In contrast, SuperMalloc
-was simplified by the decision to support only 64-bit machines ---
-SuperMalloc never unmaps or change the size of the objects in a chunk.
+To implement fullest fit, SuperMalloc provides, for each object size,
+a heap-like data structure to sort pages by how full they are.  This
+data structure solves a simpler problem than the general
+priority-queue problem because pages have a bounded number of
+different fullness states.  For example, pages containing 64-byte
+objects can be in only one of 65 different states corresponding to 0
+objects free, 1 object free, \ldots 64 objects free.  SuperMalloc
+simply maintains an array of length 65 linked lists of pages, along
+with a bitmap to indicate which sizes have nonempty linked lists.  The
+linked list cells are kept outside the pages so that the pages can be
+uncommitted when they become empty.
 
+SuperMalloc reserves the first few pages of each \unit{2}\mebi\byte{}
+chunk for bookkeeping.  The bookkeeping comprises a bitmap of the free
+objects for each page and the heap-like data structure for
+implementing the fullest-fit heuristic (including the list cell for
+each page).  A metaprogram generates the data structures so that, for
+example the interal arrays are properly sized for each object-size
+class.
 
-We reserve the first few pages of each \unit{2}\mebi\byte{} chunk for
-bookkeeping.  The bookkeeping comprises a bitmap of the free objects
-and a heap-like data structure for implementing the fullest-fit
-heuristic. 
+\bcknote{Drawing of metadata?}
 
-\bcknote{Explain how we implement fullest fit}
+SuperMalloc's small objects are not all suitably aligned, and I expect
+to remove the objects of size $10$, $12$, $14$, $20$, and $28$
+(leaving small sizes $8$, $16$, $24$, $32$, and then continuing with
+the current scheme that limits internal fragmentation to $25$\%).  The
+disadvantage of doing so is that it increases internal fragmentation.
+For example, currently, when allocating a string of size $9$,
+SuperMalloc returns an object of size $10$, but after making this
+change SuperMalloc will return an object of size $16$.  Here I will
+discuss the rationale for this decision, starting with a discussion of
+what the standards require and of the current practice.
 
-\bcknote{Switch to powers of two for less than a cache line.  Discuss how this will make everything work right, so that people won't have to call aligned\_malloc in order to use avx instructions.}
+The C11 standard \cite{ISOIEC11} is widely interpreted to mean that
+\code{malloc()} must return objects aligned suitably for any data
+type. On modern x86-64 processors, this appears to mean that all
+objects must be $32$-byte aligned, since the \code{_m256} data type is
+$32$-byte aligned \cite{MatzHuJa07}.  Arguably, small objects could
+use less alignment.  For example, any object less than $16$ bytes long
+would need to be only 8-byte aligned, since all the objects that
+require $16$-byte alignment are at least $16$ bytes long.  DLmalloc,
+the most commonly used allocator in Linux returns only 8-byte-aligned
+objects, necessitating the use of \code{posix_memalign()} when using
+SSE and AVX data types.  A long discussion of this issue, and how
+Linux works around the 8-byte-aligned practice, can be found at
+\cite{Schanda04}.  Some allocators, such as JEmalloc,
+return 16-byte aligned objects for objects of size $16$ or larger.  As
+far as I know, no Linux allocator returns $32$-byte aligned objects.
+
+A careful reading of the standards \cite{ISOIEC11, MatzHuJa07} does
+not actually appear to require $8$-byte alignment for a $9$-byte
+allocation, however.  It turns out that ``alignment'' is not actually
+defined in the standard.  No compliant C program can determine the
+alignment of a pointer.  The x86-64 ABI specification
+\cite{MatzHuJa07} states that all structures are aligned according to
+the highest alignment required by any of their elements, and all
+structures' sizes are a multiple of their alignment.  So according to
+these standards, it is fishy to cast an 11-byte alignment to a pointer
+to a 2-byte-aligned structure; such usage is probably not compliant.
+If all codes followed these standards, it would be OK to return a
+completely unaligned pointer when an application called for a $9$-byte
+alignment.
+
+Real codes do not follow the rules, however.  For example, one common
+idiom is to write something like the code shown in \figref{idiom}.
+This example is taken from the GCC manual \cite{GCC14}.  This code
+uses a zero-length array as the last element of a structure, where the
+structure is really a header for a variable-length object.  Since the
+\code{length} field is a 4-byte-aligned integer, the whole structure
+must be 4-byte aligned, we might see a call to \code{malloc(11)}
+specify $11$ bytes ($4$ for the integer, and $7$ more for the array).
+Because of this idiom, \code{malloc()} must return objects that are
+aligned to fit the biggest object that could fit inside.
+
+\begin{figure}
+\begin{minted}{c}
+struct line {
+  int length;
+  char contents[0];
+};
+
+struct line *thisline = malloc(sizeof(struct line) + this_length;
+thisline->length = this_length;
+\end{minted}
+\caption{A frequently-seen non-standards-compliant idiom is to
+  allocate a structure with a string at the end, and then call
+  \code{malloc()} with the size of the structure plus the size of the
+  string.}
+\label{fig:idiom}
+\end{figure}
+
+Thus there are three possible options for a mallocator.
+\begin{itemize}
+\item Follow the standards strictly, which appear to allow $10$-byte
+  objects to be packed tightly.  This will break idiomatic codes
+  however.
+\item Follow the standards strictly, which appears to require any
+  $8$-byte-and-larger objects to be $8$-byte aligned,
+  $16$-byte-and-larger objects to be $16$-byte aligned, and 
+  $32$-byte-and-larger objects to be $32$-byte aligned.  This approach
+  wastes memory space, but allows all x86-64 ABI-compliant codes to
+  run without using \code{posix_memalign()}.
+\item Follow the Linux practice of providing 8-byte alignment.
+\end{itemize}
+I plan to switch SuperMalloc from the first option to the last option.
 
 \secput{medium}{Medium objects:}
 
@@ -859,7 +961,7 @@ since the standard deviation of the runtime is also about half a
 percent.  This situation illustrates the importance of reducing the
 variation in runtime for benchmarks.  With the original version of
 malloc-test the variance is more than ten percent, and we would be
-unable to see the advantage of late lock subscription.
+unable to see the advantage of late lock subscription.\bcknote{Note that we probably should try to do late lock.}
 
 \figref{datahtm} compares the performance of SuperMalloc against
 DLmalloc, Hoard, and JEmalloc on the malloc-test benchmark running on
@@ -1348,7 +1450,9 @@ scalable allocators.  Hoard and JEmalloc do pretty well under all
 loads, whether you measure time, variance, or maximum RSS.
 SuperMalloc starts faster and scales further, and uses less code.
 
-We will soon release SuperMalloc under an open-source license.
+SuperMalloc is available from
+\url{https://github.com/kuszmaul/SuperMalloc}, licensed under either
+the Apache 2.0 or GPLv3 licenses.
 
 \acks
 
@@ -1357,10 +1461,10 @@ subtleties of \code{MADV_FREE}, prodded me to more carefully explain
 how I deal with huge pages, and corrected several misconceptions I had
 about how JEmalloc works.  Emery Berger helped me better understand
 how Hoard works and pointed out \cite{HertzFeBe05, YangBeKa06}.
-Michael A. Bender showed me how to implement the fullest-fit priority
-queue with $O(1)$ amortized time per operation.
-
-\bcknote{Ack funders, also people who contributed}
+Michael A. Bender helped me understand how to implement the
+fullest-fit priority queue.  This research was supported in part by
+Foxconn, and in part by NSF grants CCF-1314547, CNS-1409238, and
+IIS-1447786.
 
 {\raggedright
 \bibliographystyle{abbrvnat}
