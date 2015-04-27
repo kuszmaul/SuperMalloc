@@ -327,11 +327,11 @@ Like JEmalloc, SuperMalloc employs several object sizes.  The sizes
 are organized as into bins.  In SuperMalloc, there are small, medium,
 large, and huge objects.  The first 45 bins are specific sizes, and
 larger bin numbers encode the number of pages that the application
-actually allocated (so that when we map a \unit{2}\mebi\byte{} chunk
-to support a \unit{1.5}\mebi\byte{} request, we can properly track
-the amount of physical memory that the application has asked for).  A
-4-byte bin number allows us to allocate objects of up to just under
-$2^{32}$ pages ($2^{44}$ bytes).
+actually allocated (so that when SuperMalloc maps a
+\unit{2}\mebi\byte{} chunk to support a \unit{1.5}\mebi\byte{}
+request, it can properly track the amount of physical memory that the
+application has asked for).  A 4-byte bin number allows us to allocate
+objects of up to just under $2^{32}$ pages ($2^{44}$ bytes).
 
 Given a pointer to an object, a chunk-based allocator must be able to
 determine which chunk an object belongs to, and what the size of the
@@ -343,13 +343,13 @@ huge objects), or in a local red-black tree at the beginning of a
 chunk.
 
 SuperMalloc adopted a simpler strategy.  An entire chunk is all the
-same sized, and we can look up the chunk number in a table.  Instead
-of using a tree, SuperMalloc uses an array to implement that table,
-however.  Since the usable x86 address space is $2^{48}$ bytes and
-chunks are $2^{21}$ bytes, there are only $2^{27}$ entries in the
+same sized, and SuperMalloc can look up the chunk number in a table.
+Instead of using a tree, SuperMalloc uses an array to implement that
+table, however.  Since the usable x86 address space is $2^{48}$ bytes
+and chunks are $2^{21}$ bytes, there are only $2^{27}$ entries in the
 table.  Each entry is a 4-byte bin number.  The SuperMalloc table
 consumes \unit{512}\mebi\byte{} of virtual address space, but since
-the operating system employs a lazy commit strategy, we typically need
+the operating system employs a lazy commit strategy, it typically needs
 only a few of pages physical memory for the chunk table.  This is
 another instance of the design principle for 64-bit software that ``it
 is OK to waste some virtual address space.''
@@ -401,17 +401,17 @@ int size_2_bin(size_t s) {
 \label{fig:size2bin}
 \end{figure}
 
-For small objects, we make no particular effort to avoid false sharing
-\cite{BoloskySc93}.  Like JEmalloc, we assume that users who care
-about false sharing will explicitly ask for cache-line alignment,
-using e.g., \code{posix_memalign()}.  This decision stands in contrast
-to allocators, such as Hoard, that try to use temporal locality to
-induce spatial locality: Hoard has heuristics that try to arrange to
-place objects that were allocated at the same time by the same thread
-onto the same cache line, and objects that were allocated by different
-threads on different cache lines.  As explained below, we take a
-different tack on avoiding false sharing, focusing on objects that are
-larger than a cache line.
+For small objects, SuperMalloc makes no particular effort to avoid
+false sharing \cite{BoloskySc93}.  Like JEmalloc, SuperMalloc assumes
+that users who care about false sharing will explicitly ask for
+cache-line alignment, using e.g., \code{posix_memalign()}.  This
+decision stands in contrast to allocators, such as Hoard, that try to
+use temporal locality to induce spatial locality: Hoard has heuristics
+that try to arrange to place objects that were allocated at the same
+time by the same thread onto the same cache line, and objects that
+were allocated by different threads on different cache lines.  As
+explained below, SuperMalloc take a different tack on avoiding false
+sharing, focusing on objects that are larger than a cache line.
 
 SuperMalloc employs a fullest fit algorithm; when allocating an
 object, it finds the fullest non-full page that holds objects of that
@@ -447,8 +447,6 @@ implementing the fullest-fit heuristic (including the list cell for
 each page).  A metaprogram generates the data structures so that, for
 example the interal arrays are properly sized for each object-size
 class.
-
-\bcknote{Drawing of metadata?}
 
 SuperMalloc's small objects are not all suitably aligned, and I expect
 to remove the objects of size $10$, $12$, $14$, $20$, and $28$
@@ -497,8 +495,8 @@ This example is taken from the GCC manual \cite{GCC14}.  This code
 uses a zero-length array as the last element of a structure, where the
 structure is really a header for a variable-length object.  Since the
 \code{length} field is a 4-byte-aligned integer, the whole structure
-must be 4-byte aligned, we might see a call to \code{malloc(11)}
-specify $11$ bytes ($4$ for the integer, and $7$ more for the array).
+must be 4-byte aligned, and we might see a call to \code{malloc(11)}
+specifying $11$ bytes ($4$ for the integer, and $7$ more for the array).
 Because of this idiom, \code{malloc()} must return objects that are
 aligned to fit the biggest object that could fit inside.
 
@@ -538,29 +536,29 @@ I plan to switch SuperMalloc from the first option to the last option.
 
 Medium objects are all sized be a multiple of 64 (the cache line
 size).  The smallest is 256 bytes, and the largest is 14272 bytes.
-The sizes we chose include powers of two and prime multiples of cache
-lines.  The powers of two ($256$, $512$, $1024$, $2048$, $4096$,
-$8192$) are used only when the application explicitly asks for aligned
-data.  The prime multiples of cache lines are used for all other
-requests to reduce the contention in the low-associativity processor
-caches. For example, recent Intel processors provide 8-way associative
-level~1 cache.  Following the lead of \cite{AfekDiMo11}, which propose
-\defn{punctuated arrays} to reduce associativity conflicts, we wanted
-to avoid aligning objects into the same cache associativity
-set. (Apparently punctuated arrays are appearing in most of the
-Solaris~12 allocators \cite{Dice14b}.)  We, however, took the more
-``radical'' approach mentioned by \cite{Dice14a} of making all the
-size classes a prime multiple of the cache line, which not only
-reduces conflicts within a class size but reduces inter-size
-cache-index conflicts.
+The sizes chosen for SuperMalloc include powers of two and prime
+multiples of cache lines.  The powers of two ($256$, $512$, $1024$,
+$2048$, $4096$, $8192$) are used only when the application explicitly
+asks for aligned data.  The prime multiples of cache lines are used
+for all other requests to reduce the contention in the
+low-associativity processor caches. For example, recent Intel
+processors provide 8-way associative level~1 cache.  Following the
+lead of \cite{AfekDiMo11}, who propose \defn{punctuated arrays} to
+reduce associativity conflicts, I wanted to avoid aligning objects
+into the same cache associativity set. (Apparently punctuated arrays
+are appearing in most of the Solaris~12 allocators \cite{Dice14b}.)
+I, however, took the more ``radical'' approach mentioned by
+\cite{Dice14a} of making all the size classes a prime multiple of the
+cache line, which not only reduces conflicts within a class size but
+reduces inter-size cache-index conflicts.
 
 This approach introduces one big gap between $7$~and $11$~cache lines
 introducing internal fragmentation of up to 57\% for an allocation of
 449 bytes, and slightly smaller gap between 13 cache lines and 17
 cache lines ($31$\% fragmentation for 833-byte allocations).  To close
-these gap, we added two more bins at 9 cache lines and 15 cache lines,
-with the rationale that a little bit of inter-size associativity
-conflict is better than internal fragmentation.
+these gap, SuperMalloc added two more bins at 9 cache lines and 15
+cache lines, with the rationale that a little bit of inter-size
+associativity conflict is better than internal fragmentation.
 
 One aspect that becomes relatively more important for medium objects
 than small objects is what happens when the page size is not a
@@ -571,16 +569,17 @@ into a page wasting 768 bytes at the end.
 
 Supermalloc avoids this internal fragmentation by using larger logical
 pages, called \defn{folios}, for allocation bookkeeping.  For example,
-in the 832-byte bin, rather than wasting those 768 bytes, we allocate
-objects out of a folio containing 13 pages (53,248 bytes). When we
-allocate an 832-byte object, we find the fullest 13-page folio (among
-all folios holding 832-byte objects) that has a free slot, and allocate
-that slot.  When a folio becomes empty, we uncommit the entire folio,
-rather than trying to uncommit individual pages of a folio.  There is
-still fragmentation at the end of the \unit{2}\mebi\byte{} chunk (5
-unused pages in this case), but that fragmentation comprises whole
-pages which are never touched and remain uncommited.  Once again, we
-do not mind wasting a little virtual address space.
+in the 832-byte bin, rather than wasting those 768 bytes, SuperMalloc
+allocates objects out of a folio containing 13 pages (53,248
+bytes). When SuperMalloc allocates an 832-byte object, it finds the fullest
+13-page folio (among all folios holding 832-byte objects) that has a
+free slot, and allocate that slot.  When a folio becomes empty, SuperMalloc
+uncommits the entire folio, rather than trying to uncommit individual
+pages of a folio.  There is still fragmentation at the end of the
+\unit{2}\mebi\byte{} chunk (5 unused pages in this case), but that
+fragmentation comprises whole pages which are never touched and remain
+uncommited.  Once again, I do not mind wasting a little virtual
+address space.
 
 Except for the way their sizes are chosen, medium and small objects
 are managed exactly the same way (with folios and the fullest-fit
@@ -592,73 +591,94 @@ Large objects start at 16KiB (4 pages) and go up to half a chunk size.
 Large objects are all a multiple of a page size, and the code is a
 little bit simpler than for small and medium objects, since it mostly
 does not matter which large object is returned by \code{malloc()};
-When a large object is freed its pages can be uncommitted, so we don't
-need to keep track of anything for a fullest-fit heuristic.
+When a large object is freed its pages can be uncommitted, so
+SuperMalloc does not need to keep track of anything for a fullest-fit
+heuristic.
 
-In order to avoid associativity issues, we add random number of cache
-lines, up to a page's worth, to the allocation, and adjust the
-returned pointer by that random number.  For example when asked to
-allocate $20,000$ bytes we pick a random number from 0 to 63 and add
-that many cache lines to the request.  If, for example, we picked 31
-for the random number, we would allocate $21,984 = 20,000+31\cdot64$
-bytes.  That would be allocated out of bin~40, which contains $32$KiB
-objects.  Instead of returning a pointer to the beginning of the
-$32$KiB object, we return the pointer plus $1984$ bytes.  This
-strategy wastes at most an extra page per object, and since we use
-this strategy only on objects that are $4$ pages or larger, it can
-result in at most $25$\% internal fragmentation (which matches the
-fragmentation we were willing to tolerate for the small objects), and
-on average wastes only $12.5$\%.  If the application explicitly asks
-for a page-aligned allocation, we skip the random rigamarole.  Adding
-a random-offset to what would otherwise be a page-aligned allocation
-appeared in \cite{LvinNoBe08} for a page-per-object allocator, and is
-applied in a more systematic fashion by \cite{AfekDiMo11}.
+In order to avoid associativity issues, SuperMalloc adds random number
+of cache lines, up to a page's worth, to the allocation, and adjusts
+the returned pointer by that random number.  For example when asked to
+allocate $20,000$ bytes, SuperMalloc picks a random number from 0 to
+63 and adds that many cache lines to the request.  If, for example,
+SuperMalloc picked 31 for the random number, it would allocate $21,984
+= 20,000+31\cdot64$ bytes.  That would be allocated out of bin~40,
+which contains $32$KiB objects.  Instead of returning a pointer to the
+beginning of the $32$KiB object, SuperMalloc returns the pointer plus
+$1984$ bytes.  This strategy wastes at most an extra page per object,
+and since this strategy is employed only on objects that are $4$ pages
+or larger, it can result in at most $25$\% internal fragmentation
+(which matches the fragmentation we were willing to tolerate for the
+small objects), and on average wastes only $12.5$\%.  If the
+application explicitly asks for a page-aligned allocation, SuperMalloc
+skips the random rigamarole.  Adding a random-offset to what would
+otherwise be a page-aligned allocation appeared in \cite{LvinNoBe08}
+for a page-per-object allocator, and is applied in a more systematic
+fashion by \cite{AfekDiMo11}.
 
 \secput{huge}{Huge objects}
 
 Huge objects start at half a chunk (about \unit{1}\mebi\byte{}) and
 get larger.  The SuperMalloc huge object allocation primitive is
-straightforward, and is similar to many other allocators.  We use
-operating system primitives such as \code{mmap()} to create new huge
-chunks, and we never give the memory back using \code{unmap()}.  We
-again take advantage of the virtual-addresses-are-cheap observation,
-as follows.
+straightforward, and is similar to many other allocators.  SuperMalloc
+use operating system primitives such as \code{mmap()} to create new
+huge chunks, and never gives the memory back using \code{unmap()}.
+SuperMalloc again takes advantage of the virtual-addresses-are-cheap
+observation, as follows.
 
-We round up huge objects to the nearest power of two.  For example to
-allocate a \unit{5}\mebi\byte{} object, we allocate an
+SuperMalloc rounds up huge objects to the nearest power of two.  For
+example to allocate a \unit{5}\mebi\byte{} object, it allocates an
 \unit{8}\mebi\byte{} region (which is \unit{2}\mebi\byte{}-aligned) of
 virtual memory using \code{mmap()}.
 
-We keep a linked list for each such power of two, so that when we
-\code{free()} a huge chunk, we add it to the linked list.  We actually
-thread the linked list through the chunk table so that the chunk
-itself does not need to be in committed memory.  When we free a huge
-object we explicitly uncommit the memory using \code{madvise()}.
+SuperMalloc keeps a linked list for each such power of two, so that
+when we \code{free()} a huge chunk, it add the chunk to the linked
+list.  SuperMalloc actually threads the linked list through the chunk
+table so that the chunk itself does not need to be in committed
+memory.  To free a huge object SuperMalloc explicitly uncommits the
+memory using \code{madvise()}.
 
-We use \code{madvise()} to ask to the kernel to map the huge chunk
-using huge pages (recent Linux kernels support \unit{2}\mebi\byte{}
-pages, which can reduce TLB pressure and reduces the cost of walking
-the page table in the case of a TLB miss \cite{Corbet11}).  If the
-object is not a multiple of \unit{2}\mebi\byte{} in size, the last
-fractional part of the huge page is mapped only with normal $4$KiB
-page table entries.  Some users do not like transparent huge pages.
-When using SuperMalloc, a user can avoid transparent huge pages for
-these large objects by calling \code{madvise()}.  The user does not
-need to fight transparent huge pages for smaller objects, however.
+SuperMalloc uses \code{madvise()} to ask to the kernel to map the huge
+chunk using huge pages (recent Linux kernels support
+\unit{2}\mebi\byte{} pages, which can reduce TLB pressure and reduces
+the cost of walking the page table in the case of a TLB miss
+\cite{Corbet11}).  If the object is not a multiple of
+\unit{2}\mebi\byte{} in size, the last fractional part of the huge
+page is mapped only with normal \unit{4}\kibi\byte page table entries.
+Some users do not like transparent huge pages, and if a user wants
+fine-grained commitment within a huge object, they should call
+\code{madvise(MADV_NOHUGEPAGE)} to ensure the small pages.
 
-\bcknote{Jevans said: You mention relying on uncommitted memory to e.g. make 2 MiB chunks of 16-byte regions cheap, but you also mention how 2 MiB chunks play well with huge pages.  One of the frustrations of transparent huge pages is that they can subvert this reliance on uncommitted memory, resulting in extra CPU and/or memory overhead.  I got the sense that you've considered this issue, but it wasn't very clear whether you explicitly avoid huge pages for small allocations.}
+For small, medium, and large objects, SuperMalloc makes no explicit
+use of huge pages, meaning that on most systems huge pages are not
+used for those non-huge objects.  On most Linux systems, huge pages are enabled
+only when explicitly asked for with madvise, e.g., with
+\begin{minted}{csh}
+$ echo madvise >/sys/kernel/mm/transparent_hugepage/enabled
+\end{minted}
+and on such systems the non-huge chunks will all be mapped with
+\unit{4}\kibi\byte pages.  I hope to make better use of huge pages in
+the future for SuperMalloc.  One idea is to do the bookkeeping to keep
+track of when a chunk becomes, say, 90\% allocated, and then enable
+huge pages on that chunk.  Part of the problem is that as soon as we
+uncommit a single \unit{4}\kibi\byte page using
+\code{madvise(MADV_DONTNEED)}, then the entire chunk becomes
+ineligible for huge pages.  The allocator would need to defer the
+uncommit operations, and then when, say, only 80\% of the pages are in
+use, run all the deferred uncommit operations.  The system would need
+some hysteresis so that it would not bounce between huge-page and
+no-huge-page mode too frequently.
 
-Thus, although when we allocated \unit{8}\mebi\byte{} to implement a
-\unit{5}\mebi\byte{} allocation, only \unit{5}\mebi\byte{} is
-actually every committed to memory (and then only when the application
-code touches it.)
+Thus, although SuperMalloc allocated \unit{8}\mebi\byte{} to implement
+a \unit{5}\mebi\byte{} allocation, only \unit{5}\mebi\byte{} would
+actually ever be committed to memory (and then only when the
+application code touches it.)
 
 \secput{arith}{Arithmetic}
 
 One common operation in SuperMalloc is to calculate indexes in a
-bitmap.  For example, given a pointer $p$, we must perform calculation
-in \figref{bitindex}(a) to calculate which folio and which object in
-the folio $p$ refers to.
+bitmap.  For example, given a pointer $p$, the code must perform
+calculation in \figref{bitindex}(a) to calculate which folio and which
+object in the folio $p$ refers to.
 
 \begin{figure*}
 \begin{minted}[mathescape,linenos,xleftmargin=1cm]{c}
@@ -695,14 +715,14 @@ ON = ((p%chunksize-FN*FS)*magic2[B]) >> magic3[B]; // magic
 Since the chunk size is a power of two, computing the chunk number is
 easy.  Computing the folio number requires dividing by the folio size,
 which isn't a power of two, and isn't known at compile time, however.
-Division is slow, so we follow the approach of
+Division is slow, so SuperMalloc follows the approach of
 \cite{MagenheimerPePe87} to convert division to multiplication and
 shift.  For example, for 32-bit values of \code{x}, we have
 \mintinline{c}{x / 320 == (x*6871947674lu)>>41}.  \figref{bitindex}(b)
-shows the faster code.  We use metaprogramming to generate all the
-object sizes and magic numbers (e.g., to find prime numbers that are
-spaced no more than 25\% apart, and to calculate the multiplication
-and shift constants to implement division.).
+shows the faster code.  SuperMalloc uses metaprogramming to generate
+all the object sizes and magic numbers (e.g., to find prime numbers
+that are spaced no more than 25\% apart, and to calculate the
+multiplication and shift constants to implement division.).
 
 
 \secput{caching}{Caching}
@@ -715,8 +735,8 @@ for each size bin), but we'll describe it here as though there were
 only one size.  Each cache comprises a small number of doubly-linked
 lists of objects that belong in its bin.  A single doubly-linked list
 can be moved from one level of the cache to the other in $O(1)$
-operations, so that we can minimize the length of the critical section
-that moves the list.
+operations, which reduces the length of the critical section that
+moves the list.
 
 The cost of locking and accessing a shared data structure turns out to
 be mostly due to cache coherence traffic from accessing the object,
@@ -732,16 +752,17 @@ per-CPU data structure mostly resides in the right cache (it's in the
 wrong cache only when the operating system migrates a thread to a
 different processor), and the lock instruction is mostly uncontended
 (contention happens only when the operating system preempts a thread).
-So instead of paying for all the cache-coherence traffic, we pay only
-the cost of executing the lock instruction and the increment
-instruction.  For the per-CPU cache we also must determine which CPU
-we are on, for which we use a call to \code{sched_getcpu()}.  If we
-factor out the cost of \code{sched_getcpu()}, the per-CPU data
-structure costs only \unit{13.3}\nano\second.  Even with the call to
-\code{sched_getcpu()}, the per-CPU structure is fast. Based on these
-numbers, we concluded that a per-CPU cache gets most of the advantage
-of a per-thread cache, but that we still need a small per-thread
-cache.  Uncontended locking is not so bad.
+So instead of paying for all the cache-coherence traffic, one pays
+only the cost of executing the lock instruction and the increment
+instruction.  For the per-CPU cache the system also must determine
+which CPU is running which SuperMalloc determines using a call to
+\code{sched_getcpu()}.  If we factor out the cost of
+\code{sched_getcpu()}, the per-CPU data structure costs only
+\unit{13.3}\nano\second.  Even with the call to \code{sched_getcpu()},
+the per-CPU structure is fast. Based on these numbers, I concluded
+that a per-CPU cache gets most of the advantage of a per-thread cache,
+but that SuperMalloc still needs a small per-thread cache.
+Uncontended locking is not so bad.
 
 A related approach used by some systems is to hash or otherwise map
 the thread identifier to a cache number instead of using a per-CPU
@@ -773,7 +794,7 @@ using committed memory, and we want to waste as little physical memory
 as possible.  The biggest disadvantage of per-CPU caches is calling
 \code{sched_getcpu()}, which is not very expensive, and can be reduced
 by calling it less frequently (say, only $1/16$th of the time): if
-\texttt{malloc()} is being called frequently, we will be using the
+\texttt{malloc()} is being called frequently, it will be using the
 right CPU most of the time, and if called infrequently, the
 performance will not matter much.
 
@@ -800,18 +821,18 @@ Per-thread                   & \ns{  3.3}            & \ns{  2.1}            & \
 The SuperMalloc per-thread cache is just big enough to amortize the
 \unit{34}\nano\second{} uncontended locking overhead compared to the
 \unit{3.1}\nano\second{} unlocked overhead, so we want about $10$
-objects in the per-thread cache.  We decided to store two linked lists
+objects in the per-thread cache.  I decided to store two linked lists
 each containing up to 8~KiB worth of objects for each bin in the
 thread cache.
 
-We tried to tune the per-CPU cache to be just big enough to fill up
-the processor's data cache.  We reasoned that that if the working set
+I tried to tune the per-CPU cache to be just big enough to fill up
+the processor's data cache.  I reasoned that that if the working set
 of a thread is bigger than the data cache, the thread will be
 incurring cache misses anyway. In this case, there is no point in
 working hard to avoid a few more cache misses.  In contrast, many
 allocators keep many megabytes in their per-thread caches.  Because
 there are many per-thread caches (thousands of threads in a typical
-database server, for example) their footprint is larger.  We chose to
+database server, for example) their footprint is larger.  I chose to
 store two linked lists each containing up to \unit{1}\mebi\byte{} for
 each bin in the per-CPU cache.
 
@@ -854,29 +875,29 @@ Most of the critical-sections are on the CPU cache, and since there is
 no guarantee that we stay on the same CPU for the duration of a
 critical section, we need locks.  The CPU cache employs a lock for
 each CPU-bin pairing.  Since there are 45~bins and 32~CPU's on the
-biggest machine we measured, that's 1,440~locks in use.  We place each
+biggest machine I measured, that's 1,440~locks in use.  I placed each
 lock on its own cache line.  We considered placing the locks and the
 doubly linked list heads into the same cache line, but concluded that
 that might cause performance trouble.  For example, on the HTM
-hardware, we spin on the lock before starting the transaction.  But
-that spin could cause the transaction to fail if the lock were on the
-same cache line as the data being modified.  Without HTM, spinning on
-the lock could interfere with the updates being made to the linked
+hardware, the code spin on the lock before starting the transaction.
+But that spin could cause the transaction to fail if the lock were on
+the same cache line as the data being modified.  Without HTM, spinning
+on the lock could interfere with the updates being made to the linked
 lists by causing the cache line to bounce around.
 
-For the global data structure, we have a lock for each bin.  Since we
-seldom access the global data structure, the lock is mostly
-uncontended.
+For the global data structure, SuperMalloc has a lock for each bin.
+Since the code accesses the global data structure relatively
+infrequently, the lock is mostly uncontended.
 
-When running on hardware that supports HTM, we use transactions.  If
-the transaction fails enough, we fall back to locking code using the
+When running on hardware that supports HTM, SuperMalloc uses transactions.  If
+the transaction fails enough, it falls back to locking code using the
 original lock structures.  To make the HTM transactions interact
 properly with the lock-protected transactions, the HTM transaction
 must look at the lock state, and verify that it is unlocked.  This
 lock examination is called \defn{subscribing} to the lock.  One
 decision to make is whether to subscribe to the lock early or late in
 the transaction.  Subscribing late sounds enticing because it reduces
-the time during which we conflict on the lock (when in fact we might
+the time during which the lock is contended (when in fact we might
 not conflict on the data structure).  Subscribing late can be
 dangerous, however, since it can be difficult to prove that your code
 does not get tricked into committing \cite{DiceHaKo14}.  SuperMalloc
@@ -893,13 +914,12 @@ is correct for SuperMalloc, since I do not want to leave half a
 percent on the table.
 
 In order to make the critical sections short, both for HTM and
-locking, we try to prefetch everything that will be accessed, then
-wait for the lock to become free (and if the lock wasn't free, we
-prefetch everything again, and check the lock again.)  The goal is to
-make it so that while the lock is held (or the transaction is
+locking, SuperMalloc try to prefetch everything that will be accessed,
+then wait for the lock to become free (and if the lock wasn't free, it
+prefetches everything again, and checks the lock again.)  The goal is
+to make it so that while the lock is held (or the transaction is
 running), as few cache misses as possible are incurred.  This
-prefetching improves performance by a few percent, as we will show
-below.
+prefetching improves performance by a few percent, as shown below.
 
 \secput{performance}{Performance}
 
@@ -913,17 +933,18 @@ multicore with a multithreaded workload the speed difference between
 the default allocator in Linux \cite{Lea96} and a state-of-the-art
 allocator such as JEmalloc~\cite{Evans06} can be more than a factor of
 30.  If the cost of allocation varies significantly it can be
-difficult to meet the soft real-time constraints of a server.  We have
+difficult to meet the soft real-time constraints of a server.  I have
 seen JEmalloc causing a \unit{3}\second{} pause about once per day on
 a database server, which would be too slow for a social-networking
-site, for example. (We traced the problem in JEmalloc to the code
+site, for example. (I traced the problem in JEmalloc to the code
 inside \code{free()} which occasionally gathers together a large
-number of unused pages and uncommits them using \code{madvise()}.  But
-we do not understand why it takes \unit{3}\second{} to do it.)  It was
-this \unit{3}\second{} pause that got us interested in building
-SuperMalloc.  (We do not yet know whether SuperMalloc solves the
-\unit{3}\second{}-pause problem, although we hope to have an answer
-for the final version of this paper.)
+number of unused pages and uncommits them using \code{madvise()}.  The
+delay is not inside the\code{madvise()} call, but is in the code that
+gathers together the unused pages.  But I do not understand why it
+takes \unit{3}\second{} to do it.)  It was this \unit{3}\second{}
+pause that got me interested in building SuperMalloc.  (I do not yet
+have any evidence that SuperMalloc actually solves the
+\unit{3}\second{}-pause problem.)
 
 One of the best benchmarks for a multicore allocator is
 malloc-test~\cite{LeverBo00}.  (Malloc-test results are also reported
@@ -936,7 +957,7 @@ multithreaded allocators that employ per-thread caching, since the
 per-thread caches can quickly become unbalanced.  Malloc-test is a
 tough benchmark because per-thread caches often do not work well.  The
 producer's caches are always empty, and the consumer's caches are
-always overflowing.  We obtained malloc-test from XMALLOC repository
+always overflowing.  I obtained malloc-test from XMALLOC repository
 \cite{EderSc12}.  It turns out that the malloc-test benchmark is
 showing its age: it is racy and exhibits a huge amount of variance
 even if the allocator being tested runs infinitely quickly.
@@ -947,17 +968,17 @@ object and stores it.  The consumer repeatedly looks for a non-NULL
 value in the array, and if it finds one, frees it, and sets the slot
 to NULL\@.  It turns out that for fast allocators, the producers and
 consumers both can spend a lot of time spinning around looking for
-interesting slots.  We improved malloc-test by having each producer
+interesting slots.  I improved malloc-test by having each producer
 create a batch of 4096 objects in a structure, which is placed into a
 queue protected by a pthread condition variable.  If the queue gets
 full, the producers wait.  Each consumer waits for the queue to be
 non-empty, dequeues one of the batches, and frees all 4096 objects.
 These changes not only made malloc-test run more evenly, but they made
-it run much faster.  Malloc-test was so slow and noisy that we could
+it run much faster.  Malloc-test was so slow and noisy that I could
 not tell the difference between any of the allocators except for
 DLmalloc.  Sometimes benchmarks need work so that they can run fast.
 
-As we mentioned above, the cost of early lock subscription inside
+As mentioned above, the cost of early lock subscription inside
 transactions is about half a percent for a high-threadcount run of our
 improved implementation of malloc-test; that is almost unmeasurable,
 since the standard deviation of the runtime is also about half a
@@ -990,9 +1011,9 @@ subsystem.  Instead the performance appears to be limited by the rate
 at which the processor issues memory operations that miss cache.
 Hyperthreading doubles that rate.
 
-We measured SuperMalloc with the per-transaction prefetching disabled,
-and we can see that prefetching the data needed by a transaction
-before the transaction starts is worth a few percent.
+I measured SuperMalloc with the per-transaction prefetching disabled,
+and can see that prefetching the data needed by a transaction before
+the transaction starts is worth a few percent.
 
 It turns out that the transactions fail, executing the lock-based
 fallback code about $0.03$\% of the time.
@@ -1008,13 +1029,13 @@ fallback code about $0.03$\% of the time.
 \vspace*{-3ex}
 \end{figure}
 
-We originally designed the SuperMalloc for machines with HTM hardware.
-We wanted to make it highly likely that the transactions would commit.
+I originally designed the SuperMalloc for machines with HTM hardware.
+I wanted to make it highly likely that the transactions would commit.
 How well does the code run using pthread mutexes?  It turns out that
 Glibc pthread mutexes are using hardware transactional memory on our
 machine.  The performance with pthread mutexes is slightly slower than
 running transactional memory, but the slowdown may not be significant.
-We tried running the code using pthread mutexes on a Sandy Bridge
+I tried running the code using pthread mutexes on a Sandy Bridge
 machine which does not have HTM\@.  \figref{datalock} shows the
 results. This machine has 32 hardware threads, and so SuperMalloc
 saturates the hardware at about 16 producer threads.  It turns out
@@ -1032,12 +1053,12 @@ code run fast.
 \vspace*{-3ex}
 \end{figure}
 
-We ran our experiments compiled with gcc 4.8.3 running on Linux 3.15.7
-with glibc 2.18 on Fedora~20.  We compared SuperMalloc to Hoard 3.10,
+I ran the experiments compiled with gcc 4.8.3 running on Linux 3.15.7
+with glibc 2.18 on Fedora~20.  I compared SuperMalloc to Hoard 3.10,
 jemalloc 3.6.0, and tbb43\_20140724.
 
-\figref{variance} explores the variance of the allocators we measured
-on the same experiment as for \figref{datahtm}.  We use the difference
+\figref{variance} explores the variance of the allocators I measured
+on the same experiment as for \figref{datahtm}.  I use the difference
 between the slowest run and the fastest run as a measure of the
 variance.  Not only are the newer allocators faster than DLmalloc, but
 their variance is less.  In fact, the mean time to allocate for the
@@ -1065,23 +1086,59 @@ SuperMalloc & \ns{ 10.6} & \ns{ 10.4} & \ns{ 10.7}  & \ns{  0.4} \\
 \end{figure}
 
 The second important benchmark measured by \cite{Evans06} is Super
-Smack.  Super Smack smacked us.  We were unable to get it to work.
-We'll keep trying.
+Smack, which appears to be suffering from code rot.  I cloned
+\url{https://github.com/winebarrel/super-smack} into
+\url{https://github.com/kuszmaul/super-smack} and got it working.  The
+performance is shown in \figref{supersmack}.  The performance was not
+as interesting for these allocators as it was when Evans measured it
+in 2006 (in which phkmalloc looked quite bad); since all five
+allocators are essentially the same speed with a few percent variance.
+The memory footprint is interesting: DLmalloc appears to have use a
+few percent less memory, and TBBmalloc uses a few percent more
+memory. (TBBmalloc appears to suffer a memory leak; every time I run
+the benchmark, the footprint grows by about a megabyte.)  The other
+allocators were about the same, each showing a few megabytes variation
+in the footprint.
 
-We tried running a few of the other benchmarks mentioned by
+\begin{figure}
+\begin{center}
+\begin{tabular}{lrr}
+ & Max RSS & speed (queries per second)\\
+ DLmalloc     &131M  &  104K \\
+ Hoard        &133M  &  104K \\
+ JEmalloc     &137M  &  104K \\
+ TBBmalloc    &140M  &  104K \\
+ SuperMalloc  &135M  &  103K
+\end{tabular}
+\end{center}
+\begin{minted}{csh}
+$ super-smack -d mysql \
+           smacks/select-key.smack 50 20000
+\end{minted}
+\caption{Performance of various allocators running super-smack.  The
+  smallest footprint of five measurements is shown, and the fastest of
+  the five measurements is shown.  The Max RSS varies by several
+  percent, but DLmalloc appears to be consistently a few megabytes
+  smaller than the other allocators, and TBBmalloc appears to be
+  consistently larger.  The time of the various allocators also
+  varies, and the differences appear not to be significant.}
+\label{fig:supersmack}
+\end{figure}
+
+I tried running a few of the other benchmarks mentioned by
 \cite{Evans06}.  Some of the benchmarks are difficult to reproduce,
-and like Evans, we concluded that many of these benchmarks are not
-very informative.  Here we discuss the ghostscript benchmark, as an example.
+and like Evans, I concluded that many of these benchmarks are not very
+informative.  Here I discuss the ghostscript benchmark, as an example.
 
 {\paragraph{gs:}} The gs benchmark was fairly easy to replicate, at
 least in spirit.  There is a long history of running Ghostscript:
 \cite{DetlefsDoZo94} ran it on an unspecified 126 page manual.
-\cite{Evans06} ran it on an unspecified file named ``ps3.ps''.  So we
-ran an unspecified file\footnote{If you really want to know, we used
+\cite{Evans06} ran it on an unspecified file named ``ps3.ps''.  So I
+ran an unspecified file\footnote{If you really want to know, I used
   the 3251-page, 16,819,944-byte \cite{Intel13}.}  and ran it through
 Ghostscript~9.14 as
 \begin{minted}{sh}
-$ gs -dBATCH -dNODISPLAY foo.pdf
+$ gs -dBATCH -dNODISPLAY manual-325462.pdf
 \end{minted}
 on a 4-core i7-4770 and saw the performance and maximum resident
 memory (RSS) shown in \figref{gs}.  GS apparently allocates large
@@ -1124,26 +1181,26 @@ SuperMalloc & \unit{197.3\pm1.4}\second & \unit{161}\mebi\byte \\ % 196.94,196.0
 \end{figure}
 
 
-{\paragraph{Larson:}} We ran the Larson benchmark \cite{LarsonKr98},
+{\paragraph{Larson:}} I ran the Larson benchmark \cite{LarsonKr98},
 which is included in the Hoard distribution.  The Larson benchmark
 simulates a server in which each thread allocates objects, keeps some
 of them, eventually freeing them,, and passes some objects to other
-threads where they will be freed.  We ran
+threads where they will be freed.  I ran
 \begin{minted}{sh}
 ./larson 10 7 500 1000 10000 1 8
 \end{minted}
 on a 4-core i7-4770 and saw the performance shown in \figref{larson}.
-Instead of reporting throughput (which is operations per second), we
+Instead of reporting throughput (which is operations per second), I
 report time per operation, so that we can more easily compare averages
-and standard deviations.  We also report standard deviation of the
+and standard deviations.  I also report standard deviation of the
 time to call \code{malloc()}, and observe that the standard deviation
 is much larger than the mean.  This means there are some very slow
 allocations (the slowest allocations we measured took
 \unit{81}\milli\second, and it wasn't clear that any of the allocators
-has any particular advantage on this metric).  We were motivated by
-the desire to reduce the slowest allocations, but it looks like we'll
+has any particular advantage on this metric).  I was motivated by
+the desire to reduce the slowest allocations, but it looks like I'll
 have to embark on a study of much longer-running jobs to determine
-whether we've made progress.  SuperMalloc was fastest by a small
+whether I've made progress.  SuperMalloc was fastest by a small
 margin.  This margin is much less than a standard deviation, but it
 appears to be repeatable.
 
@@ -1172,11 +1229,11 @@ consumes while running, can also vary by more than an order of
 magnitude --- even a factor of two can be too much on something like a
 database server where memory is used as a cache for disk, and an
 increased footprint results in either a reduced effective cache size
-or excessive I/O's due to paging.  We developed a benchmark based on
+or excessive I/O's due to paging.  I developed a benchmark based on
 the idea of \cite{Vyukov08}, which operates by Thread~0 allocating
 data and giving it to Thread~1 which frees the data.  Thread~1 then
 allocates data and gives it to Thread~2, which frees the data.
-Thread~2 then allocates and gives to Thread~3.  We configured the
+Thread~2 then allocates and gives to Thread~3.  I configured the
 vyukov benchmark to allocate 50,000 random objects per thread, each
 object chosen to be a random size less than \unit{4}\kibi\byte, and
 $200$ threads.  The application thus never asked for more than
@@ -1199,7 +1256,7 @@ TBBmalloc  & \unit{17.3}\second &  \unit{5.3}\second & \unit{111.3}\second & \un
 SuperMalloc& \unit{16.0}\second &  \unit{0.2}\second &  \unit{21.3}\second &  \unit{219}\mebi\byte \\
 \end{tabular}
 \end{center}
-\caption{The performance of the vyukov benchmark.  We measured the user time, system time, elapsed time, and max RSS.}
+\caption{The performance of the vyukov benchmark, showing measurements of user time, system time, elapsed time, and max RSS.}
 \label{fig:vyukov}
 \end{figure}
 
@@ -1248,7 +1305,7 @@ JEmalloc, in terms of lines of code, manages the tuning parameters
 (giving the user control, for example, of the number of arenas and
 providing access to various counters).  Although that code has many
 lines of code, it is not complex.  It's just long because there are
-many tuning parameters.  We do not want tuning parameters in
+many tuning parameters.  I do not want tuning parameters in
 SuperMalloc, preferring instead that the code work well in all cases.
 It may turn out that our determination to avoid tuning parameters will
 fade away when faced with the demands of production --- we should
@@ -1269,7 +1326,7 @@ There are two features that Linux does not provide which are provided
 by some other operating systems: a cheaper way to uncommit memory, and
 a hook to reduce the odds that a thread is preempted while holding a
 lock.  A third desirable feature, \defn{subscribable mutexes} does not
-appear in any operating system, as far as we know.
+appear in any operating system, as far as I know.
 
 {\paragraph{Cheap uncommit:}} The first problem is to uncommit memory
 cheaply.  Linux provides a function
@@ -1315,14 +1372,17 @@ reclaim memory.
   maddeningly subtle application bug that burned this lesson deep into
   my psyche.}
 
-Evans complains that ``\code{MADV_FREE} is \textit{way} nicer than
-\code{MADV_DONTNEED} in the context of malloc.  JEmalloc has a really
-discouraging amount of complexity that is directly a result of working
-around the performance overhead of \code{MADV_DONTNEED}''
-\cite{Evans12}.  We agree with Evans' sentiments, although the
-SuperMalloc caches reduce the impact of the \code{madvise()} calls.
-Although SuperMalloc would not get much simpler with \code{MADV_FREE},
-it would speed up and exhibit less performance variance.
+Evans complains \cite{Evans12}
+\begin{quote}
+ \code{MADV_FREE} is \textit{way} nicer than \code{MADV_DONTNEED} in
+ the context of malloc.  JEmalloc has a really discouraging amount of
+ complexity that is directly a result of working around the
+ performance overhead of \code{MADV_DONTNEED}.
+\end{quote}
+I agree with Evans' sentiments, although the SuperMalloc caches reduce
+the impact of the \code{madvise()} calls.  Although SuperMalloc would
+not get much simpler with \code{MADV_FREE}, it would speed up and
+exhibit less performance variance.
 
 An alternative approach would be for the kernel to deliver an event to
 a process indicating that it should use less memory.  The allocator
@@ -1334,7 +1394,7 @@ is being scheduled for eviction, which can improve the performance
 garbage-collected systems under memory pressure.
 
 {\paragraph{Lock-aware scheduling:}} The second problem shows up when
-we are running in locking mode (that is, without transactional
+running in locking mode (that is, without transactional
 memory).  Sometimes while a lock is held by a thread, the kernel
 preempts the thread and schedules something else.  Since the thread
 holds a lock, any other threads that try to acquire that lock suspend
@@ -1359,22 +1419,22 @@ dismissed it as ``a feature for a real-time kernel'' and suggested a
 voluntary preemption model instead, and that they were ``skeptical
 about the whole idea''.  One proposed \cite{Oboguev14a, Oboguev14b}
 that a user-space mechanism to set the priority of a thread would solve
-the problem.  As implementers of \code{malloc()}, we do not see how it
-would --- \code{malloc()} is in a library, and we do not know what, if
+the problem.  As an implementer of \code{malloc()}, I do not see how it
+would --- \code{malloc()} is in a library, and I do not know what, if
 any, thread priority schemes the application may be using.
 
-We would like to see a hook in Linux to avoid preempting threads that
+I would like to see a hook in Linux to avoid preempting threads that
 are briefly holding a lock.
 
-{\paragraph{Subscribable mutexes:}} When running with HTM, we wait
-until the lock used for the fallback path is not held, then we
-subscribe to the lock.  It is not difficult to subscribe to the
+{\paragraph{Subscribable mutexes:}} When running with HTM, SuperMalloc waits
+until the lock used for the fallback path is not held, then 
+subscribes to the lock.  It is not difficult to subscribe to the
 pthread mutex lock in Linux, if you are willing to violate the POSIX
 abstraction.  There is a single field in the mutex object that
 indicates whether the lock is held.  It would better if the mutex
 provided a way to subscribe to the lock abstractly.
 
-A more difficult problem is what we should do when we are waiting for
+A more difficult problem is what the code should do when waiting for
 a mutex to become free.  We do not want to spin indefinitely, but
 there is no way to wait ask the operating system to wake us up when
 the mutex becomes unlocked, except to lock the mutex.  What we need is
@@ -1433,19 +1493,19 @@ SuperMalloc starts faster and scales further, and uses less code.
 
 SuperMalloc is available from
 \url{https://github.com/kuszmaul/SuperMalloc}, licensed under either
-the Apache 2.0 or GPLv3 licenses.
+the Apache 2.0 or GPLv3 license.
 
 \acks
 
-JEvans helped me understand the role of alignment, explained the
+Jason Evans helped me understand the role of alignment, explained the
 subtleties of \code{MADV_FREE}, prodded me to more carefully explain
 how I deal with huge pages, and corrected several misconceptions I had
 about how JEmalloc works.  Emery Berger helped me better understand
-how Hoard works and pointed out \cite{HertzFeBe05, YangBeKa06}.
-Michael A. Bender helped me understand how to implement the
-fullest-fit priority queue.  This research was supported in part by
-Foxconn, and in part by NSF grants CCF-1314547, CNS-1409238, and
-IIS-1447786.
+how Hoard works and directed my attention to \cite{HertzFeBe05,
+  YangBeKa06}.  Michael A. Bender helped me understand how to
+implement the fullest-fit priority queue.  This research was supported
+in part by Foxconn, and in part by NSF grants CCF-1314547,
+CNS-1409238, and IIS-1447786.
 
 {\raggedright
 \bibliographystyle{abbrvnat}
@@ -1475,3 +1535,4 @@ IIS-1447786.
 %%  LocalWords:  incrementing prefetch deallocating prefetching Glibc
 %%  LocalWords:  transactional atomicity uncommits dequeues pthread
 %%  LocalWords:  mutexes Hyperthreading Ghostscript mutex POSIX
+%%  LocalWords:  prefetches unmeasurable
