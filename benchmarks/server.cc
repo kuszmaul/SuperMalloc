@@ -221,7 +221,7 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
 
     if (1) {
         sleep(10);
-	printf("before stopping: currentrss=%ldKiB\n", getrss());
+	printf("before stopping: currentrss=%ldMiB\n", getrss()/1024);
         set_stop_flag(true);
     }
 
@@ -241,10 +241,10 @@ int main(int argc __attribute__((unused)), char *argv[] __attribute__((unused)))
         }
         printf ("thread sum =%ld\n", sum_this_thread);
     }
-    printf("before deleting: currentrss=%ldKiB\n", getrss());
+    printf("before deleting: currentrss=%ldMiB\n", getrss()/1024);
     delete [] threads;
     delete [] thread_infos;
-    printf("currentrss=%ldKiB\n", getrss());
-    printf("maxrss=%ldKiB\n", maxrss);
+    printf("currentrss=%ldMiB\n", getrss()/1024);
+    printf("maxrss=%ldMiB\n", maxrss/1024);
     return 0;
 }
