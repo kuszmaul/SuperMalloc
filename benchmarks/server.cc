@@ -75,7 +75,7 @@ int64_t memory_per_thread;
 thread_info *thread_infos;
 std::thread *threads;
 
-static size_t pick_size(thread_info *ti)
+static size_t pick_size_and_life(thread_info *ti, int64_t *life)
 // Effect: Return a random number which is exponentially distributed.
 //   Specifically, pick a number for which ceiling(lg(n)) is uniformly distributed.
 //   Within each power of two, make the sizes uniformly distributed.
@@ -86,11 +86,10 @@ static size_t pick_size(thread_info *ti)
         if (r%2==0) break;
         r = r/2;
     }
+    if (l<4) l=4; // avoid the very small sizes, on which supermalloc may be gaining an unfair advantage by returning misaligned objects.
     unsigned long result = (1<<l) + (lran2(&ti->lran)&((1<<l)-1));
+    *life = result + (lran2(&ti->lran)&((1<<l)-1));
     return result;
-}
-static int64_t pick_expiration(size_t s) {
-    return s;
 }
     
 // This should go on its own cache line
@@ -138,8 +137,9 @@ static void run_malloc_run(thread_info *ti) {
     while (!get_stop_flag()) {
         if (a_count > a_count_limit) set_stop_flag(true);
         if (a_count % (1024*16) == 0) { printf("."); fflush(stdout); getrss(); }
-        size_t  s = pick_size(ti);
-        int64_t e = a_count+pick_expiration(s);
+	int64_t life;
+        size_t  s = pick_size_and_life(ti, &life);
+        int64_t e = a_count+life;
         object *o = new object(e,s);
         assert(o->time_to_alloc >= 0);
         if (o->time_to_alloc > biggest_a_time) {
