@@ -17,6 +17,13 @@ foo.pdf: new-malloc-test-1K-tempo-aggregated.pdf new-malloc-test-1K-lutestring-a
 supermalloc-greyscale.pdf: supermalloc.pdf
 	gs -sDEVICE=pdfwrite -sProcessColorModel=DeviceGray -sColorConversionStrategy=Gray -dOverrideICC -o $@ -f $<
 
+SDIR=pldiws15ismmmain-ismmmainismm15-6-p
+sources:
+	rm -rf $(SDIR)
+	mkdir $(SDIR)
+	cp supermalloc.tex supermalloc.bbl $(SDIR)
+	tar cfz $(SDIR).tar.gz $(SDIR)
+
 measure_gs:
 	echo default
 	/usr/bin/time gs -dBATCH -dNODISPLAY ~/Intel13.pdf > /dev/null
