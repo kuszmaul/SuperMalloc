@@ -541,7 +541,7 @@ Thus there are three possible options for a mallocator.
 \end{itemize}
 I plan to switch SuperMalloc from the first option to the last option.
 
-\secput{medium}{Medium objects:}
+\secput{medium}{Medium Objects}
 
 Medium objects are all sized be a multiple of 64 (the cache line
 size).  The smallest is 256 bytes, and the largest is 14272 bytes.
@@ -594,7 +594,7 @@ Except for the way their sizes are chosen, medium and small objects
 are managed exactly the same way (with folios and the fullest-fit
 heuristic, for example) by exactly the same code.
 
-\secput{large}{Large objects}
+\secput{large}{Large Objects}
 
 Large objects start at \unit{16}\kibi\byte{} (4 pages) and go up to
 half a chunk size.  Large objects are all a multiple of a page size,
@@ -625,7 +625,7 @@ page-aligned allocation appeared in \cite{LvinNoBe08} for a
 page-per-object allocator, and is applied in a more systematic fashion
 by \cite{AfekDiMo11}.
 
-\secput{huge}{Huge objects}
+\secput{huge}{Huge Objects}
 
 Huge objects start at half a chunk (about \unit{1}\mebi\byte{}) and
 get larger.  The SuperMalloc huge object allocation primitive is
