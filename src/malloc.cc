@@ -675,12 +675,23 @@ static void* test_malloc_bb_for_size(size_t s) {
   return p;
 }
 
+void test_two_malloc_base_and_bound(size_t size) {
+  void *a  = test_malloc_bb_for_size(size);
+  void *b  = test_malloc_bb_for_size(size);
+  free(a);
+  free(b);
+}
+
 void test_malloc_base_and_bound() {
   if (HAS_MALLOC_BASE_AND_BOUND) {
-    void *a  = test_malloc_bb_for_size(8);
-    void *b  = test_malloc_bb_for_size(8);
-    free(a);
-    free(b);
+    printf("%s:%d test bb:\n", __FILE__, __LINE__);
+    for (size_t i = 9; i < 10000; i += 1) {
+      test_two_malloc_base_and_bound(i);
+    }
+    printf("%s:%d test powers of two:\n", __FILE__, __LINE__);
+    for (size_t i = 4096; i < 16*1024*1024; i *= 2) {
+      test_two_malloc_base_and_bound(i);
+    }
   }
 }
 #endif
