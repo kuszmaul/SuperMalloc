@@ -217,6 +217,9 @@ static uint64_t max_allocatable_size = (chunksize << 27)-1;
 //   SMALL fit within a chunk.  Everything within a single chunk is the same size.
 // The sizes are the powers of two (1<<X) as well as (1<<X)*1.25 and (1<<X)*1.5 and (1<<X)*1.75
 extern "C" void* malloc(size_t size) {
+  if (HAS_MALLOC_BASE_AND_BOUND) {
+    size++; // need to allocate things just a little larger.
+  }
   maybe_initialize_malloc();
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
@@ -272,7 +275,7 @@ extern "C" void free(void *p) {
   binnumber_t bin = bin_from_bin_and_size(bnt);
   bassert(!(offset_in_chunk(p) == 0 && bin==0)); // we cannot have a bin 0 item that is chunk-aligned
   if (bin < first_huge_bin_number) {
-    // Cached_free cannot tolerate it.
+    // Cached_free cannot tolerate p being offset.
     cached_free(object_base(p), bin);
   } else {
     // Huge free can tolerate p being offset.
@@ -437,6 +440,9 @@ extern "C" size_t malloc_usable_size(const void *ptr) {
   bassert(address_2_chunknumber(base)==cn);
   const char *ptr_c = reinterpret_cast<const char*>(ptr);
   ssize_t base_size = bin_2_size(bin);
+  if (HAS_MALLOC_BASE_AND_BOUND) {
+    base_size--;
+  }
   bassert(base <= ptr);
   bassert(base_size >= ptr_c-base);
   return base_size - (ptr_c-base);
@@ -448,7 +454,8 @@ static void test_malloc_usable_size_internal(size_t given_s) {
   size_t as = malloc_usable_size(a);
   char *base = reinterpret_cast<char*>(object_base(a));
   binnumber_t b = size_2_bin(malloc_usable_size(base));
-  bassert(malloc_usable_size(base) == bin_2_size(b));
+  size_t added_for_base_and_bound = HAS_MALLOC_BASE_AND_BOUND ? 1 : 0;
+  bassert(malloc_usable_size(base) + added_for_base_and_bound == bin_2_size(b));
   bassert(malloc_usable_size(base) + base == malloc_usable_size(a) + a);  
   if (b < first_huge_bin_number) {
     bassert(address_2_chunknumber(a) == address_2_chunknumber(a+as-1));
@@ -614,3 +621,66 @@ bin_and_size_t bin_and_size_to_bin_and_size(binnumber_t bin, size_t size) {
     return 1+bin +          (ceil(size,chunksize)<<8);
   }
 }
+
+void _malloc_base_and_bound(const void *ptr, void **base, size_t *size) {
+  if (HAS_MALLOC_BASE_AND_BOUND) {
+    maybe_initialize_malloc();
+    if (ptr == NULL) {
+      *base = NULL;
+      *size = 0;
+      return;
+    }
+    chunknumber_t cn = address_2_chunknumber(ptr);
+    bin_and_size_t bnt = chunk_infos[cn].bin_and_size;
+    if (bnt == 0) {
+      *base = NULL;
+      *size = 0;
+      return;
+    }
+    binnumber_t bin = bin_from_bin_and_size(bnt);
+    if (bin < first_huge_bin_number) {
+      uint64_t wasted_offset =   static_bin_info[bin].overhead_pages_per_chunk * pagesize;
+      uint64_t useful_offset =   offset_in_chunk(ptr) - wasted_offset;
+      bassert(reinterpret_cast<uint64_t>(ptr) >= wasted_offset);
+      uint32_t       folio_num = divide_offset_by_foliosize(useful_offset, bin);
+      //per_folio            *pp = &sch->ll[folio_num];
+      uint32_t folio_size      = static_bin_info[bin].folio_size;
+      uint32_t offset_in_folio = useful_offset - folio_num * folio_size;
+      uint64_t        objnum   = divide_offset_by_objsize(offset_in_folio, bin);
+      uint64_t        objsize  = static_bin_info[bin].object_size;
+      uint64_t start = cn*chunksize + wasted_offset + folio_num * static_bin_info[bin].folio_size + objnum * objsize;
+      //printf("value %p, bin_and_size=%d size=%lu start=%0lx folio_num = 0x%x, objnum=%ld\n", ptr, bnt, objsize, start, folio_num, objnum);
+      *size = objsize;
+      *base = reinterpret_cast<void*>(start);
+    } else {
+      abort();
+    }
+  }
+}
+
+#ifdef TESTING
+static void* test_malloc_bb_for_size(size_t s) {
+  char *p = (char*)malloc(s);
+  // Check all the offsets from 0 to s (inclusive) to see if we get the right base and bound.
+  for (size_t i = 0; i <= s; i++) {
+    void *pb;
+    size_t ps;
+    _malloc_base_and_bound(p+i, &pb, &ps);
+    //printf("b=%p s=%ld\n", pb, ps);
+    char *pc = (char*)pb;
+    bassert(pc != NULL);
+    bassert(pc <= p);
+    bassert(pc + ps >= p + s);
+  }
+  return p;
+}
+
+void test_malloc_base_and_bound() {
+  if (HAS_MALLOC_BASE_AND_BOUND) {
+    void *a  = test_malloc_bb_for_size(8);
+    void *b  = test_malloc_bb_for_size(8);
+    free(a);
+    free(b);
+  }
+}
+#endif

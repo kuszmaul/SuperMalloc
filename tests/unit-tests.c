@@ -35,5 +35,7 @@ int main(int argc __attribute__((unused)), const char *argv[] __attribute__((unu
 
   test_futex();
 
+  test_malloc_base_and_bound();
+
   return 0;
 }
