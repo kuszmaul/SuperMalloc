@@ -1,0 +1,10 @@
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*_pdftex.pdf
+*_pdftex.tex
+pl-offsite-may-2015-talk.pdf
