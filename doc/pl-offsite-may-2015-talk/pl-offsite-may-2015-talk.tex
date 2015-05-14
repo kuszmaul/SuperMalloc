@@ -3,13 +3,18 @@
 \usepackage{geometry}
 \usepackage{minted}
 \usepackage{graphicx}
+\usepackage{codehilite}
+\usepackage{macros}
+
+
+\newcommand{\punt}[1]{}
 
 \begin{document}
 \title{SuperMalloc}
 \subtitle{A fast HTM-friendly memory allocator with a small footprint}
 
 \author{Bradley C. Kuszmaul}
-\date{PL/SE lunch Mar  3 2015}
+\date{CSAIL PL Offsite, May  15, 2015}
 \frame{\titlepage}
 
 \begin{frame}[fragile]
@@ -18,13 +23,13 @@
 void* malloc(size_t s);
 \end{minted}
 
-Effect: Allocate and return a pointer to a block of memory containing at least $s$ bytes.
+Effect: Allocate and return a pointer to a block of memory containing at least "s" bytes.
 
 \begin{minted}{c}
 void free(void *p);
 \end{minted}
 
-Effect: $p$ is a pointer to a block of memory returned by \mintinline{c}{malloc()}.  Deallocate the block.
+Effect: "p" is a pointer to a block of memory returned by "malloc()".  Deallocate the block.
 \end{frame}
 
 \begin{frame}[fragile]
@@ -35,15 +40,92 @@ void* memalign(size_t alignment, size_t s);
 \end{minted}
 
 
-Effect: Allocate and return a pointer to a block of memory containing at least $s$ bytes.  
-The returned pointer shall be a multiple of \mintinline{c}{alignment}.  That is,
+Effect: Allocate and return a pointer to a block of memory containing at least "s" bytes.  
+The returned pointer shall be a multiple of "alignment".  That is,
 \begin{center}
-\mintinline{c}{0 == (size_t)(memalign(a, s)) % a}
+"0 == (size_t)(memalign(a, s)) % a}"
 \end{center}
 
-Requires: \mintinline{c}{a} is a power of two.
+Requires: "a" is a power of two.
 \end{frame}
 
+\begin{frame}
+\frametitle{DLmalloc}
+
+Linux libc employs Doug Lea's malloc, which dates from 1987.
+
+\begin{itemize}
+\item DLmalloc suffers high space overhead (an 8-byte boundary tag on every object, and poor space reclamation).
+\item DLmalloc is slow (especially on multithreaded code, where it uses a monolithic lock).
+\end{itemize}
+
+To address these problems, allocators such as Hoard, TCmalloc, JEmalloc have appeared.
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Modern Allocators Employ Thread Caches}
+
+\begin{minted}[mathescape]{c}
+__thread LinkedList *cache[N_SIZE_CLASSES];
+
+void *alloc(size_t s) {
+  int size_class = size_2_class(s);
+  void *ret = cache[size_class];
+  if (ret != NULL) {
+    cache[size_class] = ret->next;
+    return ret;
+  }
+  ...
+\end{minted}
+
+A call to the allocator requires no locking if it can be satisfied by the cache .
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Thread Caches are Really Fast}
+
+\begin{minted}[mathescape]{c}
+while (1) {
+  free(malloc(8));
+}
+\end{minted}
+
+\begin{itemize}
+\item Used by ...\error
+\item No locks, so it's really fast.
+\item Must take a little care to avoid false cache-line sharing.
+\item What goes wrong?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{The Malloc-test Benchmark}
+
+\begin{itemize}
+\item Benchmark due to Lever, Boreham, and Eder.
+\textit{malloc() Performance in a Multithreaded Linux
+  Environment}, USENIX 2000.
+
+\item $k$ allocator threads, $k$ deallocator threads.
+
+\item Each allocator thread calls "malloc()" as fast as it can and hands the object to a deallocator thread, which calls "free()" as fast as it can.
+
+\item It's a tough (maybe the toughest) benchmark, because per-thread caches become unbalanced.
+
+\item The code is racy, and produces noisy data.  I sped it up by a factor of two, and de-noised it.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Hoard}
+
+
+
+\end{frame}
+\end{document}
+\punt{
 \begin{frame}
 \frametitle{Doug Lea's Goals For Malloc}
 
@@ -63,39 +145,8 @@ Requires: \mintinline{c}{a} is a power of two.
 \end{column}
 \end{columns}
 \end{frame}
+}
 
-\begin{frame}
-\frametitle{DLmalloc}
-
-Linux libc employs Doug Lea's malloc, which dates from 1987.
-
-\begin{itemize}
-\item is slow (especially on multithreaded code).
-\item has high space overhead.
-\end{itemize}
-
-To address these problems, allocators such as Hoard, TCmalloc, JEmalloc have appeared.
-
-\end{frame}
-
-\begin{frame}
-\frametitle{The Malloc-test Benchmark}
-
-\begin{itemize}
-\item Benchmark due to Lever, Boreham, and Eder.
-\textit{\mintinline{c}{malloc()} Performance in a Multithreaded Linux
-  Environment}, USENIX 2000.
-
-\item $k$ allocator threads, $k$ deallocator threads.
-
-\item Each allocator thread calls \mintinline{c}{malloc()} as fast as it can and hands the object to a deallocator thread, which calls \mintinline{c}{free()} as fast as it can.
-
-\item It's a tough benchmark, because per-thread caches don't work well.
-
-\item The code is racy, and produces noisy data.  I sped it up by a factor of two, and de-noised it.
-\end{itemize}
-
-\end{frame}
 
 \begin{frame}
 \frametitle{Malloc-test on Some Existing Allocators}
