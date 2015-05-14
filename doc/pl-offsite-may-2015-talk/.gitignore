@@ -1,4 +1,7 @@
 *.aux
+*.fdb_latexmk
+*.fls
+*.ipvrb
 *.log
 *.nav
 *.out
@@ -7,5 +10,7 @@
 *.vrb
 *_pdftex.pdf
 *_pdftex.tex
+new-malloc-test-1K-*-aggregated.pdf
+new-malloc-test-1K-*-aggregated.tex
 pl-offsite-may-2015-talk.pdf
-*.ipvrb
+

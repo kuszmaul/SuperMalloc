@@ -12,7 +12,7 @@
 #    	faq, bugs, etc:   type "help FAQ"
 #    	immediate help:   type "help"  (plot window: hit 'h')
 set terminal cairolatex pdf colortext transparent size 4.00in, 2.20in font 'ptm,bx' 
-set output 'new-malloc-test-1K-lutestring-aggregated.tex'
+set output 'new-malloc-test-1K-tempo-aggregated.tex'
 unset clip points
 set clip one
 unset clip two
@@ -97,10 +97,10 @@ set my2tics default
 set mcbtics default
 set xtics border out scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 #set xtics autofreq  norangelimit
-set xtics ("2" 1,"4" 2,"8" 4,"12" 6,"16" 8)
+set xtics ("2" 1,"16" 8,"32" 16,"48" 24,"64" 32)
 set ytics border out scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 #set ytics autofreq  norangelimit
-set ytics ("\\footnotesize 0" 0, "\\footnotesize$50$M" 50e6, "\\footnotesize $94$M" 94e6)
+set ytics ("\\footnotesize 0" 0, "\\footnotesize$50$M" 50e6, "\\footnotesize$100$M" 100e6, "\\footnotesize $132$M" 132e6)
 set ztics border in scale 1,0.5 nomirror norotate  offset character 0, 0, 0 autojustify
 set ztics autofreq  norangelimit
 set nox2tics
@@ -123,13 +123,13 @@ set xlabel "{\\small Threads}"
 set xlabel  offset character 0, 0, 0 font "" textcolor lt -1 norotate
 set x2label "" 
 set x2label  offset character 0, 0, 0 font "" textcolor lt -1 norotate
-set xrange [ 0.75 : 8.1 ] noreverse nowriteback
+set xrange [ 0 : 32.4 ] noreverse nowriteback
 set x2range [ * : * ] noreverse nowriteback
 set ylabel "{\\small \\texttt{malloc()}'s per second}" 
 set ylabel  offset character 2, 0, 0 font "" textcolor lt -1 rotate by -270
 set y2label "" 
 set y2label  offset character 0, 0, 0 font "" textcolor lt -1 rotate by -270
-set yrange [ 0 : 100e6 ] noreverse nowriteback
+set yrange [ 0 : 134e6 ] noreverse nowriteback
 set y2range [ * : * ] noreverse nowriteback
 set zlabel "" 
 set zlabel  offset character 0, 0, 0 font "" textcolor lt -1 norotate
@@ -157,26 +157,20 @@ set psdir
 set fit noerrorvariables
 GNUTERM = "wxt"
 set style line 2 lt 1 lc rgb "#006400" lw 1 pt 0
-set style line 3 lt 1 lc rgb "#0064A0" lw 1 pt 0
 set style line 6 lt 1 lc rgb "#A00000" lw 1 pt 0
 set style line 7 lt 2 lc rgb "#A000A0" lw 1 pt 0
 set style line 8 lt 3 lc rgb "#0000A0" lw 1 pt 0
 set style line 9 lt 4 lc rgb "#00A0A0" lw 1 pt 0
-set label 2 "\\footnotesize SuperMalloc with prefetching"      at 5,1e8    right textcolor rgb "#006400"
-set arrow 102 from 3,0.9e8 to 4,82637654   heads size screen 1 ls 2
-set label 3 "\\footnotesize SuperMalloc no prefetch"   at 5,1e8 offset character -2,-3  left textcolor rgb "#0064A0"
-set arrow 103 from 6,0.8e8 to 7,89000129 heads size screen 1 ls 3
-set label 6 "\\footnotesize DLmalloc"         at 4,9e6      right textcolor rgb "#A00000"
-set label 7 "\\footnotesize Hoard"            at 7.75,4.2e7     offset character 0,0.5 right textcolor rgb "#A000A0"
-set arrow 107 from 7.5,4.2e7 to 8,18670411 heads size screen 1 ls 7
-set label 8 "\\footnotesize JEmalloc"         at 5   ,4.2e7     offset character 0,0.5 center textcolor rgb "#0000A0"
-set arrow 108 from 5,  4.2e7 to 6,24131898 heads size screen 1 ls 8
-set label 9 "\\footnotesize TBBmalloc"        at 4,4e7       right textcolor rgb "#00A0A0"
-plot "new-malloc-test-1K-lutestring-aggregated.data" using 1:17:18:19 with errorbars title "dlmalloc" ls 6,  "new-malloc-test-1K-lutestring-aggregated.data" using 1:17 with lines notitle ls 6,\
-     "new-malloc-test-1K-lutestring-aggregated.data" using 1:20:21:22 with errorbars title "hoard"    ls 7,  "new-malloc-test-1K-lutestring-aggregated.data" using 1:20 with lines notitle ls 7,\
-     "new-malloc-test-1K-lutestring-aggregated.data" using 1:23:24:25 with errorbars title "jemalloc" ls 8, "new-malloc-test-1K-lutestring-aggregated.data" using 1:23 with lines notitle ls 8,\
-     "new-malloc-test-1K-lutestring-aggregated.data" using 1:26:27:28 with errorbars title "tbbmalloc" ls 9, "new-malloc-test-1K-lutestring-aggregated.data" using 1:26 with lines notitle ls 9, \
-     "new-malloc-test-1K-lutestring-aggregated.data" using 1:11:12:13 with errorbars title "supermalloc-noprefetch" ls 3, "new-malloc-test-1K-lutestring-aggregated.data" using 1:11 with lines notitle ls 3, \
-     "new-malloc-test-1K-lutestring-aggregated.data" using 1:29:30:31 with errorbars title "pthread" ls 2, "new-malloc-test-1K-lutestring-aggregated.data" using 1:29 with lines notitle ls 2
-#     "new-malloc-test-1K-lutestring-aggregated.data" using 1:5:6:7 with errorbars title "supermalloc" ls 2, "new-malloc-test-1K-lutestring-aggregated.data" using 1:5 with lines notitle ls 2, \
+set label 4 "\\footnotesize SuperMalloc"      at 15,1.2e8    right textcolor rgb "#006400"
+set label 6 "\\footnotesize DLmalloc"         at 18,6e6      right textcolor rgb "#A00000"
+set label 7 "\\footnotesize Hoard"            at 32,5e7      offset character 0,0.5 right textcolor rgb "#A000A0"
+set arrow 107 from 28,5e7 to 32,17156632 heads size screen 1 ls 7
+set label 8 "\\footnotesize JEmalloc"         at 20,5e7      offset character 0,0.5 center textcolor rgb "#0000A0"
+set arrow 108 from 20,5e7 to 23,31938839 heads size screen 1 ls 8
+set label 9 "\\footnotesize TBBmalloc"        at 15,4.5e7 right textcolor rgb "#00A0A0"
+plot "new-malloc-test-1K-tempo-aggregated.data" using 1:2:3:4 with errorbars title "dlmalloc" ls 6,  "new-malloc-test-1K-tempo-aggregated.data" using 1:2 with lines notitle ls 6,\
+     "new-malloc-test-1K-tempo-aggregated.data" using 1:5:6:7 with errorbars title "hoard"    ls 7,  "new-malloc-test-1K-tempo-aggregated.data" using 1:5 with lines notitle ls 7,\
+     "new-malloc-test-1K-tempo-aggregated.data" using 1:8:9:10 with errorbars title "jemalloc" ls 8, "new-malloc-test-1K-tempo-aggregated.data" using 1:8 with lines notitle ls 8,\
+     "new-malloc-test-1K-tempo-aggregated.data" using 1:11:12:13 with errorbars title "tbbmalloc" ls 9, "new-malloc-test-1K-tempo-aggregated.data" using 1:11 with lines notitle ls 9,\
+     "new-malloc-test-1K-tempo-aggregated.data" using 1:14:15:16 with errorbars title "supermalloc" ls 2, "new-malloc-test-1K-tempo-aggregated.data" using 1:14 with lines notitle ls 2
 #    EOF

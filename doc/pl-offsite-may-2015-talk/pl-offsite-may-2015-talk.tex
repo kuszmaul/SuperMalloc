@@ -132,9 +132,58 @@ with thread caches.
 \end{frame}
 
 \begin{frame}
-\frametitle{Malloc-tst on a 4-core Haswell}
+\frametitle{Malloc-test on a 4-core Haswell (with Hyperthreading)}
 
 \input{new-malloc-test-1K-lutestring-aggregated}
+\end{frame}
+\begin{frame}
+\frametitle{Malloc-test on a 16-core Haswell (with Hyperthreading)}
+
+\input{new-malloc-test-1K-tempo-aggregated}
+\end{frame}
+
+\begin{frame}
+\frametitle{SuperMalloc Strategies}
+
+\begin{itemize}
+\item Can waste some virtual space: it's $2^{48}$ bytes.
+\item Don't waste RSS ($2^{40}$ bytes on big machines).
+\item Contention costs dearly, not locking.  Use a per-CPU cache.
+\item Make per-CPU cache smaller than L3 cache, since the application
+  has cache misses anyway.
+\item Thread cache should be just big enough to reduce locking overhead.  (About 10 objects.)
+\item Use Hardware transactional memory (HTM).
+\item HTM likes simple data structures.  Use a big array instead of a red-black tree.
+\item Object sizes should be a prime number of cache lines to avoid associativity conflicts.
+\end{itemize}
+
+I'll talk briefly about locking.
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Costs of Locking vs. Cache Contention}
+
+I measured the cost of updating a variable in a multithreaded code.
+
+\begin{tabular}{rr}
+                                                  global variable &    193.6ns \\
+            per cpu (always call "sched_getcpu()"  &     30.2ns \\
+per cpu (cache getcpu, refresh/32) &     17.0ns \\
+                                                      per thread &      3.1ns \\
+                                                  local in stack &      3.1ns \\
+\end{tabular}
+
+How to use this:  Make a per-thrad cache that's just big enough to amortize the locking instruction, and then use a per-CPU cache.
+\end{frame}
+
+\begin{frame}
+\frametitle{SuperMalloc is Available}
+
+From {\small \url{https://github.mit.edu/SuperTech/SuperMalloc}},
+
+or downstream at {\small \url{https://github.com/kuszmaul/SuperMalloc}}.
+
+Dual licensed under MIT Expat and GPLv3.
 \end{frame}
 
 \end{document}
@@ -376,20 +425,6 @@ which tends to empty out pages.
 \end{frame}
 
 
-
-\begin{frame}
-\frametitle{Costs of Locking vs. Cache Contention}
-
-I measured the cost of updating a variable in a multithreaded code.
-
-\begin{tabular}{rr}
-                                                  global variable &    193.6ns \\
-            per cpu (always call \mintinline{c}{sched_getcpu()})  &     30.2ns \\
-per cpu (cache getcpu, refresh/32) &     17.0ns \\
-                                                      per thread &      3.1ns \\
-                                                  local in stack &      3.1ns \\
-\end{tabular}
-\end{frame}
 
 %% \begin{frame}
 %% \frametitle{Supermalloc Strategies}
