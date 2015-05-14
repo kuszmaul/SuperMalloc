@@ -2,8 +2,10 @@ FIGS = x86-addresses small-number-heap associativity-conflicts
 FIG_PDFS = $(patsubst %,%_pdftex.pdf,$(FIGS))
 FIG_TEXS = $(patsubst %,%_pdftex.tex,$(FIGS))
 DIR = $(notdir $(shell pwd))
-$(DIR).pdf: $(DIR).tex  $(FIG_PDFS) $(FIG_TEXS) new-malloc-test-1K-aggregated.pdf
-	pdflatex -shell-escape $(DIR)
+$(DIR).pdf: $(DIR).tex  FORCE
+	latexmk -pdflatex="pdflatex --shell-escape" -pdf -bibtex $<
+.PHONY: FORCE
+FORCE:
 
 FIG_MAG_small-number-heap = -m 0.8
 FIG_MAG_x86-addresses = -m 0.6

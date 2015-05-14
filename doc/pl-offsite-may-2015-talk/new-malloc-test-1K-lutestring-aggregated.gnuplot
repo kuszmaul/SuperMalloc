@@ -126,7 +126,7 @@ set x2label  offset character 0, 0, 0 font "" textcolor lt -1 norotate
 set xrange [ 0.75 : 8.1 ] noreverse nowriteback
 set x2range [ * : * ] noreverse nowriteback
 set ylabel "{\\small \\texttt{malloc()}'s per second}" 
-set ylabel  offset character 1, 0, 0 font "" textcolor lt -1 rotate by -270
+set ylabel  offset character 2, 0, 0 font "" textcolor lt -1 rotate by -270
 set y2label "" 
 set y2label  offset character 0, 0, 0 font "" textcolor lt -1 rotate by -270
 set yrange [ 0 : 100e6 ] noreverse nowriteback

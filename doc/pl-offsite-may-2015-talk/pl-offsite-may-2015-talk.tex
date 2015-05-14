@@ -92,7 +92,7 @@ while (1) {
 \end{minted}
 
 \begin{itemize}
-\item Used by ...\error
+\item Used by the original Cilk allocator [BlumofeLe94], the early STL allocator [SGI97], PTmalloc [Gloger06], LKmalloc[LarsonKr98], and TCmalloc [Google13].
 \item No locks, so it's really fast.
 \item Must take a little care to avoid false cache-line sharing.
 \item What goes wrong?
@@ -119,11 +119,24 @@ while (1) {
 \end{frame}
 
 \begin{frame}[fragile]
-\frametitle{Hoard}
+\frametitle{Allocators that Also Focused on Space}
 
+\begin{itemize}
+\item Hoard [BergerMcBl00] Provided the first space bound for allocators
+with thread caches.
+\item TBBMalloc [KukanovVo07] adopted a later Cilk allocator (but still has a footprint problem sometimes).
+\item JEmalloc [Evans06] seems to be the best incumbent.
+\end{itemize}
 
 
 \end{frame}
+
+\begin{frame}
+\frametitle{Malloc-tst on a 4-core Haswell}
+
+\input{new-malloc-test-1K-lutestring-aggregated}
+\end{frame}
+
 \end{document}
 \punt{
 \begin{frame}
@@ -150,7 +163,7 @@ while (1) {
 
 \begin{frame}
 \frametitle{Malloc-test on Some Existing Allocators}
-\hspace*{-.7cm}\includegraphics{new-malloc-test-1K-aggregated-oldallocators.pdf}
+\hspace*{-.7cm}\includegraphics{new-malloc-test-1K-aggregated-oldallocators.pdfn}
 \end{frame}
 
 \begin{frame}
