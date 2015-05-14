@@ -1,0 +1,423 @@
+@InProceedings{AfekDiMo11
+ ,author       = {Yehuda Afek and Dave Dice and Adam Morrison}
+ ,title	       = {Cache Index-Aware Memory Allocation}
+ ,crossref     = {ISMM11}
+ ,doi          = {10.1145/2076022.1993486}
+ ,pages	       = {55-64}
+ }
+
+@Misc{AlexandrescuBe05
+ ,author       = {Andrei Alexandrescu and Emery Berger}
+ ,title	       = {Policy-Based Memory Allocation}
+ ,howpublished = {Dr.~Dobb's}
+ ,year	       = 2005
+ ,month	       = DEC # {~1} 
+ ,url          = {http://www.drdobbs.com/184402039}
+ ,note         = {Viewed } # APR # { 27, 2015}
+ }
+
+@Misc{Aziz14
+ ,author       = {Khalid Aziz}
+ ,title	       = {Pre-emption Control for Userspace}
+ ,url          = {http://lkml.iu.edu/hypermail/linux/kernel/1403.0/00780.html}
+ ,year	       = 2014
+ ,month	       = MAR # {~3}
+ ,note         = {Viewed } # APR # { 27, 2015}
+ }
+
+@InProceedings{BergerMcBl00,
+  author    = {Emery D. Berger and Kathryn S. McKinley and Robert D. 
+               Blumofe and Paul R. Wilson},
+  title     = {Hoard: A Scalable Memory Allocator for Multithreaded Applications}, 
+  shortbooktitle = {ASPLOS},
+  booktitle = {Proceedings of the 19th International Conference on
+               Architectural Support for Programming Languages and 
+               Operating Systems (ASPLOS)}, 
+  month     = nov,
+  year      = 2000,
+  address   = {Cambridge, MA},
+  pages     = {117--128} ,
+  longurl   = {http://www.cs.umass.edu/~emery/pubs/berger-asplos2000.pdf},
+  doi       = {10.1145/378993.379232}    
+}
+
+@article{BlumofeLe95a,
+	Author = {Robert D. Blumofe and Charles E. Leiserson},
+	Journal = {SIAM Journal on Computing},
+	Title = {Space-Efficient Scheduling of Multithreaded Computations}}
+
+@inproceedings{Evans06,
+	title={A Scalable Concurrent \texttt{malloc(3)} Implementation for {F}ree{BSD}},
+	author={Evans, Jason},
+	booktitle={BSDCan --- The Technical BSD Conference},
+        address = {Ottawa, Canada},
+        url = {http://people.freebsd.org/~jasone/jemalloc/bsdcan2006/jemalloc.pdf},
+	year=2006,
+        month = MAY}
+
+@inproceedings{BlumofeLe94,
+	Author = {Robert D. Blumofe and Charles E. Leiserson},
+	Booktitle = FOCS,
+	Day = {20--22},
+	Location = {Santa Fe, New Mexico},
+	Month = {November},
+	Pages = {356--368},
+	Title = {Scheduling Multithreaded Computations by Work Stealing},
+	Year = 1994,
+        doi = {10.1145/324133.324234}}
+
+@InProceedings{BoloskySc93
+ ,author       = {William J. Bolosky and Michael L. Scott}
+ ,title	       = {False Sharing and Its Effect on Shared Memory Performance}
+ ,booktitle    = {Proceedings of the USENIX Symposium on Experiences with Distributed and Multiprocessor Systems (SEDMS IV)}
+ ,year	       = 1993
+ ,pages	       = {57--71}
+ }
+
+@Misc{Corbet11
+ ,author       = {Jonathan Corbet}
+ ,title	       = {Transparent Huge Pages in 2.6.38}
+ ,url          = {http://lwn.net/Articles/423584/}
+ ,year	       = 2011
+ ,month	       = JAN # {~11}
+ ,note         = {Viewed } # APR # { 27, 2015}
+ }
+
+@Article{DetlefsDoZo94
+ ,author       = {David Detlefs and Al Dosser and Benjamin Zorn}
+ ,title	       = {Memory Allocation Costs in Large C and C++ Programs}
+ ,journal      = {Software Practice and Experience}
+ ,year	       = 1994
+ ,volume       = 24
+ ,number       = 6
+ ,month	       = JUN
+ ,pages	       = {527--542}
+ ,doi = {10.1002/spe.4380240602}
+ }
+
+@Misc{Dice11
+ ,author       = {David Dice}
+ ,title	       = {Inverted Schedctl Usage in the {JVM}}
+ ,howpublished = {David Dice's Weblog}
+ ,url          = {https://blogs.oracle.com/dave/entry/inverted_schedctl_usage_in_the}
+ ,year	       = 2011
+ ,month	       = JUN # {~11}
+ ,note         = {Viewed } # APR # { 27, 2015}
+ }
+
+@Misc{Dice14a
+ ,author       = {David Dice}
+ ,title	       = {\texttt{malloc} for {H}aswell --- Hardware Transactional Memory}
+ ,howpublished = {David Dice's Weblog}
+ ,url          = {https://blogs.oracle.com/dave/entry/malloc_for_haswell_hardware_transactional}
+ ,year	       = 2014
+ ,month	       = APR # {~24}
+ ,note         = {Viewed } # APR # { 27, 2015}
+ }
+
+@Misc{Dice14b
+ ,author       = {Dave Dice}
+ ,annote       = {Solaris 12 includes index-aware changes for most of their allocators}
+ ,howpublished = {Private Communication}
+ ,year	       = 2014
+ ,month	       = SEP # {~14}
+ }
+
+@InProceedings{DiceHaKo14
+ ,author       = {Dave Dice and Timothy L. Harris and Alex Kogan and Yossi Lev and Mark Moir}
+ ,title	       = {Pitfalls of Lazy Subscription}
+ ,booktitle    = {6th Workshop on the Theory of Transactional Memory (WTTM 2014)}
+ ,year	       = 2014
+ ,address      = {Paris, France}
+ ,month	       = JUL # {~14}
+ ,url          = {http://www.gsd.inesc-id.pt/~mcouceiro/wttm2014/html/abstracts/dice.pdf}
+ }
+
+@Misc{EderSc12
+ ,author       = {Christian Eder and Hans Schoenemann}
+ ,title	       = {XMALLOC}
+ ,url          = {https://github.com/ederc/xmalloc}
+ ,year	       = 2012
+ ,note	       = {Viewed } # NOV # { 13, 2014}
+ }
+
+@Misc{Evans12
+ ,author       = {Jason Evans}
+ ,title	       = {Behavior of \texttt{madvise(MADV\_FREE)}}
+ ,year	       = 2012
+ ,month	       = OCT # {~12}
+ ,url          = {http://lists.freebsd.org/pipermail/freebsd-arch/2012-October/013287.html}
+ ,note         = {Viewed } # APR # { 27, 2015}
+}
+
+@Misc{Evans15-personal-communication
+ ,author       = {Jason Evans}
+ ,title	       = {Personal Communication}
+ ,year	       = 2015
+ ,month	       = MAR
+ }
+
+@InProceedings{FengBe05
+ ,author       = {Yi Feng and Emery D. Berger}
+ ,title	       = {A Locality-Improving Dynamic Memory Allocator}
+ ,booktitle    = {Proceedings of the 2005 Workshiop on Memory Systems Perforamnce (MSP)}
+ ,longurl      = {https://people.cs.umass.edu/~emery/pubs/p33-feng.pdf}
+ ,doi          = {10.1145/1111583.1111594}
+ ,year	       = 2005
+ ,address      = {Chicago, IL}
+ ,month	       = JUN
+ ,pages	       = {68--77}
+ }
+
+@Misc{Gloger06
+ ,author       = {Wolfram Gloger}
+ ,title	       = {Wolfram Gloger's \texttt{malloc} Homepage}
+ ,url          = {www.malloc.de/en/}
+ ,year	       = 2006
+ ,month	       = MAY
+ ,note         = {Viewed } # NOV # {~9, 2014}
+ }
+
+@misc{GCC14,
+	Howpublished = {\url{http://gcc.gnu.org}},
+	Author = {{Free Software Foundation}},
+	Note = {Viewed } # NOV # { 2, 2014},
+	Title = {{GCC}, the {GNU} Compiler Collection},
+	Year = 2014}
+
+@InProceedings{HertzFeBe05
+ ,author       = {Matthew Hertz and Yi Feng and Emery D. Berger}
+ ,title	       = {Garbage Collection Without Paging}
+ ,crossref     = {PLDI05}
+ ,pages	       = {143--153}
+ ,doi          = {10.1145/1065010.1065028}
+ }
+
+@InProceedings{HudsonSaAd06
+ ,author       = {Richard L. Hudson and Bratin Saha and Ali-Reza Adl-Tabatabai and Benjamin C. Hertzberg}
+ ,title	       = {{M}c{RT}-Malloc --- A Scalable Transactional Memory Allocator}
+ ,crossref     = {ISMM06}
+ ,doi          = {10.1145/1133956.1133967}
+ ,year	       = 2006
+ ,pages	       = {74--83}
+ }
+
+@Misc{Intel13
+ ,key = {Intel}
+ ,title	       = {{I}ntel 64 and {IA}-32 Architectures Software Developer's Manual --- Combined Volumes: 1, 2A, 2B, 2C, 3A, 3B and 3C}
+ ,howpublished = {\url{https://www-ssl.intel.com/content/dam/www/public/us/en/documents/manuals/64-ia-32-architectures-software-developer-manual-325462.pdf}}
+ ,year	       = 2013
+ ,month	       = JUN
+ }
+
+@Misc{ISOIEC11
+ ,author       = {ISO/IEC}
+ ,title	       = {Information Technology -- Programming languages -- C}
+ ,howpublished = {Standard 9899:2011}
+ ,year	       = 2011
+ ,month	       = DEC # {~8}
+ }
+
+@book{KernighanRi88,
+	Author = {Brian W. Kernighan and Dennis M. Ritchie},
+	Edition = {second},
+	Publisher = {Prentice Hall, Inc.},
+	Title = {The C Programming Language},
+	Year = {1988}}
+
+@book{Knuth73,
+	Address = {Reading, MA},
+	Author = {Donald E. Knuth},
+	Chapter = 2,
+	Edition = {2nd},
+	Pages = {435--451},
+	Publisher = {Addison Wesley},
+	Title = {The Art of Computer Programming},
+	Volume = 1,
+	Year = 1973}
+
+@InProceedings{KornVo85
+ ,author       = {David G. Korn and Kiem-Phong Vo}
+ ,title	       = {In Search of a Better Malloc}
+ ,booktitle    = {Proceedings of the Summer '85 USENIX Conference}
+ ,year	       = 1985
+ ,pages	       = {489--506}
+ ,annote       = {Apparently the origin of "Wilderness area" for allocators.  Cited by Vo's Concrete Libraries in the DIMACS Workshop on External Memory, Abellow and Vitter eds.} 
+ }
+
+@Article{KukanovVo07
+ ,author       = {Alexey Kukanov and Michael J. Voss}
+ ,title	       = {The Foundations for Scalable Multi-core Software in {I}ntel {T}hreading {B}uilding {B}locks}
+ ,journal      = {Intel Technology Journal}
+ ,year	       = 2007
+ ,volume       = 11
+ ,number       = 4
+ ,month	       = {Q4}
+ ,pages	       = {309--322}
+ ,url      = {http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.71.8289&rep=rep1&type=pdf}
+ }
+
+@inproceedings{LarsonKr98,
+	Address = {Vancouver, Canada},
+	Author = {Larson, Per-{\r{A}}ke and Murali Krishnan},
+	Booktitle = {Proceedings of the International Symposium on Memory Management (ISMM'98)},
+	Month = oct,
+	Pages = {176--185},
+	Title = {Memory Allocation for Long-Running Server Applications},
+	Year = 1998,
+        doi = {10.1145/286860.286880}
+}
+
+@misc{Lea96,
+	Author = {Doug Lea},
+	URL = {http://g.oswego.edu/dl/html/malloc},
+	Title = {A Memory Allocator},
+        year = 1996,
+        note = {Viewed } # NOV # {~3, 2014}}
+
+@InProceedings{LeverBo00
+ ,author       = {Chuck Lever and David Boreham}
+ ,title	       = {\texttt{malloc()} Performance in a Multithreaded {L}inux Environment}
+ ,booktitle    = {Proceedings of FREENIX Track: USENIX Annual Technical Conference}
+ ,address      = {San Diego, CA}
+ ,year	       = 2000
+ ,month        = JUN
+ ,url          = {https://www.usenix.org/legacy/events/usenix2000/freenix/full_papers/lever/lever.pdf}
+ }
+
+@InProceedings{LvinNoBe08
+ ,author       = {Vitaliy B. Lvin and Gene Novark and Emery D. Berger and Benjamin G. Zorn}
+ ,title	       = {Archipelago: Trading Address Space for Reliability and Security}
+ ,crossref     = {ASPLOS08}
+ ,pages	       = {115-124}
+ ,doi          = {10.1145/1346281.1346296}
+ }
+
+@InProceedings{MagenheimerPePe87
+ ,author       = {Daniel J. Magenheimer and Liz Peters and Karl Pettis and Dan Zuras}
+ ,title	       = {Integer multiplication and division on the HP precision architecture}
+ ,doi          = {10.1145/36206.36189}
+ ,crossref     = {ASPLOS87}
+ ,pages	       = {90--99}
+ }
+
+@misc{MatzHuJa07,
+	Author = {Michael Matz and Jan Hubi\v{c}ka and Andreas Jaeger and Mark Mitchell},
+	url = {www.x86-64.org/documentation/abi.pdf},
+	Month = may,
+	Title = {{S}ystem {V} {A}pplication {B}inary {I}nterface {AMD64} Architecture Processor Supplement Draft Version 0.99},
+	Year = 2009}
+
+@InProceedings{Michael04
+ ,author       = {Maged M. Michael}
+ ,title	       = {Scalable Lock-Free Dynamic Memory Allocation}
+ ,booktitle    = {Proceedings of the ACM SIGPLAN 2004 Conference on Programming Language Design and Implementation (PLDI)}
+ ,longurl          = {http://www.research.ibm.com/people/m/michael/pldi-2004.pdf}
+ ,doi          = {10.1145/996893.996848}
+ ,year	       = 2004
+ ,address      = {Washington, DC}
+ ,month	       = JUN
+ ,pages	       = {35--46}
+ }
+
+@Misc{Oboguev14a,
+ author	       = {Sergey Oboguev},
+ title	       = {The Deferred Set Priority Facility for {L}inux},
+ url           = {https://raw.githubusercontent.com/oboguev/dprio/master/dprio.txt},
+ year	       = 2014,
+ month	       = JUL,
+ note          = {Viewed } # APR # { 27, 2015}
+}
+
+
+@Misc{Oboguev14b
+ ,author       = {Sergey Oboguev}
+ ,title	       = {Sched: deferred set priority (dprio)}
+ ,url          = {http://lists.openwall.net/linux-kernel/2014/07/28/41}
+ ,year	       = 2014
+ ,month	       = JUL
+ ,note          = {Viewed } # APR # { 27, 2015}
+ }
+
+@Manual{SGI97
+ ,title	       = {Standard Template Library Programmers Guide -- Allocators section}
+ ,organization = {SGI}
+ ,year	       = 1997
+ ,month	       = FEB
+ ,note	       = {Archived as \url{https://web.archive.org/web/20010221202030/http://www.sgi.com/tech/stl/Allocators.html}.  Viewed } # NOV # {~10, 2014}}
+
+@Misc{Schanda04
+ ,author       = {Florian Schanda}
+ ,title	       = {Bug 206 - malloc Does Not Align Memory Correctly for SSE Capable Systems}
+ ,howpublished = {\url{https://sourceware.org/bugzilla/show_bug.cgi?id=206}}
+ ,year	       = 2004
+ ,month	       = JUN
+ ,note          = {Viewed } # APR # { 27, 2015}
+ }
+
+@InProceedings{SchneiderAnNi06
+ ,author       = {Scott Schneider and Christos D. Antonopoulos and Dimitrios S. Nikolopoulos}
+ ,title	       = {Scalable Locality-Conscious Multithreaded Memory Allocation}
+ ,crossref     = {ISMM06}
+ ,longurl      = {http://people.cs.vt.edu/~scschnei/papers/ismm06.pdf}
+ ,pages	       = {84--94}
+ ,doi          = {10.1145/1133956.1133968}
+ }
+
+@Misc{Vyukov08
+ ,author       = {Dmitry Vyukov}
+ ,title	       = {Possible Problem in Scalable Allocator}
+ ,url          = {https://software.intel.com/en-us/forums/topic/299796}
+ ,year	       = 2008
+ ,month	       = NOV
+ ,note         = {Viewed } # NOV # {~3, 2014}
+ ,annote       = {TBB can have unbounded space blowup.}
+ }
+
+@InProceedings{YangBeKa06
+ ,author       = {Ting Yang and Emery D. Berger and Scott F. Kaplan and J. Eliot B. Moss}
+ ,title	       = {{CRAMM}: Virtual Memory Support for Garbage-Collected Applications}
+ ,crossref     = {OSDI06}
+ ,pages	       = {103--116}
+ ,url          = {https://people.cs.umass.edu/~emery/pubs/06-25.pdf}
+ }
+
+@conference{ASPLOS87,
+	Address = {Palo Alto, California},
+	Booktitle = {Proceedings of the 2nd International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS-II)},
+	Month = OCT # {~5--8},
+	Year = 1987}
+
+@conference{ASPLOS08,
+	Address = {Seattle, WA},
+	Booktitle = {Proceedings of the 13th International Conference on Architectural Support for Programming Languages and Operating Systems (ASPLOS-XIII)},
+	Month = MAR # {~1--5},
+	Year = 2008}
+
+@conference{ISMM06,
+	booktitle    = {Proceedings of the 5th International Symposium on Memory Managment (ISMM)},
+	year	     = 2006,
+	address     = {Ottawa, Canada},
+ 	month	       = JUN
+}
+
+@conference{ISMM11,
+	booktitle    = {Proceedings International Symposium on Memory Managment (ISMM)},
+	year	     = 2011,
+	address      = {San Jose, California},
+ 	month	     = JUN
+}
+
+@Proceedings{OSDI06
+ ,year	       = 2006
+ ,booktitle    = {Proceedings of the 7th symposium on Operating systems design and implementation}
+ ,address      = {Seattle, WA}
+ ,month	       = NOV # {~6--8}
+ }
+
+@Proceedings{PLDI05
+ ,booktitle    = {ACM SIGPLAN 2005 Conference on Programming Language Design and Implementation (PLDI)}
+ ,year	       = 2005
+ ,address      = {Chicago, IL}
+ ,month	       = JUN # {~11--15}
+ }
