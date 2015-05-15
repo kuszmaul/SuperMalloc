@@ -1,0 +1,30 @@
+SuperMalloc is an implementation of \texttt{malloc(3)} originally
+designed for X86 Hardware Transactional Memory (HTM)\@.  It turns out
+that the same design decisions also make it fast even without HTM\@.
+For the malloc-test benchmark, which is one of the most difficult
+workloads for an allocator, with one thread SuperMalloc is about 2.1
+times faster than the best of DLmalloc, JEmalloc, Hoard, and
+TBBmalloc; with 8 threads and HTM, SuperMalloc is 2.75 times faster;
+and on 32 threads without HTM SuperMalloc is 3.4 times faster.
+SuperMalloc generally compares favorably with the other allocators on
+speed, scalability, speed variance, memory footprint, and code size.
+
+SuperMalloc achieves these performance advantages using less than half
+as much code as the alternatives.  SuperMalloc exploits the fact that
+although physical memory is always precious, virtual address space on
+a 64-bit machine is relatively cheap.  It allocates
+\unit{2}\mebi\byte{} chunks which contain objects all the same size.
+To translate chunk numbers to chunk metadata, SuperMalloc uses a
+simple array (most of which is uncommitted to physical memory).
+SuperMalloc takes care to avoid associativity conflicts in the cache:
+most of the size classes are a prime number of cache lines, and
+nonaligned huge accesses are randomly aligned within a page.  Objects
+are allocated from the fullest non-full page in the appropriate size
+class.  For each size class, SuperMalloc employs a 10-object
+per-thread cache, a per-CPU cache that holds about a level-2-cache
+worth of objects per size class, and a global cache that is organized
+to allow the movement of many objects between a per-CPU cache and the
+global cache using $O(1)$ instructions.  SuperMalloc prefetches
+everything it can before starting a critical section, which makes the
+critical sections run fast, and for HTM improves the odds that the
+transaction will commit.
