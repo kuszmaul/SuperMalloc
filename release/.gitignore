@@ -5,9 +5,12 @@ bradley-malloc-test-hoard
 bradley-malloc-test-jemalloc
 bradley-malloc-test-libc
 bradley-malloc-test-tbbmalloc
+bradley-malloc-test-tcmalloc
+cache-index
 calloc
 generated_constants.cc
 generated_constants.h
+madvise-mall
 malloc-test-fixed-work
 malloc-test-fixed-work-dlmalloc
 malloc-test-fixed-work-hoard
@@ -22,6 +25,8 @@ new-malloc-test-libc
 new-malloc-test-supermalloc_pthread
 new-malloc-test-tbbmalloc
 posix_memalign
+t-test1
+t-test1-supermalloc
 test-malloc_test
 test-malloc_test-dlmalloc
 test-malloc_test-hoard
