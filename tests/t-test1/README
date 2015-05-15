@@ -1,0 +1,7 @@
+This test came from https://github.com/emeryberger/Malloc-Implementations/tree/master/allocators/ptmalloc/ptmalloc3
+
+The tcmalloc web site
+(http://goog-perftools.sourceforge.net/doc/tcmalloc.html) claims great
+performance on this benchmark compared to other allocators.  It looks
+like supermalloc is substantially faster.
+
