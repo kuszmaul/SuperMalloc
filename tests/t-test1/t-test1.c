@@ -37,7 +37,7 @@ struct user_data {
 #define N_THREADS	2
 #endif
 #ifndef N_TOTAL_PRINT
-#define N_TOTAL_PRINT 50
+#define N_TOTAL_PRINT 500000
 #endif
 #ifndef MEMORY
 #define MEMORY		8000000l
@@ -76,7 +76,8 @@ bin_test(struct bin_info *p)
 void
 malloc_test(struct thread_st *st)
 {
-	int b, i, j, actions, pid = 1;
+    unsigned int b;
+	int i, j, actions, pid = 1;
 	struct bin_info p;
 	struct lran2_st ld; /* data for random number generator */
 
@@ -247,7 +248,7 @@ main(int argc, char *argv[])
 			n_thr = i;
 			break;
 		}
-		printf("Created thread %lx.\n", (long)st[i].id);
+		//printf("Created thread %lx.\n", (long)st[i].id);
 	}
 
 	/* Start an extra thread so we don't run out of stacks. */

@@ -105,7 +105,7 @@ bin_alloc(struct bin *m, unsigned long size, int r)
 #endif
 	} else if(r < 100 && m->size < REALLOC_MAX) { /* realloc */
 		if(m->size == 0) m->ptr = NULL;
-		m->ptr = realloc(m->ptr, size);
+		m->ptr = (unsigned char*)realloc(m->ptr, size);
 	} else { /* plain malloc */
 		if(m->size > 0) free(m->ptr);
 		m->ptr = (unsigned char *)malloc(size);
