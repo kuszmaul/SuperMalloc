@@ -428,6 +428,16 @@ extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
   }
 }
 
+extern "C" void* memalign(size_t alignment, size_t size) __THROW {
+  if (alignment & (alignment -1)) {
+    // alignment must be a power of two.
+    return NULL;
+  }
+  // Round size up to the next multiple of alignment
+  size = (size + alignment -1) & ~(alignment-1);
+  return aligned_malloc_internal(alignment, size);
+}
+
 extern "C" size_t malloc_usable_size(const void *ptr) {
   chunknumber_t cn = address_2_chunknumber(ptr);
   bin_and_size_t b_and_s = chunk_infos[cn].bin_and_size;
