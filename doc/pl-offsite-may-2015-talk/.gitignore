@@ -1,0 +1,15 @@
+*.aux
+*.fdb_latexmk
+*.fls
+*.ipvrb
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*_pdftex.pdf
+*_pdftex.tex
+new-malloc-test-1K-*-aggregated.pdf
+new-malloc-test-1K-*-aggregated.tex
+supermalloc-pl-offsite-2015.pdf

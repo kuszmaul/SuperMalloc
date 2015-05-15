@@ -10,7 +10,7 @@ cache-index
 calloc
 generated_constants.cc
 generated_constants.h
-madvise-mall
+madvise-small
 malloc-test-fixed-work
 malloc-test-fixed-work-dlmalloc
 malloc-test-fixed-work-hoard
