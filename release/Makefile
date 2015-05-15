@@ -210,3 +210,16 @@ tempo_build: $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)
 tempo_install:
 	rsync -av . tempo.csail.mit.edu:./supermalloc/release
 tempo_data: new-malloc-test-1K-tempo.data new-malloc-test-vK-tempo.data
+
+$(BLD)/t-test1: $(BLD)/../tests/t-test1/t-test1.c
+	$(CXX) $(CXXFLAGS) $< -o $@
+
+SUPERMALLOC_LIB_DIR = ../release/lib
+SUPERMALLOC_LDLIBS = -lsupermalloc -ldl
+SUPERMALLOC_LDFLAGS = -Wl,-rpath,$(SUPERMALLOC_LIB_DIR) -L$(SUPERMALLOC_LIB_DIR)
+NO_BUILTINS =  -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+$(BLD)/t-test1-supermalloc: $(BLD)/../tests/t-test1/t-test1.c $(BLD)/../tests/t-test1/t-test.h 
+	$(CXX) $(NO_BUILTINS) $(CXXFLAGS) $< $(SUPERMALLOC_LDFLAGS) $(SUPERMALLOC_LDLIBS)   -o $@ 
+
+# $(BLD)/t-test1: $(BLD)/../tests/t-test1/t-test1.c $(BLD)/../tests/t-test1/t-test.h 
+#	$(CXX) $(NO_BUILTINS) $(CXXFLAGS) $< $(TCMALLOC_FLAGS)   -o $@ 
