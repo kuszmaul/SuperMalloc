@@ -17,6 +17,9 @@ JEMALLOC_FLAGS = -L$(JEMALLOC_DIR) -ljemalloc -Wl,-rpath,$(JEMALLOC_DIR) -pthrea
 TBBMALLOC_DIR = /home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release
 TBBMALLOC_FLAGS = -L$(TBBMALLOC_DIR) -ltbbmalloc_proxy -ltbbmalloc -Wl,-rpath,$(TBBMALLOC_DIR) -pthread 
 
+TCMALLOC_DIR = /home/bradley/malloc-implementations/gperftools-2.4/.libs
+TCMALLOC_FLAGS = -L$(TCMALLOC_DIR) -ltcmalloc_minimal -Wl,-rpath,$(TCMALLOC_DIR) -pthread
+
 $(BLD)/test-malloc_test-dlmalloc: $(BLD)/test-malloc_test.o
 	$(CXX) $< $(DLMALLOC_FLAGS) -o $@
 $(BLD)/test-malloc_test-hoard:  $(BLD)/test-malloc_test.o
@@ -43,6 +46,8 @@ $(BLD)/new-malloc-test-jemalloc:  $(BLD)/new-malloc-test.o
 	$(CXX) $< $(JEMALLOC_FLAGS) -o $@
 $(BLD)/new-malloc-test-tbbmalloc: $(BLD)/new-malloc-test.o
 	$(CXX) $< $(TBBMALLOC_FLAGS) -o $@
+$(BLD)/new-malloc-test-tcmalloc: $(BLD)/new-malloc-test.o
+	$(CXX) $< $(TCMALLOC_FLAGS) -o $@
 
 $(BLD)/bradley-malloc-test-libc: $(BLD)/bradley-malloc-test.o
 	$(CXX) $< -pthread -o $@
@@ -54,31 +59,34 @@ $(BLD)/bradley-malloc-test-jemalloc: $(BLD)/bradley-malloc-test.o
 	$(CXX) $< $(JEMALLOC_FLAGS) -o $@
 $(BLD)/bradley-malloc-test-tbbmalloc: $(BLD)/bradley-malloc-test.o
 	$(CXX) $< $(TBBMALLOC_FLAGS) -o $@
+$(BLD)/bradley-malloc-test-tcmalloc: $(BLD)/bradley-malloc-test.o
+	$(CXX) $< $(TCMALLOC_FLAGS) -o $@
 
 $(BLD)/new-malloc-test-supermalloc_pthread: $(BLD)/new-malloc-test.o $(LIB)/libsupermalloc_pthread.so
 	$(CXX) $< -L$(LIB) -lsupermalloc_pthread -Wl,-rpath,$(LIB) -pthread -o $@
-
 
 
 TBBMALLOCNOTSX_DIR = /home/bradley/malloc-implementations/tbb_no_tsx/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release
 $(BLD)/new-malloc-test-tbbmallocnotsx: $(BLD)/new-malloc-test.o
 	$(CXX) $< -L$(TBBMALLOCNOTSX_DIR) -ltbbmalloc_proxy -ltbbmalloc -Wl,-rpath,$(TBBMALLOCNOTSX_DIR) -pthread -o $@
 
-timings-simple: $(BLD)/bradley-malloc-test $(BLD)/bradley-malloc-test-libc $(BLD)/bradley-malloc-test-dlmalloc $(BLD)/bradley-malloc-test-hoard $(BLD)/bradley-malloc-test-jemalloc $(BLD)/bradley-malloc-test-tbbmalloc
+timings-simple: $(BLD)/bradley-malloc-test $(BLD)/bradley-malloc-test-libc $(BLD)/bradley-malloc-test-dlmalloc $(BLD)/bradley-malloc-test-hoard $(BLD)/bradley-malloc-test-jemalloc $(BLD)/bradley-malloc-test-tbbmalloc $(BLD)/bradley-malloc-test-tcmalloc
 	/usr/bin/time ./bradley-malloc-test           -w 2
 	/usr/bin/time ./bradley-malloc-test-libc      -w 2
 	/usr/bin/time ./bradley-malloc-test-dlmalloc  -w 2
 	/usr/bin/time ./bradley-malloc-test-hoard     -w 2
 	/usr/bin/time ./bradley-malloc-test-jemalloc  -w 2
 	/usr/bin/time ./bradley-malloc-test-tbbmalloc -w 2
+	/usr/bin/time ./bradley-malloc-test-tcmalloc  -w 2
 
-timings-simple-old: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-libc $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-tbbmalloc
+timings-simple-old: $(BLD)/new-malloc-test $(BLD)/new-malloc-test-libc $(BLD)/new-malloc-test-dlmalloc $(BLD)/new-malloc-test-hoard $(BLD)/new-malloc-test-jemalloc $(BLD)/new-malloc-test-tbbmalloc $(BLD)/new-malloc-test-tcmalloc
 	/usr/bin/time -f "%U %S %E %M MAXRSS" ./new-malloc-test -w 2 -t 10
 	/usr/bin/time -f "%U %S %E %M MAXRSS" ./new-malloc-test-libc -w 2 -t 10
 	/usr/bin/time -f "%U %S %E %M MAXRSS" ./new-malloc-test-dlmalloc -w 2 -t 10
 	/usr/bin/time -f "%U %S %E %M MAXRSS" ./new-malloc-test-hoard -w 2 -t 10
 	/usr/bin/time -f "%U %S %E %M MAXRSS" ./new-malloc-test-jemalloc -w 2 -t 10
 	/usr/bin/time -f "%U %S %E %M MAXRSS" ./new-malloc-test-tbbmalloc -w 2 -t 10
+	/usr/bin/time -f "%U %S %E %M MAXRSS" ./new-malloc-test-tcmalloc -w 2 -t 10
 
 timings-fixed-work: $(BLD)/malloc-test-fixed-work $(BLD)/malloc-test-fixed-work-libc $(BLD)/malloc-test-fixed-work-dlmalloc $(BLD)/malloc-test-fixed-work-hoard $(BLD)/malloc-test-fixed-work-jemalloc $(BLD)/malloc-test-fixed-work-tbbmalloc
 	/usr/bin/time ./malloc-test-fixed-work           -w 2
