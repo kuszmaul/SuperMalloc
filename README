@@ -1,3 +1,33 @@
+To build for release
+
+ cd release
+ make
+ make check
+
+------
+
+You should also build and check with the internal testing code
+enabled.  It's a different library partly because of link-time
+optimization.  Also, if you want things easier to compile.  There are
+two differences, we enable the TESTING flag (which includes a bunch of
+code that can be compiled) and we set -O0.
+
+ cd debug
+ make check
+
+-------
+To run code coverage 
+ cd coverage
+ make check
+
+-------
+At top level you can do
+ make clean
+ make
+ make check
+
+-------
+
 Installing jemalloc-3.6.0
  cd jemalloc-3.6.0
  ./configure --prefix=/home/bradley/bmalloc/jemalloc
