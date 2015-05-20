@@ -2,8 +2,8 @@ FIGS = x86-addresses small-number-heap associativity-conflicts
 FIG_PDFS = $(patsubst %,%_pdftex.pdf,$(FIGS))
 FIG_TEXS = $(patsubst %,%_pdftex.tex,$(FIGS))
 DIR = $(notdir $(shell pwd))
-$(DIR).pdf: $(DIR).tex  FORCE
-	latexmk -pdflatex="pdflatex --shell-escape" -pdf -bibtex $<
+$(DIR).pdf: $(DIR).tex new-malloc-test-1K-lutestring-aggregated.tex  new-malloc-test-1K-tempo-aggregated.tex
+	pdflatex --shell-escape $<
 .PHONY: FORCE
 FORCE:
 
@@ -14,3 +14,5 @@ FIG_MAG_associativity-conflicts= -m 0.8
 	fig2dev -L pdftex $($(patsubst %.fig,FIG_MAG_%,$<)) $< $@
 %_pdftex.tex: %.fig
 	fig2dev -L pdftex_t -p $(patsubst %.fig,%_pdftex.pdf,$<) $($(patsubst %.fig,FIG_MAG_%,$<)) $< $@
+%.tex: %.gnuplot %.data
+	gnuplot $<
