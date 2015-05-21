@@ -55,8 +55,13 @@ The returned pointer shall be a multiple of "alignment".  That is,
 Requires: "a" is a power of two.
 \end{frame}
 
+\newcommand{\zerobox}[1]{\parbox[b][0in][b]{0in}{#1}}
+
 \begin{frame}
 \frametitle{DLmalloc}
+
+\hfill\zerobox{\includegraphics[width=1in]{pictures/doug_lea.png}}\hspace{1in}
+%\hfill\parbox[b][0in][b]{0in}{\includegraphics[width=1in]{pictures/doug_lea.png}}\hspace{1in}
 
 Linux libc employs Doug Lea's malloc, which dates from 1987.
 
@@ -98,7 +103,10 @@ while (1) {
 \end{minted}
 
 \begin{itemize}
-\item Used by the original Cilk allocator [BlumofeLe94], the early STL allocator [SGI97], PTmalloc [Gloger06], LKmalloc[LarsonKr98], and TCmalloc [Google13].
+\item Used by the original Cilk allocator \zerobox{\hspace*{-1in}{\raisebox{.5cm}{\includegraphics[height=1in]{pictures/blumofe.jpg} \includegraphics[height=1in]{pictures/cel.jpg}}}}
+[BlumofeLe94], the early STL allocator [SGI97], PTmalloc [Gloger06], LKmalloc[LarsonKr98], and TCmalloc [Google13].
+
+
 \item No locks, so it's really fast.
 \item Must take a little care to avoid false cache-line sharing.
 \item What goes wrong?
@@ -109,7 +117,7 @@ while (1) {
 \frametitle{The Malloc-test Benchmark}
 
 \begin{itemize}
-\item Benchmark due to Lever, Boreham, and Eder.
+\item Benchmark due to Lever and Boreham,
 \textit{malloc() Performance in a Multithreaded Linux
   Environment}, USENIX 2000.
 
@@ -129,12 +137,21 @@ while (1) {
 
 \begin{itemize}
 \item Hoard [BergerMcBl00] provided the first space bound for allocators
-with thread caches.
+with thread caches. 
 \item TBBMalloc [KukanovVo07] adopted a later Cilk allocator (but still has a footprint problem sometimes).
 \item JEmalloc [Evans06] seems to be the best incumbent.
 \end{itemize}
 
-
+{\tiny
+\begin{tabular}{c@{}c@{}c@{}c@{}c}
+\includegraphics[height=1in]{pictures/emery-berger-headshot.jpg}&
+\includegraphics[height=1in]{pictures/mckinley.jpg}&
+\includegraphics[height=1in]{pictures/kukanov.jpg}&
+\includegraphics[height=1in]{pictures/voss.jpg}&
+\includegraphics[height=1in]{pictures/evans-headshot.jpg}
+\\ Berger & McKinley & Kukanov & Voss & Evans 
+\end{tabular}
+}
 \end{frame}
 
 \begin{frame}
@@ -173,11 +190,20 @@ For example, DLmalloc employs 32 ``small'' bins of size 8, 16, 24, 32,
 \begin{frame}[fragile]
 \frametitle{DLmalloc Employs Boundary Tags}
 
-Before every object a 64-bit integer encoding "{size, in_use, prev_in_use}".
+A 64-bit integer encoding "{size, in_use, prev_in_use}" precedes each object.
 
-Also store "size" at the end of free objects.
+Also stores "size" at the end of free objects.
 
+\vspace*{-0.5cm}
 \begin{center}
+\begin{tabular}{@{}c@{}c}
+\begin{tabular}{c}
+\vspace*{0.5in} \\
+\includegraphics[width=1in]{pictures/knuth.jpg}  \\
+\tiny Boundary tags \\
+\tiny due to Knuth.
+\end{tabular}
+&
 \begin{tabular}{|l|l|}
 allocated                         & $\ldots$ user data $\ldots$ \\ \hline
 allocated                         & "{32, true, true}"          \\ \cline{2-2}
@@ -190,6 +216,7 @@ free                              & "{48, false, true}"         \\ \cline{2-2}
 allocated                         & "96, true, false"    \\ \cline{2-2}
 \multicolumn{1}{|r|}{(96 bytes)}  & $\ldots$ user data $\ldots$ \\ \hline
                 &                                   \\
+\end{tabular}
 \end{tabular}
 \end{center}
 \end{frame}
@@ -390,6 +417,9 @@ How to use this:  Make a per-thread cache that's just big enough to amortize the
 \url{https://blogs.oracle.com/dave/entry/malloc_for_haswell_hardware_transactional}
 
 \item In principle, odd-sized should be good enough.  Prime numbers avoid inter-bin associativity conflicts, however.
+
+\hfill\zerobox{\raisebox{-0.6in}{\includegraphics[height=1in]{pictures/dave_dice.jpg}}}\hspace*{1in}
+
 \end{itemize}
 
 \end{frame}
@@ -501,7 +531,9 @@ It turns out that for 32-bit values of "x",
 "x / 320 == (x*6871947674lu)>>41"
 \end{center}
 
-How to calculate these magic numbers? 
+[MagenheimerPePe87] shows how to calculate these magic numbers. 
+
+\hfill\zerobox{\raisebox{-0.6in}{\includegraphics[height=1in]{pictures/magenheimer.jpg}}}\hspace*{1in}
 \end{frame}
 
 \begin{frame}[fragile]
