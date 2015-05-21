@@ -1,5 +1,6 @@
 % are we philosophising too early?
 % are we philosophising at the end?
+%  add lessons at end
 \documentclass[xcolor=dvipsnames,14pt]{beamer}
 \beamertemplatenavigationsymbolsempty%Turn off the navbar
 \usepackage{geometry}
@@ -148,7 +149,7 @@ with thread caches.
 \end{frame}
 
 \begin{frame}
-\frametitle{How to Understand SuperMalloc}
+\frametitle{Explaining the Performance}
 
 \begin{itemize}
 \item How DLmalloc works.
@@ -169,24 +170,26 @@ For example, DLmalloc employs 32 ``small'' bins of size 8, 16, 24, 32,
 
 \end{frame}
 
-\begin{frame}
+\begin{frame}[fragile]
 \frametitle{DLmalloc Employs Boundary Tags}
 
-Put the size before every object and after every free object.  The
-tag also indicates whether the object and previous object are free or in use.
+Before every object a 64-bit integer encoding "{size, in_use, prev_in_use}".
+
+Also store "size" at the end of free objects.
 
 \begin{center}
-\begin{tabular}{l|l|}
-                                                    \hline
-an allocated chunk & size (this in use)                \\ \cline{2-2}
-                   & $\ldots$ user data $\ldots$ \\ \hline
-a free chunk       & size (this free, prev in use)     \\ \cline{2-2}
-                   & pointer to next chunk in bin \\ \cline{2-2}
-                   & pointer to prev chunk in bin \\ \cline{2-2}
-                   & $\ldots$ unused space $\ldots$ \\ \cline{2-2}
-                   & size                        \\ \hline
-an allocated chunk & size (this in use, prev free)    \\ \cline{2-2}
-                   & $\ldots$ user data $\ldots$ \\ \hline
+\begin{tabular}{|l|l|}
+allocated                         & $\ldots$ user data $\ldots$ \\ \hline
+allocated                         & "{32, true, true}"          \\ \cline{2-2}
+\multicolumn{1}{|r|}{(32 bytes)}  & $\ldots$ user data $\ldots$ \\ \hline
+free                              & "{48, false, true}"         \\ \cline{2-2}
+\multicolumn{1}{|r|}{(48 bytes)}  & "void* prev_in_bin;" \\ \cline{2-2}
+                                  & "void* next_in_bin;" \\ \cline{2-2}
+                                  & $\ldots$ unused space $\ldots$ \\ \cline{2-2}
+                                  & "48"                 \\ \hline
+allocated                         & "96, true, false"    \\ \cline{2-2}
+\multicolumn{1}{|r|}{(96 bytes)}  & $\ldots$ user data $\ldots$ \\ \hline
+                &                                   \\
 \end{tabular}
 \end{center}
 \end{frame}
@@ -209,11 +212,10 @@ SuperMalloc & 3,571 & 131M/s \\
 
 \begin{itemize}
 \item DLmalloc uses a monolithic lock.
-\item Hoard employs per-thread caches to reduce lock-acquisition frequency.
-\item JEmalloc uses many of the same tricks.
-\item Each thread has a cache of allocated objects.
-\item Each thread has an ``arena'' comprising chunks of each possible size.  When the thread cache is empty, allocate out of the arena, using a per-arena lock.
-\item Free an object back to its arena.
+\item Hoard employs per-thread caches to reduce lock-acquisition frequency, along with a provable space bound.
+\item JEmalloc uses many of the same tricks, provides a much weaker space bound in theory, but seems better in practice.
+\item Each thread keeps a cache of allocated objects.
+\item Each thread has an ``arena''.  When the thread cache is empty, allocate out of the arena, using a per-arena lock.
 \end{itemize}
 
 \end{frame}
@@ -222,33 +224,31 @@ SuperMalloc & 3,571 & 131M/s \\
 \frametitle{Running Smaller Than DLmalloc}
 
 \begin{itemize}
-\item Allocate 4MiB chunks using "mmap()".
+\item Allocate 4MiB \textit{chunks} using "mmap()".
 \item Objects within a chunk are all the same size (to first order).
-\item The system suffers only $1$-bit/object overhead.
-\item Use a red-black tree indexed on the chunk number, "p >> 22", to find a chunk's object size.
-\item Allocates the object with the smallest address in an arena,
-which tends to empty out pages.
-\item Hoard is similar, except that it allocates the object from the fullest page.
+\item Only $1$-bit/object overhead.
+\item A red-black tree indexed on the chunk number, "p >> 22", provides a chunk's object size.
+\item In an arena, JEmalloc allocates the object with the least address,
+tending to depopulate pages.
+\item Hoard is similar, except that it allocates from the fullest page.
 \end{itemize}
 \end{frame}
 
 \begin{frame}
-\frametitle{SuperMalloc Strategies}
+\frametitle{Under the Hood of SuperMalloc}
 
+SuperMalloc is fast and small for many reasons.  Two main ideas:
 \begin{itemize}
-\item Can waste some virtual space: it's $2^{48}$ bytes.
-\item Don't waste RSS ($2^{40}$ bytes on big machines).
-\item Contention costs dearly, not locking.  Use a per-CPU cache.
-\item Make per-CPU cache smaller than L3 cache, since the application
-  has cache misses anyway.
-\item Thread cache just big enough to reduce locking overhead: about 10 objects.
-\item Use hardware transactional memory (HTM).
-\item HTM likes simple data structures.  Use a big array instead of a red-black tree.
-\item Object sizes are a prime number of cache lines to avoid
-  associativity conflicts.
+\item Virtual-memory tricks.
+\item Reduced synchronization cost.
+\item Exploit Caching.
 \end{itemize}
-
 \end{frame}
+
+\begin{frame}
+\frametitle{Virtual Memory}
+\end{frame}
+
 
 \begin{frame}[fragile]
 \frametitle{x86-64 Address Space}
@@ -309,7 +309,10 @@ $2^{29}$ bytes.
 \input{small-number-heap_pdftex}
 \end{frame}
 
-
+\begin{frame}
+\frametitle{Synchronization}
+\end{frame}
+
 
 \begin{frame}[fragile]
 \frametitle{Costs of Locking vs. Cache Contention}
@@ -324,7 +327,12 @@ per cpu (cache getcpu, refresh/32) &     17.0ns \\
                                                   local in stack &      3.1ns \\
 \end{tabular}
 
-How to use this:  Make a per-thrad cache that's just big enough to amortize the locking instruction, and then use a per-CPU cache.
+How to use this:  Make a per-thread cache that's just big enough to amortize the locking instruction, and then use a per-CPU cache.
+\end{frame}
+
+\begin{frame}
+\frametitle{SuperMalloc Cache Architecture}
+\input{cache-architecture_pdftex}
 \end{frame}
 
 \begin{frame}
@@ -362,6 +370,11 @@ How to use this:  Make a per-thrad cache that's just big enough to amortize the 
  \end{enumerate}
 \end{enumerate}
 \end{frame}
+
+\begin{frame}
+\frametitle{More Caching Issues}
+\end{frame}
+
 
 \begin{frame}[fragile]
 \frametitle{Size Bins Introduce Associativity Conflicts}
@@ -452,7 +465,7 @@ Four size categories: small, medium, large, huge.
 
 \begin{itemize}
 \item Allocated via mmap plus a random offet. 
-\item Huge objects are allocated on a power-of-two chunks.  (Keep the unused part uncommitted).
+\item Huge objects are allocated on power-of-two chunks.  (Keep the unused part uncommitted).
 \item By using power-of-two chunks we have relatively few allocation bins.
 \item "chunksize" tracks the number of pages.
 \end{itemize}
@@ -584,6 +597,24 @@ we'll successfully get the abort?
 I got rid of late lock subscription.
 \item Lock fallback needed less than 0.03\% of the time.
 \end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{SuperMalloc Strategies}
+
+\begin{itemize}
+\item Can waste some virtual space: it's $2^{48}$ bytes.
+\item Don't waste RSS ($2^{40}$ bytes on big machines).
+\item Contention costs dearly, not locking.  Use a per-CPU cache.
+\item Make per-CPU cache smaller than L3 cache, since the application
+  has cache misses anyway.
+\item Thread cache just big enough to reduce locking overhead: about 10 objects.
+\item Use hardware transactional memory (HTM).
+\item HTM likes simple data structures.  Use a big array instead of a red-black tree.
+\item Object sizes are a prime number of cache lines to avoid
+  associativity conflicts.
+\end{itemize}
+
 \end{frame}
 
 \begin{frame}[fragile]
