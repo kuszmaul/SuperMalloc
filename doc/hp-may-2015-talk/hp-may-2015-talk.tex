@@ -1,5 +1,5 @@
-% once per day
-% folios
+% are we philosophising too early?
+% are we philosophising at the end?
 \documentclass[xcolor=dvipsnames,14pt]{beamer}
 \beamertemplatenavigationsymbolsempty%Turn off the navbar
 \usepackage{geometry}
@@ -257,6 +257,18 @@ which tends to empty out pages.
 \end{frame}
 
 \begin{frame}[fragile]
+\frametitle{Uncommitted Memory}
+
+\begin{itemize}
+\item The kernel allocates physical memory lazily.
+\item When you map memory, virtual addresses are allocated, but the page table is set up to point to a special zero-page.
+\item When you write to a previously unwritten page, the kernel allocates memory, \textit{committing} physical memory to the virtual page.
+\item You can decommit physical memory, returning it to the kernel, via "madvise()".
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
 \frametitle{Which Object Is Being Freed?}
 
 On "free(p)", we need to know which bitmap bit to clear.
@@ -359,10 +371,13 @@ How to use this:  Make a per-thrad cache that's just big enough to amortize the 
 \begin{frame}
 \frametitle{Odd-sized Bins}
 
-Solution (due to Dave Dice).  Make object sizes be a prime number of cache lines.
+\begin{itemize}
+\item Solution (due to Dave Dice).  Make object sizes be a prime number of cache lines.
 
 \url{https://blogs.oracle.com/dave/entry/malloc_for_haswell_hardware_transactional}
 
+\item In principle, odd-sized should be good enough.  Prime numbers avoid inter-bin associativity conflicts, however.
+\end{itemize}
 
 \end{frame}
 
@@ -376,27 +391,71 @@ Solution (due to Dave Dice).  Make object sizes be a prime number of cache lines
 \end{frame}
 
 \begin{frame}
-\frametitle{SuperMalloc Bin sizes}
+\frametitle{SuperMalloc Bin Sizes}
 
 Four size categories: small, medium, large, huge.
+\end{frame}
 
-\begin{description}
-\item[Small:] sizes are of the form $\frac{2^k}{1}$, $\frac{5 \cdot 2^k}{4}$, $\frac{3 \cdot 2^k}{2}$, $\frac{7 \cdot 2^k}{4}$.  
-(For example, 8, 10, 12, 14.)  (These admit fast calculation of bin numbers.)
+\begin{frame}
+\frametitle{Small Size}
 
-\item[Medium:] prime numbers of cache lines: 5, 7, 11, 13, 17, 23,
-  $\ldots$ cache lines.  (Simply search for bin numbers.)
+\begin{itemize}
+\item Small sizes are of the form $\frac{2^k}{1}$, $\frac{5 \cdot 2^k}{4}$, $\frac{3 \cdot 2^k}{2}$, $\frac{7 \cdot 2^k}{4}$.  
+\item The numbers are 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, and 320.
+\item These admit fast calculation of bin numbers via bit hacks.
+\item Technically, some of these are bad alignments:  DLmalloc provides 8-byte aligned data, and programmers may expect it.  Probably need to remove 10, 12, 14, 20, and 28.
+\end{itemize}
+\end{frame}
 
- To avoid fragmentation, use ``pages'' of 64 objects.  These large
- ``pages'' are called \textit{folios}.
+\begin{frame}
+\frametitle{Medium size}
+\begin{itemize}
+\item Prime numbers of cache lines: 5, 7, 11, 13, 17, 23,
+  $\ldots$ cache lines.
 
-\item[Large:] page allocated plus a random offset.
+\item Throw in 9 and 15 to avoid fragmentation.
 
-\item[Huge:] allocated via mmap plus a random offet.
-\end{description}
+\item There are 45 small- and medium-sized bins.
+\item Aligned allocations have their own bins.
+\end{itemize}
+\end{frame}
 
-Aligned allocations have their own bins.
+\begin{frame}
+\frametitle{Folios}
 
+\begin{itemize}
+\item Prime-sized objects leave unused space at the end of a page.
+
+\item Consider the 832-byte bin (13 cache lines). 
+
+\item Four of those objects fit in a page.
+\item Wastes 768 bytes at the end.
+\item Use somewhat larger pages, we call ``folios'' which contain 64 objects.
+\item No fragmentation at the end of the folio.
+\item There are a few pages at the end that are unused, but we keep those pages uncommitted.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Large Size}
+\begin{itemize}
+\item Page allocated plus a random offset.   
+\item The chunk is organized by powers of two.  There is a chunk for 4-page objects, a chunk for 8-page objects, a chunk for 16-page objects, and so forth.
+\item Make sure the unused pages are uncommitted (that is, not in physical memory).
+\item Wastes at most $2\times$ virtual memory.
+\item "chunksize" tracks the number of pages.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Huge Size}
+
+\begin{itemize}
+\item Allocated via mmap plus a random offet. 
+\item Huge objects are allocated on a power-of-two chunks.  (Keep the unused part uncommitted).
+\item By using power-of-two chunks we have relatively few allocation bins.
+\item "chunksize" tracks the number of pages.
+\end{itemize}
 \end{frame}
 
 \begin{frame}[fragile]
@@ -528,17 +587,19 @@ I got rid of late lock subscription.
 \end{frame}
 
 \begin{frame}[fragile]
-\frametitle{Wishlist and To-Do}
+\frametitle{Wishlist}
 
 \begin{itemize}
-\item I want "MADV_FREE", which makes it cheap to give memory to the OS\@.  BSD has it.
-\item I want "schedctl()", which advises the kernel to defer
-  involuntary preemption briefly, reducing lock-holder preemption.  Solaris has it.
-\item Why can't I get rid of those last 0.03\% of the lock fallbacks.
-\item Better understand when late lock subscription is safe.
-\item Better method for writing code to preload cache.
-\item Measure SuperMalloc in real workloads.  (Or at least some of the
-  common malloc benchmarks.)
+\item "MADV_FREE": cheaply decommits memory.  BSD has it.
+Or an event indicating memory pressure.
+\item Lock-aware scheduling: hint the kernel not to preempt (to
+reduce lock-holder preemption).  Solaris has it.
+\item Subscribable mutexes:  Need to sleep until a mutex unlocks, without locking it.
+\item Late lock subscription: Can we do it safely?
+\item Compiler-help for cache preloading.
+%\item Why can't I get rid of those last 0.03\% of the lock fallbacks?
+%\item Measure SuperMalloc in real workloads.  (Or at least some of the
+%  common malloc benchmarks.)
 \end{itemize}
 
 \end{frame}
