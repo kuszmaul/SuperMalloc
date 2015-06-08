@@ -4,6 +4,11 @@ To build for release
  make
  make check
 
+  You get two libraries in release/lib
+    libsupermalloc.so             requires transactional memory (haswell)
+    libsupermalloc_pthread.so     uses pthread locks
+  I plan to add a runtime check and have only one library and an enviroment variable in the future.
+
 ------
 
 You should also build and check with the internal testing code
