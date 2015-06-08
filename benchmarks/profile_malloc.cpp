@@ -1,3 +1,4 @@
+/* -*- Mode: C; c-basic-offset: 2 -*- */
 /*
  * Copyright (c) 2015, Logan P. Evans <loganpevans@gmail.com>
  * All rights reserved.
@@ -26,9 +27,9 @@
  */
 
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <pthread.h>
+#include <cstdio>
+#include <cstdlib>
+#include <thread>
 #include <random>
 
 #define START_NUM_THREADS 1
@@ -57,21 +58,12 @@ static uint64_t rdtsc()
   return (((uint64_t)lo) | (((uint64_t)hi) << 32));
 }
 
-struct thread_func_args {
-  uint64_t end_timestamp;
-  uint64_t bytes_per_malloc;
-  uint64_t bytes_per_thread;
-  uint64_t num_mallocs_out;
-  uint64_t total_cycles_out;
-};
-
-static void *
-thread_func(void *args) {
-  uint64_t end_timestamp;
-  uint64_t bytes_per_malloc;
-  uint64_t bytes_per_thread;
-  uint64_t num_mallocs_out;
-  uint64_t total_cycles_out;
+static void
+thread_func(uint64_t end_timestamp,
+	    uint64_t bytes_per_malloc,
+	    uint64_t bytes_per_thread,
+	    uint64_t *num_mallocs_out_p,
+	    uint64_t *total_cycles_out_p) {
 
   uint64_t start_timestamp, stop_timestamp;
   char **buffer;
@@ -81,11 +73,8 @@ thread_func(void *args) {
   std::default_random_engine generator;
   std::uniform_int_distribution<int> *distribution;
 
-  end_timestamp = ((struct thread_func_args *)args)->end_timestamp;
-  bytes_per_thread = ((struct thread_func_args *)args)->bytes_per_thread;
-  bytes_per_malloc = ((struct thread_func_args *)args)->bytes_per_malloc;
-  num_mallocs_out = 0;
-  total_cycles_out = 0;
+  uint64_t num_mallocs_out = 0;
+  uint64_t total_cycles_out = 0;
 
   buffer_size = (unsigned int)(bytes_per_thread / bytes_per_malloc);
   distribution = new std::uniform_int_distribution<int>(
@@ -114,17 +103,17 @@ thread_func(void *args) {
     free(buffer[idx]);
   }
 
-  ((struct thread_func_args *)args)->num_mallocs_out = num_mallocs_out;
-  ((struct thread_func_args *)args)->total_cycles_out = total_cycles_out;
+  *num_mallocs_out_p = num_mallocs_out;
+  *total_cycles_out_p = total_cycles_out;
 
   delete distribution;
   free(buffer);
-  return (void *)NULL;
 }
 
 int main() {
-  pthread_t threads[MAX_NUM_THREADS];
-  struct thread_func_args args[MAX_NUM_THREADS];
+  std::thread threads[MAX_NUM_THREADS];
+  uint64_t num_mallocs_a[MAX_NUM_THREADS];
+  uint64_t total_cycles_a[MAX_NUM_THREADS];
   uint64_t end_timestamp;
   uint64_t bytes_per_malloc;
   uint64_t bytes_per_thread;
@@ -155,19 +144,17 @@ int main() {
           bytes_per_thread = PERMITTED_BYTES / MAX_NUM_THREADS;
 
         for (unsigned int idx = 0; idx < num_threads; idx++) {
-          args[idx].end_timestamp = end_timestamp;
-          args[idx].bytes_per_thread = bytes_per_thread;
-          args[idx].bytes_per_malloc = bytes_per_malloc;
-          pthread_create(
-            &threads[idx], NULL, (void *(*)(void *))thread_func, &args[idx]);
+	  threads[idx] = std::thread(thread_func,
+				     end_timestamp, bytes_per_malloc, bytes_per_thread,
+				     &num_mallocs_a[idx], &total_cycles_a[idx]);
         }
 
         num_mallocs = 0;
         total_cycles = 0;
         for (unsigned int idx = 0; idx < num_threads; idx++) {
-          pthread_join(threads[idx], NULL);
-          num_mallocs += args[idx].num_mallocs_out;
-          total_cycles += args[idx].total_cycles_out;
+          threads[idx].join();
+          num_mallocs += num_mallocs_a[idx];
+          total_cycles += total_cycles_a[idx];
         }
         printf("%d,%lu,%lu,%lu,%lu,%lu,%d\n",
                num_threads, num_mallocs > 0 ? total_cycles / num_mallocs : -1, num_mallocs, total_cycles,
