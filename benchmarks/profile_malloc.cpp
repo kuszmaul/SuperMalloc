@@ -170,8 +170,8 @@ int main() {
           total_cycles += args[idx].total_cycles_out;
         }
         printf("%d,%lu,%lu,%lu,%lu,%lu,%d\n",
-            num_threads, total_cycles / num_mallocs, num_mallocs, total_cycles,
-            bytes_per_malloc, bytes_per_thread, constant_space_per_trial);
+               num_threads, num_mallocs > 0 ? total_cycles / num_mallocs : -1, num_mallocs, total_cycles,
+               bytes_per_malloc, bytes_per_thread, constant_space_per_trial);
       }
     }
   }
