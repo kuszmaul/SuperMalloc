@@ -47,6 +47,7 @@ static void put_cached_power_of_two_chunks(chunknumber_t cn, int list_number) {
       chunk_infos[cn].next = hd;
       if (__sync_bool_compare_and_swap(&free_chunks[list_number], hd, cn)) break;
     }
+    //printf("%s:%d Pushed chunk %d (0x%08x) to freelist[%d]\n", __FILE__, __LINE__, cn, cn, list_number);
   }
 }
 
@@ -61,6 +62,7 @@ static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
 // Effect: Allocate n_chunks of chunks.
 // Requires: n_chunks is power of two.
 {
+  //printf("%s:%d Getting %d-sized chunks\n", __FILE__, __LINE__, n_chunks);
   {
     void *r = get_cached_power_of_two_chunks(lg_of_power_of_two(n_chunks));
     if (r) return r;
@@ -70,6 +72,7 @@ static void* get_power_of_two_n_chunks(chunknumber_t n_chunks)
   chunknumber_t c = address_2_chunknumber(p);
   chunknumber_t end = c+2*n_chunks;
   void *result = NULL;
+  //printf("Got chunk %d (%x) at %p\n", c, c, p);
   while (c < end) {
     if ((c & (n_chunks-1)) == 0) {
       // c is aligned well enough
@@ -127,6 +130,10 @@ void* huge_malloc(size_t size) {
 
 void huge_free(void *m) {
   // huge free can tolerate m being any pointer into the chunk returned by huge_malloc.
+  printf("free(%p)\n", m);
+  m = reinterpret_cast<void*>(reinterpret_cast<uint64_t>(m) & ~4095);
+  bassert((reinterpret_cast<uint64_t>(m) & (chunksize-1)) == 0);
+  printf(" really free(%p)\n", m);
   chunknumber_t  cn  = address_2_chunknumber(m);
   bassert(cn);
   bin_and_size_t bnt = chunk_infos[cn].bin_and_size;
@@ -137,9 +144,23 @@ void huge_free(void *m) {
   uint64_t     hceil = hyperceil(csiz);
   uint32_t      hlog = lg_of_power_of_two(hceil);
   bassert(hlog < log_max_chunknumber);
-  madvise(m, siz, MADV_DONTNEED);
-  
+  printf("%s:%d chunk %d: madvise(%p, %ld, MADV_DONTNEED);\n", __FILE__, __LINE__, cn, m, siz);
+  {
+    int r = madvise(m, siz, MADV_DONTNEED);
+    bassert(r==0);
+  }
   put_cached_power_of_two_chunks(cn, hlog);
+  {
+    unsigned char vec[512];
+    int r = mincore(m, 512*4096, vec);
+    bassert(r==0);
+    for (int i = 0; i < 512; i++) {
+      if (vec[i]%1) {
+	printf("%s:%d Page %d is still in core\n", __FILE__, __LINE__, i);
+      }
+    }
+  }
+  printf("%s:%d free_chunks[%d]=%d\n", __FILE__, __LINE__, hlog, free_chunks[hlog]);
 }
 
 #ifdef TESTING

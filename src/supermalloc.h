@@ -17,6 +17,7 @@ void* realloc(void *p, size_t size) __THROW;
 
 // non_standard API
 size_t malloc_usable_size(const void *ptr);
+void __malloc_print_info(void);
 
 #ifdef __cplusplus
 }

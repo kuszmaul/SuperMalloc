@@ -624,3 +624,116 @@ bin_and_size_t bin_and_size_to_bin_and_size(binnumber_t bin, size_t size) {
     return 1+bin +          (ceil(size,chunksize)<<8);
   }
 }
+
+static const size_t n_elts = 1u<<27;
+static const size_t ba_limit = n_elts/64;
+
+static uint64_t accounted_for_chunk_bitmap[ba_limit];
+
+static void* chunknumber_2_address(chunknumber_t i) {
+  uint64_t a = (i & (1ul<<26)) ? (-1u & i) : i;
+  return reinterpret_cast<void*>(a << 21);
+}
+
+extern "C" void __malloc_print_info(void) {
+  uint64_t count = 0;
+  uint64_t *bitmap_array = new uint64_t [ba_limit];
+  for (size_t i = 0; i < ba_limit; i++) {
+    bitmap_array[i] = 0;
+  }
+  unsigned char * ci_vec = new unsigned char [(n_elts * sizeof(chunk_infos[0])) / 4096]; // a bitmap of the chunk_infos page residentcy, 1 bit stored per byte
+  {
+    int r = mincore(chunk_infos, n_elts*sizeof(chunk_infos[0]), ci_vec);
+    bassert(r==0);
+  }
+  int chunk_array_count = 0, not_in_core = 0;
+  for (unsigned int i = 0; i < (n_elts*sizeof(chunk_infos[0])) / 4096; i++) {
+    if (ci_vec[i] & 1) {
+      chunk_array_count++;
+    } else {
+      not_in_core++;
+    }
+  }
+  printf("chunk_infos has %d pages incore (%d notincore)\n", chunk_array_count, not_in_core);
+  unsigned char *vec = new unsigned char [chunksize/4096];
+  for (unsigned int ci = 0; ci < log_max_chunknumber; ci++) {
+    if (free_chunks[ci]) {
+      uint64_t object_size_in_chunks = 1ul << ci;
+      printf("free_chunks[%d] /* %ldMiB each */ = {", ci, object_size_in_chunks);
+      for (chunknumber_t l = free_chunks[ci]; l != 0; l = chunk_infos[l].next) {
+	if (l != free_chunks[ci]) printf(",");
+	printf(" %d", l);
+	bitmap_array[l/64] |= (1ul << l%64);
+	accounted_for_chunk_bitmap[l/64] |= (1ul << l%64);
+	int should_be_free_but_is_in_memory_count = 0;
+	for (uint64_t chunknum_in_object = 0; chunknum_in_object < object_size_in_chunks; chunknum_in_object++) {
+	  void *addr_of_chunk_in_object = reinterpret_cast<char*>(chunknumber_2_address(l)) + chunknum_in_object*chunksize;
+	  int r = mincore(addr_of_chunk_in_object, chunksize, vec);
+	  if (r!=0) printf("cn=%lu mincore(%p, %ld, %p)=%d (errno=%d %s)\n", chunknum_in_object, addr_of_chunk_in_object, chunksize, vec, r, errno, strerror(errno));
+	  bassert(r==0);
+	  for (unsigned int i = 0; i < chunksize/4096; i++) {
+	    if (vec[i]&1) {
+	      should_be_free_but_is_in_memory_count++;
+	    }
+	  }
+	}
+	if (should_be_free_but_is_in_memory_count) {
+	  printf(" (has %d committed pages)\n", should_be_free_but_is_in_memory_count);
+	}
+      }
+      printf("}\n");
+    }
+  }
+  for (chunknumber_t i = 0; i < 1u<<27; i++) {
+    if ((bitmap_array[i/64] >> (i%64)) & 1u) {
+      printf("chunk %d is free\n", i);
+      count++;
+    } else {
+      // if this part of the chunk map is not in memory, don't look at it.
+      if (0 == (ci_vec[ i * sizeof(chunk_infos[0]) / 4096] & 1)) continue;
+
+      bin_and_size_t bnt = chunk_infos[i].bin_and_size;
+      if (bnt !=0 ) {
+	accounted_for_chunk_bitmap[i/64] |= (1ul << i%64);
+	printf("chunk %d, bin_and_size=%d ", i, bnt); fflush(stdout);
+	binnumber_t bin = bin_from_bin_and_size(bnt);
+	printf("(bin=%d, size=%ld)", bin, bin_2_size(bin));
+	printf("\n");
+	count++;
+      }
+    }
+  }
+  printf("%ld chunks accounted for (%ld MiB)\n", count, count*2);
+  uint64_t incorecount=0;
+
+  for (chunknumber_t i = 0; i < 1u<<27; i++) {
+    // if this part of the chunk map is not in memory, don't look at it.
+    if (0 == (ci_vec[ i * sizeof(chunk_infos[0]) / 4096] & 1)) continue;
+
+    if (0 == ((accounted_for_chunk_bitmap[i/64] >> (i%64)) & 1)) {
+      // not accounted for
+      
+      void *a = chunknumber_2_address(i);
+      int r = mincore(a, chunksize, vec);
+      if (r == -1 && errno == ENOMEM) continue;
+      if (r!=0) {
+	printf("error = %d (%s)  on mincore(%p, %ld, %p)\n", errno, strerror(errno), (void*)a, chunksize, vec);
+	continue;
+      }
+      uint64_t incorecount_chunk = 0;
+      for (unsigned int i = 0; i < chunksize/4096; i++) {
+	if (vec[i]&1) {
+	  incorecount++;
+	  incorecount_chunk++;
+	}
+      }
+      if (incorecount_chunk) {
+	printf("Chunk %d has %lu pages present\n", i, incorecount_chunk);
+	accounted_for_chunk_bitmap[i/64] |= 1ul << (i%64);
+      }
+    }
+  }
+  delete [] ci_vec;
+  delete [] vec;
+  delete [] bitmap_array;
+}

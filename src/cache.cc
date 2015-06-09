@@ -77,11 +77,12 @@ static __thread bool cache_inited = false;
 static pthread_key_t key;
 static pthread_once_t once_control = PTHREAD_ONCE_INIT;
 void cache_destructor(void* v) {
+  printf("cache destructing\n");
   bassert(v == (void*)(&cache_inited));
-  //unsigned long leaked = 0;
+  unsigned long recovered = 0;
   for (binnumber_t bin = 0 ; bin < first_huge_bin_number; bin++) {
     for (int j = 0; j < 2; j++) {
-      //leaked += cache_for_thread.cb[bin].co[j].bytecount;
+      recovered += cache_for_thread.cb[bin].co[j].bytecount;
       linked_list *next;
       for (linked_list *head = cache_for_thread.cb[bin].co[j].head;
 	   head;
@@ -95,7 +96,7 @@ void cache_destructor(void* v) {
       }
     }
   }
-  //printf("Leaked %ld\n", leaked);
+  printf("recovered %ld\n", recovered);
 }
 static void make_key() {
   pthread_key_create(&key, cache_destructor);
@@ -105,8 +106,8 @@ void init_cache() {
   if (!cache_inited) {
     cache_inited = true;
     pthread_once(&once_control, make_key);
-    pthread_setspecific(key, &cache_inited);
   }
+  pthread_setspecific(key, &cache_inited);
 }
 
 static CacheForCpu cache_for_cpu[cpulimit];
@@ -124,8 +125,8 @@ struct GlobalCache {
 
 static GlobalCache global_cache;
 
-static const uint64_t per_cpu_cache_bytecount_limit = 1024*1024;
-static const uint64_t thread_cache_bytecount_limit = 2*4096;
+static const uint64_t per_cpu_cache_bytecount_limit = 128;//1024*1024;
+static const uint64_t thread_cache_bytecount_limit = 128;//2*4096;
 
 lock_t cpu_cache_locks[cpulimit][first_huge_bin_number]; // these locks could less aligned, as long as the the first one for each cpu is aligned.
 lock_t global_cache_locks[first_huge_bin_number];

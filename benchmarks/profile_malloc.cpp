@@ -32,6 +32,13 @@
 #include <mutex>
 #include <random>
 #include <thread>
+#include <sys/resource.h>
+#include <unistd.h>
+
+#ifdef SUPERMALLOC
+#include "supermalloc.h"
+#endif
+
 
 #define START_NUM_THREADS 1
 #define MAX_NUM_THREADS 50
@@ -70,7 +77,6 @@ thread_func(int threadnum,
 	    uint64_t bytes_per_malloc,
 	    uint64_t bytes_per_thread) {
 
-  uint64_t start_timestamp, stop_timestamp;
   char **buffer;
   unsigned int buffer_size;
   std::default_random_engine generator(threadnum+1);
@@ -93,15 +99,16 @@ thread_func(int threadnum,
   while (rdtsc() < end_timestamp) {
     int malloc_idx = (*distribution)(generator);
     if (buffer[malloc_idx] == NULL) {
-      start_timestamp = rdtsc();
+      uint64_t start_timestamp = rdtsc();
       buffer[malloc_idx] = (char *)malloc(bytes_per_malloc);
-      stop_timestamp = rdtsc();
+      buffer[malloc_idx][0] = 1;
+      uint64_t stop_timestamp = rdtsc();
       num_mallocs++;
       malloc_cycles += stop_timestamp - start_timestamp;
     } else {
-      start_timestamp = rdtsc();
+      uint64_t start_timestamp = rdtsc();
       free(buffer[malloc_idx]);
-      stop_timestamp = rdtsc();
+      uint64_t stop_timestamp = rdtsc();
       buffer[malloc_idx] = NULL;
       num_frees++;
       free_cycles += stop_timestamp - start_timestamp;
@@ -121,6 +128,19 @@ thread_func(int threadnum,
   }
   delete distribution;
   delete [] buffer;
+}
+
+uint64_t current_rss() {
+  FILE* fp = NULL;
+  if ( (fp = fopen( "/proc/self/statm", "r" )) == NULL )
+    return (size_t)0L;		/* Can't open? */
+  long rss = 0;
+  if ( fscanf( fp, "%*s%ld", &rss ) != 1 ) {
+    fclose( fp );
+    return (size_t)0L;		/* Can't read? */
+  }
+  fclose( fp );
+  return (size_t)rss * (size_t)sysconf( _SC_PAGESIZE);
 }
 
 int main() {
@@ -153,6 +173,14 @@ int main() {
         else
           bytes_per_thread = PERMITTED_BYTES / MAX_NUM_THREADS;
 
+	printf("rss=%.0fM\n", current_rss()/(1024.0*1024.0));
+#ifdef SUPERMALLOC
+	printf("__malloc_print_info:\n");
+	__malloc_print_info();
+	printf("again:\n");
+	__malloc_print_info();
+#endif
+
         for (unsigned int idx = 0; idx < num_threads; idx++) {
 	  threads[idx] = std::thread(thread_func,
 				     idx,
@@ -170,6 +198,8 @@ int main() {
       }
     }
   }
+
+  printf("rss=%.0fM\n", current_rss()/(1024.0*1024.0));
 
   return 0;
 }
