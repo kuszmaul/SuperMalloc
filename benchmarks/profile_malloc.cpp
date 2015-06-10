@@ -38,18 +38,17 @@
 // 2.397 * 2**30 is roughly one second (2.4 GHz).
 static uint64_t CYCLES_PER_TRIAL =
     (uint64_t)(5UL * 2.397 * 1024 * 1024 * 1024);
-static uint64_t PERMITTED_BYTES = 1UL * 1024 * 1024 * 512;
+static uint64_t PERMITTED_BYTES = 1UL * 1024 * 1024 * 1024;
 
-static bool CONSTANT_SPACE_PER_TRIAL[] = {true};
-//static bool CONSTANT_SPACE_PER_TRIAL[] = {true, false};
+static bool CONSTANT_SPACE_PER_TRIAL[] = {true, false};
 
 static uint64_t BYTES_PER_MALLOC[] = {
   8UL,  // tiny
-//  512UL,  // quantum-spaced
-//  1024UL,  // sub-page
-//  4UL * 1024,  // large
-//  1UL * 1024 * 1024,  // large
-//  2UL * 1024 * 1024,  // huge
+  512UL,  // quantum-spaced
+  1024UL,  // sub-page
+  4UL * 1024,  // large
+  1UL * 1024 * 1024,  // large
+  2UL * 1024 * 1024,  // huge
 };
 
 static uint64_t rdtsc()
@@ -64,16 +63,13 @@ std::mutex counter_mutex;
 uint64_t total_num_mallocs, total_malloc_cycles;
 uint64_t total_num_frees,   total_free_cycles;
 
-static void
-thread_func(int threadnum,
-	    uint64_t end_timestamp,
-	    uint64_t bytes_per_malloc,
-	    uint64_t bytes_per_thread) {
+static void thread_func(int threadnum,
+			uint64_t end_timestamp,
+			uint64_t bytes_per_malloc,
+			uint64_t bytes_per_thread) {
 
-  uint64_t start_timestamp, stop_timestamp;
-  char **buffer;
   unsigned int buffer_size;
-  std::default_random_engine generator(threadnum+1);
+  std::default_random_engine generator(threadnum+1); // Want different threads to do different things.
   std::uniform_int_distribution<int> *distribution;
 
   uint64_t num_mallocs   = 0;
@@ -85,7 +81,7 @@ thread_func(int threadnum,
   distribution = new std::uniform_int_distribution<int>(
       0, (int)buffer_size - 1);
 
-  buffer = new char*[buffer_size];
+  char **buffer = new char*[buffer_size];
   for (unsigned int idx = 0; idx < buffer_size; idx++) {
     buffer[idx] = NULL;
   }
@@ -93,15 +89,15 @@ thread_func(int threadnum,
   while (rdtsc() < end_timestamp) {
     int malloc_idx = (*distribution)(generator);
     if (buffer[malloc_idx] == NULL) {
-      start_timestamp = rdtsc();
+      uint64_t start_timestamp = rdtsc();
       buffer[malloc_idx] = (char *)malloc(bytes_per_malloc);
-      stop_timestamp = rdtsc();
+      uint64_t stop_timestamp = rdtsc();
       num_mallocs++;
       malloc_cycles += stop_timestamp - start_timestamp;
     } else {
-      start_timestamp = rdtsc();
+      uint64_t start_timestamp = rdtsc();
       free(buffer[malloc_idx]);
-      stop_timestamp = rdtsc();
+      uint64_t stop_timestamp = rdtsc();
       buffer[malloc_idx] = NULL;
       num_frees++;
       free_cycles += stop_timestamp - start_timestamp;
@@ -146,7 +142,7 @@ int main() {
       bytes_per_malloc = BYTES_PER_MALLOC[bytes_idx];
 
       for (unsigned int num_threads = START_NUM_THREADS;
-           num_threads < MAX_NUM_THREADS; num_threads*=2) {
+           num_threads < MAX_NUM_THREADS; num_threads++) {
         end_timestamp = rdtsc() + CYCLES_PER_TRIAL;
         if (constant_space_per_trial)
           bytes_per_thread = PERMITTED_BYTES / num_threads;
