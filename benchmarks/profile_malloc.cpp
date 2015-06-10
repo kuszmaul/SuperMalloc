@@ -165,7 +165,7 @@ int main() {
         else
           bytes_per_thread = PERMITTED_BYTES / MAX_NUM_THREADS;
 
-	printf("rss=%.0fM\n", current_rss()/(1024.0*1024.0));
+	fprintf(stderr, "rss=%.0fM\n", current_rss()/(1024.0*1024.0));
 
         for (unsigned int idx = 0; idx < num_threads; idx++) {
 	  threads[idx] = std::thread(thread_func,
@@ -185,7 +185,7 @@ int main() {
     }
   }
 
-  printf("rss=%.0fM\n", current_rss()/(1024.0*1024.0));
+  fprintf(stderr, "rss=%.0fM\n", current_rss()/(1024.0*1024.0));
 
   return 0;
 }
