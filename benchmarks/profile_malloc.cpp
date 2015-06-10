@@ -35,22 +35,28 @@
 #include <sys/resource.h>
 #include <unistd.h>
 
+#ifdef SUPERMALLOC
+#include "supermalloc.h"
+#endif
+
+
 #define START_NUM_THREADS 1
 #define MAX_NUM_THREADS 50
 // 2.397 * 2**30 is roughly one second (2.4 GHz).
 static uint64_t CYCLES_PER_TRIAL =
     (uint64_t)(5UL * 2.397 * 1024 * 1024 * 1024);
-static uint64_t PERMITTED_BYTES = 1UL * 1024 * 1024 * 1024;
+static uint64_t PERMITTED_BYTES = 1UL * 1024 * 1024 * 512;
 
-static bool CONSTANT_SPACE_PER_TRIAL[] = {true, false};
+static bool CONSTANT_SPACE_PER_TRIAL[] = {true};
+//static bool CONSTANT_SPACE_PER_TRIAL[] = {true, false};
 
 static uint64_t BYTES_PER_MALLOC[] = {
   8UL,  // tiny
-  512UL,  // quantum-spaced
-  1024UL,  // sub-page
-  4UL * 1024,  // large
-  1UL * 1024 * 1024,  // large
-  2UL * 1024 * 1024,  // huge
+//  512UL,  // quantum-spaced
+//  1024UL,  // sub-page
+//  4UL * 1024,  // large
+//  1UL * 1024 * 1024,  // large
+//  2UL * 1024 * 1024,  // huge
 };
 
 static uint64_t rdtsc()
@@ -65,13 +71,15 @@ std::mutex counter_mutex;
 uint64_t total_num_mallocs, total_malloc_cycles;
 uint64_t total_num_frees,   total_free_cycles;
 
-static void thread_func(int threadnum,
-			uint64_t end_timestamp,
-			uint64_t bytes_per_malloc,
-			uint64_t bytes_per_thread) {
+static void
+thread_func(int threadnum,
+	    uint64_t end_timestamp,
+	    uint64_t bytes_per_malloc,
+	    uint64_t bytes_per_thread) {
 
+  char **buffer;
   unsigned int buffer_size;
-  std::default_random_engine generator(threadnum+1); // Want different threads to do different things.
+  std::default_random_engine generator(threadnum+1);
   std::uniform_int_distribution<int> *distribution;
 
   uint64_t num_mallocs   = 0;
@@ -83,7 +91,7 @@ static void thread_func(int threadnum,
   distribution = new std::uniform_int_distribution<int>(
       0, (int)buffer_size - 1);
 
-  char **buffer = new char*[buffer_size];
+  buffer = new char*[buffer_size];
   for (unsigned int idx = 0; idx < buffer_size; idx++) {
     buffer[idx] = NULL;
   }
@@ -93,7 +101,7 @@ static void thread_func(int threadnum,
     if (buffer[malloc_idx] == NULL) {
       uint64_t start_timestamp = rdtsc();
       buffer[malloc_idx] = (char *)malloc(bytes_per_malloc);
-      buffer[malloc_idx][0] = 1; // Touch the object
+      buffer[malloc_idx][0] = 1;
       uint64_t stop_timestamp = rdtsc();
       num_mallocs++;
       malloc_cycles += stop_timestamp - start_timestamp;
@@ -158,14 +166,20 @@ int main() {
       bytes_per_malloc = BYTES_PER_MALLOC[bytes_idx];
 
       for (unsigned int num_threads = START_NUM_THREADS;
-           num_threads < MAX_NUM_THREADS; num_threads++) {
+           num_threads < MAX_NUM_THREADS; num_threads*=2) {
         end_timestamp = rdtsc() + CYCLES_PER_TRIAL;
         if (constant_space_per_trial)
           bytes_per_thread = PERMITTED_BYTES / num_threads;
         else
           bytes_per_thread = PERMITTED_BYTES / MAX_NUM_THREADS;
 
-	fprintf(stderr, "rss=%.0fM\n", current_rss()/(1024.0*1024.0));
+	printf("rss=%.0fM\n", current_rss()/(1024.0*1024.0));
+#ifdef SUPERMALLOC
+	printf("__malloc_print_info:\n");
+	__malloc_print_info();
+	printf("again:\n");
+	__malloc_print_info();
+#endif
 
         for (unsigned int idx = 0; idx < num_threads; idx++) {
 	  threads[idx] = std::thread(thread_func,
@@ -185,7 +199,7 @@ int main() {
     }
   }
 
-  fprintf(stderr, "rss=%.0fM\n", current_rss()/(1024.0*1024.0));
+  printf("rss=%.0fM\n", current_rss()/(1024.0*1024.0));
 
   return 0;
 }
