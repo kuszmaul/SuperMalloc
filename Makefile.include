@@ -21,7 +21,7 @@ default: tests $(LIB)/libsupermalloc_pthread.so
 #lib: $(LIB)/libsupermalloc.so
 #.PHONY: lib
 
-TESTS = aligned_alloc calloc posix_memalign $(UNITTESTS) test-malloc_test new-malloc-test malloc-test-fixed-work test22 cache-index madvise-small
+TESTS = aligned_alloc calloc posix_memalign $(UNITTESTS) test-malloc_test new-malloc-test malloc-test-fixed-work test22 cache-index madvise-small test38
 TESTS_IN_DIR = $(patsubst %, $(BLD)/%, $(TESTS))
 
 LDFLAGS += -ldl
@@ -88,11 +88,11 @@ $(BLD)/supermalloc.a: $(OFILES)
 	ar cr $(BLD)/supermalloc.a $(OFILES)
 $(BLD)/%.o: $(SRC)/%.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
-$(BLD):%.d: $(SRC)/%.cc
-	rm -f $@
-	$(CXX) -M $(CXXFLAGS) $(CPPFLAGS) $< > $@.$$$$
-	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@
-	rm -f $@.$$$$
+#$(BLD):%.d: $(SRC)/%.cc
+#	rm -f $@
+#	$(CXX) -M $(CXXFLAGS) $(CPPFLAGS) $< > $@.$$$$
+#	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@
+#	rm -f $@.$$$$
 
 $(BLD)/%_pthread.o: $(SRC)/%.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DUSE_PTHREAD_MUTEXES -c $< -o $@
@@ -107,7 +107,8 @@ $(BLD)/%.o: $(TST)/%.cc
 $(BLD)/%: $(BLD)/%.o
 	$(CXX) $(CXXFLAGS) $< $(LDFLAGS) $(LDLIBS) $(IMPLEMENTATION_FILES) -o $@
 
-$(PTHREAD_OFILES) $(OFILES): $(wildcard $(SRC)/*.h) $(BLD)/generated_constants.h
+$(PTHREAD_OFILES) $(OFILES): $(wildcard $(SRC)/*.h)
+$(filter-out %/bassert.o,$(PTHREAD_OFILES) $(OFILES)): $(BLD)/generated_constants.h
 
 # The rule below with a pattern is preferable to the one commented out below because the commented out one will cause ./objsizes to be run twice (which is wrong and racy).  
 # A pattern rule, on the other hand, when it has multiple targets, is understood to produce all the outputs with a single run.
