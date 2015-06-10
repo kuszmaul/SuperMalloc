@@ -32,6 +32,8 @@
 #include <mutex>
 #include <random>
 #include <thread>
+#include <sys/resource.h>
+#include <unistd.h>
 
 #define START_NUM_THREADS 1
 #define MAX_NUM_THREADS 50
@@ -91,6 +93,7 @@ static void thread_func(int threadnum,
     if (buffer[malloc_idx] == NULL) {
       uint64_t start_timestamp = rdtsc();
       buffer[malloc_idx] = (char *)malloc(bytes_per_malloc);
+      buffer[malloc_idx][0] = 1; // Touch the object
       uint64_t stop_timestamp = rdtsc();
       num_mallocs++;
       malloc_cycles += stop_timestamp - start_timestamp;
@@ -117,6 +120,19 @@ static void thread_func(int threadnum,
   }
   delete distribution;
   delete [] buffer;
+}
+
+uint64_t current_rss() {
+  FILE* fp = NULL;
+  if ( (fp = fopen( "/proc/self/statm", "r" )) == NULL )
+    return (size_t)0L;		/* Can't open? */
+  long rss = 0;
+  if ( fscanf( fp, "%*s%ld", &rss ) != 1 ) {
+    fclose( fp );
+    return (size_t)0L;		/* Can't read? */
+  }
+  fclose( fp );
+  return (size_t)rss * (size_t)sysconf( _SC_PAGESIZE);
 }
 
 int main() {
@@ -149,6 +165,8 @@ int main() {
         else
           bytes_per_thread = PERMITTED_BYTES / MAX_NUM_THREADS;
 
+	printf("rss=%.0fM\n", current_rss()/(1024.0*1024.0));
+
         for (unsigned int idx = 0; idx < num_threads; idx++) {
 	  threads[idx] = std::thread(thread_func,
 				     idx,
@@ -166,6 +184,8 @@ int main() {
       }
     }
   }
+
+  printf("rss=%.0fM\n", current_rss()/(1024.0*1024.0));
 
   return 0;
 }

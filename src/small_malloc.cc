@@ -396,6 +396,8 @@ static per_folio* do_small_free(binnumber_t bin,
   if (new_offset != dsbi_offset + o_per_folio
       || dsbi.lists.b[new_offset] == NULL) {
     // Don't madvise the folio, since either it's not empty or there are no folios in the empty slot.
+    // Even if the folio is empty, we want to keep one folio around without madvising() it
+    //  in order to have some hysteresis in the madvise()/commit cycle.
     per_folio *new_next = dsbi.lists.b[new_offset];
     pp->prev = NULL;
     pp->next = new_next;

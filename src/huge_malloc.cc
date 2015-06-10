@@ -126,7 +126,10 @@ void* huge_malloc(size_t size) {
 }
 
 void huge_free(void *m) {
-  // huge free can tolerate m being any pointer into the chunk returned by huge_malloc.
+  // huge_free() is required to tolerate m being any pointer into the chunk returned by huge_malloc.
+  // However this code cannot really tolerate i.
+  m = reinterpret_cast<void*>(reinterpret_cast<uint64_t>(m) & ~4095);
+  bassert((reinterpret_cast<uint64_t>(m) & (chunksize-1)) == 0);
   chunknumber_t  cn  = address_2_chunknumber(m);
   bassert(cn);
   bin_and_size_t bnt = chunk_infos[cn].bin_and_size;
@@ -137,8 +140,10 @@ void huge_free(void *m) {
   uint64_t     hceil = hyperceil(csiz);
   uint32_t      hlog = lg_of_power_of_two(hceil);
   bassert(hlog < log_max_chunknumber);
-  madvise(m, siz, MADV_DONTNEED);
-  
+  {
+    int r = madvise(m, siz, MADV_DONTNEED);
+    bassert(r==0);  // Should we really check this?
+  }
   put_cached_power_of_two_chunks(cn, hlog);
 }
 
