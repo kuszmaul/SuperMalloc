@@ -4,6 +4,9 @@
 #include "atomically.h"
 #include "generated_constants.h"
 #include "bassert.h"
+#include "thread-info.h"
+
+thread_local struct thread_info thread_info;
 
 #ifdef ENABLE_LOG_CHECKING
 static void clog_command(char command, const void *ptr, size_t size);
@@ -37,10 +40,9 @@ int getcpu(void) {
 }
 
 #elif 1
-static __thread uint32_t cached_cpu, cached_cpu_count;
 static uint32_t getcpu(void) {
-  if ((cached_cpu_count++)%16  ==0) { cached_cpu = sched_getcpu(); if (0) printf("cpu=%d\n", cached_cpu); }
-  return cached_cpu;
+  if ((thread_info.cached_cpu_count++)%16  ==0) { thread_info.cached_cpu = sched_getcpu(); if (0) printf("cpu=%d\n", thread_info.cached_cpu); }
+  return thread_info.cached_cpu;
 }
 #elif 0
 static uint32_t getcpu(void) {
@@ -48,42 +50,15 @@ static uint32_t getcpu(void) {
 }
 #endif
 
-struct linked_list {
-  linked_list *next;
-};
-
-struct cached_objects {
-  uint64_t bytecount __attribute__((aligned(32)));
-  linked_list *head;
-  linked_list *tail;
-};
-
 static const cached_objects empty_cached_objects = {0, NULL, NULL};
 
-struct CacheForBin {
-  cached_objects co[2];
-} __attribute__((aligned(64)));  // it's OK if the cached objects are on the same cacheline as the lock, but we don't want the cached objects to cross a cache boundary.  Since the CacheForBin has gotten to be 48 bytes, we might as well just align the struct to the cache.
-
-struct CacheForCpu {
-#ifdef ENABLE_STATS
-  uint64_t attempt_count, success_count;
-#endif
-  CacheForBin cb[first_huge_bin_number];
-} __attribute__((aligned(64)));
-
-static __thread CacheForCpu cache_for_thread ;
-
-static __thread bool cache_inited = false;
-static pthread_key_t key;
-static pthread_once_t once_control = PTHREAD_ONCE_INIT;
-void cache_destructor(void* v) {
-  bassert(v == (void*)(&cache_inited));
+void cache_destructor() {
   //unsigned long recovered = 0;
   for (binnumber_t bin = 0 ; bin < first_huge_bin_number; bin++) {
     for (int j = 0; j < 2; j++) {
       //recovered += cache_for_thread.cb[bin].co[j].bytecount;
       linked_list *next;
-      for (linked_list *head = cache_for_thread.cb[bin].co[j].head;
+      for (linked_list *head = thread_info.cache.cb[bin].co[j].head;
 	   head;
 	   head = next) {
 	next = head->next;
@@ -97,16 +72,8 @@ void cache_destructor(void* v) {
   }
   //printf("recovered %ld\n", recovered);
 }
-static void make_key() {
-  pthread_key_create(&key, cache_destructor);
-}
 
-void init_cache() {
-  if (!cache_inited) {
-    cache_inited = true;
-    pthread_once(&once_control, make_key);
-  }
-  pthread_setspecific(key, &cache_inited);
+static void init_cache() {
 }
 
 static CacheForCpu cache_for_cpu[cpulimit];
@@ -396,7 +363,7 @@ static void* try_get_cpu_cached(int processor,
     // 4) Return the one object.
 
     init_cache();
-    CacheForBin *tc = &cache_for_thread.cb[bin];
+    CacheForBin *tc = &thread_info.cache.cb[bin];
     CacheForBin *cc = &cache_for_cpu[processor].cb[bin];
 
     // Step 1
@@ -533,7 +500,7 @@ void* cached_malloc(binnumber_t bin)
 #ifdef ENABLE_STATS
     cache_for_thread.attempt_count++;
 #endif
-    void *result = try_get_cached_both(&cache_for_thread.cb[bin],
+    void *result = try_get_cached_both(&thread_info.cache.cb[bin],
 				       siz);
     if (result) {
 #ifdef ENABLE_STATS
@@ -724,7 +691,7 @@ static bool try_put_into_cpu_cache(linked_list *obj,
 		      predo_put_into_cpu_cache,
 		      do_put_into_cpu_cache,
 		      obj,
-		      &cache_for_thread.cb[bin].co[0], // always move from bin 0
+		      &thread_info.cache.cb[bin].co[0], // always move from bin 0
 		      &cache_for_cpu[processor].cb[bin],
 		      siz);
   } else {
@@ -806,7 +773,7 @@ void cached_free(void *ptr, binnumber_t bin) {
   if (use_threadcache) {
     init_cache();
     if (try_put_cached_both(reinterpret_cast<linked_list*>(ptr),
-			    &cache_for_thread.cb[bin],
+			    &thread_info.cache.cb[bin],
 			    siz,
 			    thread_cache_bytecount_limit)) {
       return;

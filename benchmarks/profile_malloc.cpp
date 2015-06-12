@@ -158,7 +158,7 @@ int main() {
       bytes_per_malloc = BYTES_PER_MALLOC[bytes_idx];
 
       for (unsigned int num_threads = START_NUM_THREADS;
-           num_threads < MAX_NUM_THREADS; num_threads++) {
+           num_threads < MAX_NUM_THREADS; num_threads*=2) {
         end_timestamp = rdtsc() + CYCLES_PER_TRIAL;
         if (constant_space_per_trial)
           bytes_per_thread = PERMITTED_BYTES / num_threads;
