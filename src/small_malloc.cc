@@ -173,7 +173,12 @@ static void predo_small_malloc(binnumber_t bin,
 
 static void* do_small_malloc(binnumber_t bin,
 			     uint32_t dsbi_offset,
-			     uint32_t o_size) {
+			     uint32_t o_size)
+// Effect: If there is one get an object out of the fullest nonempty page, and return it. 
+//    If there is no such object return NULL.
+//    (Previously, we made sure there was something in a nonempty page, but
+//    another thread may have grabbed it.)
+{
 
   uint32_t fullest = dsbi.fullest_offset[bin];
   if (fullest == 0) return NULL; // Indicating that a chunk must be allocated.
@@ -252,11 +257,34 @@ static void* do_small_malloc(binnumber_t bin,
   abort(); // It's bad if we get here, it means that there was no bit in the bitmap, but the data structure said there should be.
 }
 
-void* small_malloc(binnumber_t bin)
-// Effect: Allocate a small object (subpage, class 1 and class 2 are
-// treated the same by all the code, it's just the sizes that matter).
-// We want to allocate a small object in the fullest possible page.
+//#define MICROTIMING
+
+#ifdef MICROTIMING
+#define WHEN_MICROTIMING(x) x
+#else
+#define WHEN_MICROTIMING(x) (void)(0)
+#endif
+
+#ifdef MICROTIMING
+static uint64_t rdtsc()
 {
+  uint32_t hi, lo;
+
+  __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+  return (((uint64_t)lo) | (((uint64_t)hi) << 32));
+}
+
+__thread uint64_t clocks_spent_in_early_small_malloc = 0;
+__thread uint64_t clocks_spent_initializing_small_chunks = 0;
+__thread uint64_t clocks_spent_in_do_small_malloc = 0;
+#endif
+
+void* small_malloc(binnumber_t bin)
+// Effect: Allocate a small object (all the small sizes are
+//  treated the same by all this code.)
+//  Allocate a small object in the fullest possible page.
+{
+  WHEN_MICROTIMING(uint64_t start_small_malloc = rdtsc());
   verify_small_invariants();
   bin_stats_note_malloc(bin);
   //size_t usable_size = bin_2_size(bin);
@@ -265,13 +293,15 @@ void* small_malloc(binnumber_t bin)
   objects_per_folio_t o_per_folio = static_bin_info[bin].objects_per_folio;
   uint32_t o_size     = static_bin_info[bin].object_size;
   uint16_t folios_per_chunk = static_bin_info[bin].folios_per_chunk;
-  bool needed = false;
   while (1) {
+    WHEN_MICROTIMING(
+	uint64_t end_early_small_malloc = rdtsc();
+	clocks_spent_in_early_small_malloc += end_early_small_malloc - start_small_malloc
+		     );
     uint32_t fullest = atomic_load(&dsbi.fullest_offset[bin]); // Otherwise it looks racy.
     if (0) printf(" bin=%d off=%d  fullest=%d\n", bin, dsbi_offset, fullest);
     if (fullest==0) {
       if (0) printf("Need a chunk\n");
-      needed = true;
       void *chunk = mmap_chunk_aligned_block(1);
       if (chunk == NULL) return NULL;
       bin_and_size_t b_and_s = bin_and_size_to_bin_and_size(bin, 0);
@@ -292,20 +322,68 @@ void* small_malloc(binnumber_t bin)
 		 bin, dsbi_offset, sch);
     }
 
-    if (0 && needed) printf("Chunked\n");
-    if (0) printf("There's one somewhere\n");
-    
     verify_small_invariants();
+
+    WHEN_MICROTIMING(
+	uint64_t start_do_small_malloc = rdtsc();
+	clocks_spent_initializing_small_chunks += start_do_small_malloc - end_early_small_malloc
+		     );
     void *result = atomically(&small_locks[bin], "small_malloc",
 			      predo_small_malloc, do_small_malloc,
 			      bin, dsbi_offset, o_size);
-
     verify_small_invariants();
+    WHEN_MICROTIMING(
+      uint64_t end_do_small_malloc = rdtsc();
+      clocks_spent_in_do_small_malloc += end_do_small_malloc - start_do_small_malloc;
+      start_small_malloc = end_do_small_malloc // so that the subtraction on the next iteration of the loop will work.
+		     );
     if (result) {
       bassert(bin_from_bin_and_size(chunk_infos[address_2_chunknumber(result)].bin_and_size) == bin);
       return result;
     }
   }
+}
+
+// We want this timing especially when not in test code.
+extern "C" void time_small_malloc(void) {
+  // measure the time to do small mallocs.
+  const int ncalls = 10000000;
+  void **array = new void* [ncalls];
+  // Prefill the array so that we don't measure the cost of those page faults.
+  for (int i = 0; i < ncalls; i++) {
+    array[i] = NULL;
+  }
+    
+
+  struct timespec start,end;
+
+  clock_gettime(CLOCK_MONOTONIC, &start);
+  WHEN_MICROTIMING(uint64_t clocks_in_small_malloc = 0);
+  for (int i = 0; i < ncalls; i++) {
+    WHEN_MICROTIMING(uint64_t start_rdtsc = rdtsc());
+    void *n = small_malloc(0); // bin 0 is the smallest size
+    WHEN_MICROTIMING(uint64_t end_rdtsc = rdtsc();
+		     clocks_in_small_malloc += end_rdtsc - start_rdtsc);
+    array[i] = n;
+  }
+  clock_gettime(CLOCK_MONOTONIC, &end);
+  //printf("start=%ld.%09ld\n", start.tv_sec, start.tv_nsec);
+  //printf("end  =%ld.%09ld\n", end.tv_sec,   end.tv_nsec);
+  //printf("tdiff=%0.9f\n", tdiff(&start, &end));
+  printf("%fns/small_malloc\n", tdiff(&start, &end)*1e9/ncalls);
+  WHEN_MICROTIMING( ({
+      printf("%5.1f clocks/small_malloc\n", clocks_in_small_malloc/(double)ncalls);
+      printf("%5.1f clocks/small_malloc spent early small malloc\n", clocks_spent_in_early_small_malloc/(double)ncalls);
+      printf("%5.1f clocks/small_malloc spent initializing small chunks\n", clocks_spent_initializing_small_chunks/(double)ncalls);
+      printf("%5.1f clocks/small_malloc spent in do_small_malloc\n", clocks_spent_in_do_small_malloc/(double)ncalls);
+      printf("%5.1f clocks/small_malloc unaccounted for\n",
+	     (clocks_in_small_malloc - clocks_spent_in_early_small_malloc - clocks_spent_initializing_small_chunks - clocks_spent_in_do_small_malloc)/(double)ncalls);
+      }));
+
+  for (int i = 0; i < ncalls; i++) {
+    free(array[i]);
+  }
+  delete [] array;
 }
 
 static void predo_small_free(binnumber_t bin,
@@ -426,7 +504,12 @@ void predo_small_free_post_madvise(per_folio * pp, uint32_t total_dsbi_offset) {
   prefetch_write(&dsbi.lists.b[total_dsbi_offset]);
 }
 
-bool small_free_post_madvise(per_folio * pp, uint32_t total_dsbi_offset) {
+bool small_free_post_madvise(per_folio * pp, uint32_t total_dsbi_offset)
+// Effect: After calling madvise to clear a folio, put the folio into the free list.
+//  The pp is a per-folio linked-list element stored at the beginning of the chunk.
+//  The total_dsbi_offset is the offset that corresponds to the list of completely
+//  free folios.
+{
   per_folio * new_next = dsbi.lists.b[total_dsbi_offset];
   pp->prev = NULL;
   pp->next = new_next;

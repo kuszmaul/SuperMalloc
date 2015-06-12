@@ -1,3 +1,5 @@
+#include <time.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -13,6 +15,8 @@ extern "C" {
   void test_realloc(void);
   void test_malloc_usable_size(void);
   void test_object_base(void);
+
+  void time_small_malloc(void);
 #ifdef __cplusplus
 }
 #endif
