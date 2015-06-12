@@ -7,7 +7,7 @@ struct linked_list {
 extern void cache_destructor();
 
 struct cached_objects {
-  uint64_t bytecount __attribute__((aligned(32)));
+  uint64_t objectcount __attribute__((aligned(32)));
   linked_list *head;
   linked_list *tail;
 };
