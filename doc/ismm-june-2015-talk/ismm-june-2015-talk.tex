@@ -1,0 +1,962 @@
+% are we philosophising too early?
+% are we philosophising at the end?
+%  add lessons at end
+\documentclass[xcolor=dvipsnames,14pt]{beamer}
+\beamertemplatenavigationsymbolsempty%Turn off the navbar
+\usepackage{geometry}
+\usepackage{minted}
+\usepackage{graphicx}
+\usepackage{codehilite}
+\usepackage{macros}
+
+
+\newcommand{\punt}[1]{}
+
+\begin{document}
+\title{SuperMalloc}
+\subtitle{A fast HTM-friendly memory allocator with a small footprint}
+
+% Promise: By the end of this talk you will know how to make malloc 3 times faster on worst-case workloads, and you'll learn some tricks that can be applied to other performance.
+
+
+\author{Bradley C. Kuszmaul}
+\date{HP Labs, May  20, 2015}
+\frame{\titlepage}
+
+\begin{frame}[fragile]
+\frametitle{Malloc and Free}
+\begin{minted}[mathescape]{c}
+void* malloc(size_t s);
+\end{minted}
+
+Effect: Allocate and return a pointer to a block of memory containing at least "s" bytes.
+
+\begin{minted}{c}
+void free(void *p);
+\end{minted}
+
+Effect: "p" is a pointer to a block of memory returned by "malloc()".  Deallocate the block.
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Aligned Allocation}
+
+\begin{minted}[mathescape]{c}
+void* memalign(size_t alignment, size_t s);
+\end{minted}
+
+
+Effect: Allocate and return a pointer to a block of memory containing at least "s" bytes.  
+The returned pointer shall be a multiple of "alignment".  That is,
+\begin{center}
+"0 == (size_t)(memalign(a, s)) % a}"
+\end{center}
+
+Requires: "a" is a power of two.
+\end{frame}
+
+\newcommand{\zerobox}[1]{\parbox[b][0in][b]{0in}{#1}}
+
+\begin{frame}
+\frametitle{DLmalloc}
+
+\hfill\zerobox{\includegraphics[width=1in]{pictures/doug_lea.png}}\hspace{1in}
+%\hfill\parbox[b][0in][b]{0in}{\includegraphics[width=1in]{pictures/doug_lea.png}}\hspace{1in}
+
+Linux libc employs Doug Lea's malloc, which dates from 1987.
+
+\begin{itemize}
+\item DLmalloc suffers high space overhead (an 8-byte boundary tag on every object, and poor space reclamation).
+\item DLmalloc is slow (especially on multithreaded code, where it uses a monolithic lock).
+\end{itemize}
+
+To address these problems, allocators such as Hoard, TCmalloc, JEmalloc have appeared.
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Modern Allocators Employ Thread Caches}
+
+\begin{minted}[mathescape]{c}
+__thread LinkedList *cache[N_SIZE_CLASSES];
+
+void *alloc(size_t s) {
+  int size_class = size_2_class(s);
+  void *ret = cache[size_class];
+  if (ret != NULL) {
+    cache[size_class] = ret->next;
+    return ret;
+  }
+  ...
+\end{minted}
+
+A call to the allocator requires no locking if it can be satisfied by the cache .
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Thread Caches Are Really Fast}
+
+\begin{minted}[mathescape]{c}
+while (1) {
+  free(malloc(8));
+}
+\end{minted}
+
+\begin{itemize}
+\item Used by the original Cilk allocator \zerobox{\hspace*{-1in}{\raisebox{.5cm}{\includegraphics[height=1in]{pictures/blumofe.jpg} \includegraphics[height=1in]{pictures/cel.jpg}}}}
+[BlumofeLe94], the early STL allocator [SGI97], PTmalloc [Gloger06], LKmalloc[LarsonKr98], and TCmalloc [Google13].
+
+
+\item No locks, so it's really fast.
+\item Must take a little care to avoid false cache-line sharing.
+\item What goes wrong?
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{The Malloc-test Benchmark}
+
+\begin{itemize}
+\item Benchmark due to Lever and Boreham,
+\textit{malloc() Performance in a Multithreaded Linux
+  Environment}, USENIX 2000.
+
+\item $k$ allocator threads, $k$ deallocator threads.
+
+\item Each allocator thread calls "malloc()" as fast as it can and hands the object to a deallocator thread, which calls "free()" as fast as it can.
+
+\item It's a tough (maybe the toughest) benchmark, because per-thread caches become unbalanced.
+
+\item The code is racy, and produces noisy data.  I sped it up by a factor of two, and de-noised it.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Recent Allocators Also Improved Space}
+
+\begin{itemize}
+\item Hoard [BergerMcBl00] provided the first space bound for allocators
+with thread caches. 
+\item TBBMalloc [KukanovVo07] adopted a later Cilk allocator (but still has a footprint problem sometimes).
+\item JEmalloc [Evans06] seems to be the best incumbent.
+\end{itemize}
+
+{\tiny
+\begin{tabular}{c@{}c@{}c@{}c@{}c}
+\includegraphics[height=1in]{pictures/emery-berger-headshot.jpg}&
+\includegraphics[height=1in]{pictures/mckinley.jpg}&
+\includegraphics[height=1in]{pictures/kukanov.jpg}&
+\includegraphics[height=1in]{pictures/voss.jpg}&
+\includegraphics[height=1in]{pictures/evans-headshot.jpg}
+\\ Berger & McKinley & Kukanov & Voss & Evans 
+\end{tabular}
+}
+\end{frame}
+
+\begin{frame}
+\frametitle{Malloc-test On 4-core Haswell (With Hyperthreading)}
+
+\input{new-malloc-test-1K-lutestring-aggregated}
+\end{frame}
+\begin{frame}
+\frametitle{Malloc-test On 16-core Sandy Bridge (With Hyperthreading)}
+
+\input{new-malloc-test-1K-tempo-aggregated}
+\end{frame}
+
+\begin{frame}
+\frametitle{Explaining the Performance}
+
+\begin{itemize}
+\item How DLmalloc works.
+\item How Hoard \& JEmalloc work.
+\item How SuperMalloc works.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{DLmalloc Employs Bins}
+A bin is a doubly linked list of free objects that are all close to the same size.
+
+\vfill
+
+For example, DLmalloc employs 32 ``small'' bins of size 8, 16, 24, 32,
+\ldots, 256 bytes respectively.  If you allocate 12 bytes, you get a 16-byte object.
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{DLmalloc Employs Boundary Tags}
+
+A 64-bit integer encoding "{size, in_use, prev_in_use}" precedes each object.
+
+Also stores "size" at the end of free objects.
+
+\vspace*{-0.5cm}
+\begin{center}
+\begin{tabular}{@{}c@{}c}
+\begin{tabular}{c}
+\vspace*{0.5in} \\
+\includegraphics[width=1in]{pictures/knuth.jpg}  \\
+\tiny Boundary tags \\
+\tiny due to Knuth.
+\end{tabular}
+&
+\begin{tabular}{|l|l|}
+allocated                         & $\ldots$ user data $\ldots$ \\ \hline
+allocated                         & "{32, true, true}"          \\ \cline{2-2}
+\multicolumn{1}{|r|}{(32 bytes)}  & $\ldots$ user data $\ldots$ \\ \hline
+free                              & "{48, false, true}"         \\ \cline{2-2}
+\multicolumn{1}{|r|}{(48 bytes)}  & "void* prev_in_bin;" \\ \cline{2-2}
+                                  & "void* next_in_bin;" \\ \cline{2-2}
+                                  & $\ldots$ unused space $\ldots$ \\ \cline{2-2}
+                                  & "48"                 \\ \hline
+allocated                         & "96, true, false"    \\ \cline{2-2}
+\multicolumn{1}{|r|}{(96 bytes)}  & $\ldots$ user data $\ldots$ \\ \hline
+                &                                   \\
+\end{tabular}
+\end{tabular}
+\end{center}
+\end{frame}
+
+\begin{frame}
+\frametitle{DLmalloc Is Simple But Slow}
+
+\begin{tabular}{rrr}
+         & lines of code & malloc\_test speed \\
+DLmalloc &    6,281 &  3.7M/s \\
+Hoard    &   16,948 &  17M/s \\
+JEmalloc    & 22,230 & 38M/s\\
+SuperMalloc & 3,571 & 131M/s \\
+\end{tabular}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Running Faster Than DLmalloc}
+
+\begin{itemize}
+\item DLmalloc uses a monolithic lock.
+\item Hoard employs per-thread caches to reduce lock-acquisition frequency, along with a provable space bound.
+\item JEmalloc uses many of the same tricks, provides a much weaker space bound in theory, but seems better in practice.
+\item Each thread keeps a cache of allocated objects.
+\item Each thread has an ``arena''.  When the thread cache is empty, allocate out of the arena, using a per-arena lock.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Running Smaller Than DLmalloc}
+
+\begin{itemize}
+\item Allocate 4MiB \textit{chunks} using "mmap()".
+\item Objects within a chunk are all the same size (to first order).
+\item Only $1$-bit/object overhead.
+\item A red-black tree indexed on the chunk number, "p >> 22", provides a chunk's object size.
+\item In an arena, JEmalloc allocates the object with the least address,
+tending to depopulate pages.
+\item Hoard is similar, except that it allocates from the fullest page.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Under the Hood of SuperMalloc}
+
+SuperMalloc is fast and small for many reasons.  Two main ideas:
+\begin{itemize}
+\item Virtual-memory tricks.
+\item Reduced synchronization cost.
+\item Exploit Caching.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Virtual Memory}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{x86-64 Address Space}
+
+\input{x86-addresses_pdftex}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Uncommitted Memory}
+
+\begin{itemize}
+\item The kernel allocates physical memory lazily.
+\item When you map memory, virtual addresses are allocated, but the page table is set up to point to a special zero-page.
+\item When you write to a previously unwritten page, the kernel allocates memory, \textit{committing} physical memory to the virtual page.
+\item You can decommit physical memory, returning it to the kernel, via "madvise()".
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Which Object Is Being Freed?}
+
+On "free(p)", we need to know which bitmap bit to clear.
+\begin{itemize}
+\item All objects in the same chunks are the same size.  SuperMalloc Chunks are 2MiB.
+
+\item Compute:
+
+  "chunk  = (p >> 21) & ((1<<27)-1);"
+
+  "bitnum = (p&((1<<21)-1)) / objsize;"
+
+\item How to determine "objsize"?
+JEmalloc and Hoard employ a red-black tree.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Use An Array, Not A Tree}
+
+SuperMalloc employs an array.
+\begin{itemize}
+\item There are only $2^{27}$ possible chunks.  Need 32 bits to code the size, a total of
+$2^{29}$ bytes.
+
+\item E.g., a program that uses $128$ GiB of allocated data needs only
+  $65,536$ chunks.  The table consumes 512MiB of address space, but
+  only a 256KiB of RSS.
+
+\item "mmap()" mostly returns adjacent blocks.
+
+\item Determining an object's size requires $O(1)$ cache misses.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Fullest-Page Heap}
+\input{small-number-heap_pdftex}
+\end{frame}
+
+\begin{frame}
+\frametitle{Synchronization}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Costs of Locking vs. Cache Contention}
+
+I measured the cost of updating a variable in a multithreaded code.
+
+\begin{tabular}{rr}
+                                                  global variable &    193.6ns \\
+            per cpu (always call "sched_getcpu()"  &     30.2ns \\
+per cpu (cache getcpu, refresh/32) &     17.0ns \\
+                                                      per thread &      3.1ns \\
+                                                  local in stack &      3.1ns \\
+\end{tabular}
+
+How to use this:  Make a per-thread cache that's just big enough to amortize the locking instruction, and then use a per-CPU cache.
+\end{frame}
+
+\begin{frame}
+\frametitle{SuperMalloc Cache Architecture}
+\input{cache-architecture_pdftex}
+\end{frame}
+
+\begin{frame}
+\frametitle{To Allocate}
+
+
+\begin{enumerate}
+\item Determine which \textit{size bin} to use.
+\item Look in the per-thread and per-CPU caches.
+\item Else, Atomically 
+  \begin{enumerate}
+  \item Find the fullest page in that bin with a free slot.
+  \item Find a free slot in the bitmap for the page.
+  \item Set the bit.
+  \item Change the page's position in the fullest-page heap.
+  \end{enumerate}
+\item Else (nothing was found), allocate a new chunk.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}
+\frametitle{To Free}
+\begin{enumerate}
+\item If the thread cache and cpu cache are full, 
+
+ Atomically
+ \begin{enumerate}
+ \item Clear the bit in the free map.
+ \item Change the page's position in the fullest-page heap.
+ \end{enumerate}
+\item Otherwise 
+ \begin{enumerate}
+ \item Insert the object to the thread cache.
+ \item If the thread cache is full, move several objects to the per-cpu cache (in $O(1)$ time).
+ \end{enumerate}
+\end{enumerate}
+\end{frame}
+
+\begin{frame}
+\frametitle{More Caching Issues}
+\end{frame}
+
+
+\begin{frame}[fragile]
+\frametitle{Size Bins Introduce Associativity Conflicts}
+\input{associativity-conflicts_pdftex}
+\end{frame}
+
+\begin{frame}
+\frametitle{Odd-sized Bins}
+
+\begin{itemize}
+\item Solution (due to Dave Dice).  Make object sizes be a prime number of cache lines.
+
+\url{https://blogs.oracle.com/dave/entry/malloc_for_haswell_hardware_transactional}
+
+\item In principle, odd-sized should be good enough.  Prime numbers avoid inter-bin associativity conflicts, however.
+
+\hfill\zerobox{\raisebox{-0.6in}{\includegraphics[height=1in]{pictures/dave_dice.jpg}}}\hspace*{1in}
+
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{Odd-sized bins performance issues}
+
+\begin{itemize}
+\item Calculating bin number from size.
+\item Calculating bitmap index from a pointer.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{SuperMalloc Bin Sizes}
+
+Four size categories: small, medium, large, huge.
+\end{frame}
+
+\begin{frame}
+\frametitle{Small Size}
+
+\begin{itemize}
+\item Small sizes are of the form $\frac{2^k}{1}$, $\frac{5 \cdot 2^k}{4}$, $\frac{3 \cdot 2^k}{2}$, $\frac{7 \cdot 2^k}{4}$.  
+\item The numbers are 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, and 320.
+\item These admit fast calculation of bin numbers via bit hacks.
+\item Technically, some of these are bad alignments:  DLmalloc provides 8-byte aligned data, and programmers may expect it.  Probably need to remove 10, 12, 14, 20, and 28.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Medium size}
+\begin{itemize}
+\item Prime numbers of cache lines: 5, 7, 11, 13, 17, 23,
+  $\ldots$ cache lines.
+
+\item Throw in 9 and 15 to avoid fragmentation.
+
+\item There are 45 small- and medium-sized bins.
+\item Aligned allocations have their own bins.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Folios}
+
+\begin{itemize}
+\item Prime-sized objects leave unused space at the end of a page.
+
+\item Consider the 832-byte bin (13 cache lines). 
+
+\item Four of those objects fit in a page.
+\item Wastes 768 bytes at the end.
+\item Use somewhat larger pages, we call ``folios'' which contain 64 objects.
+\item No fragmentation at the end of the folio.
+\item There are a few pages at the end that are unused, but we keep those pages uncommitted.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Large Size}
+\begin{itemize}
+\item Page allocated plus a random offset.   
+\item The chunk is organized by powers of two.  There is a chunk for 4-page objects, a chunk for 8-page objects, a chunk for 16-page objects, and so forth.
+\item Make sure the unused pages are uncommitted (that is, not in physical memory).
+\item Wastes at most $2\times$ virtual memory.
+\item "chunksize" tracks the number of pages.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Huge Size}
+
+\begin{itemize}
+\item Allocated via mmap plus a random offet. 
+\item Huge objects are allocated on power-of-two chunks.  (Keep the unused part uncommitted).
+\item By using power-of-two chunks we have relatively few allocation bins.
+\item "chunksize" tracks the number of pages.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Calculating Bitmap Indexes}
+
+Given a pointer $p$:
+
+\begin{tabular}{ll}
+ Chunk number is & "C = p / chunksize". \\
+ Bin is          & "B = chunkinfos[C]".  \\
+ Folio size is   & "FS = foliosizes[B]". \\
+ Folio number is & "FN = (p%chunksize)/FS". \\
+ Object size is  & "OS = objectsizes[B]". \\
+ Object number is& "ON = ((p%chunksize)%FS)/OS".
+\end{tabular}
+
+Division by "chunksize", a constant power of two, is
+easy.  Division by "FS" and "OS" could be
+slow.
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Division via Multiplication-and-Shift}
+
+Division is slow.  Multiplication is fast.
+
+It turns out that for 32-bit values of "x",
+\begin{center}
+"x / 320 == (x*6871947674lu)>>41"
+\end{center}
+
+[MagenheimerPePe87] shows how to calculate these magic numbers. 
+
+\hfill\zerobox{\raisebox{-0.6in}{\includegraphics[height=1in]{pictures/magenheimer.jpg}}}\hspace*{1in}
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Magic Numbers for Division}
+
+Problem: divide by "D" using multiply and shift.
+
+Idea:  For real numbers, $\frac{x (2^{32}/D)}{2^{32}} = \frac{x}{D}$.
+
+For integer arithmetic use:
+\begin{eqnarray*}
+S & = & 32+\lceil \log_2 D \rceil \\
+M & = & (D-1+2^S)/D 
+\end{eqnarray*}
+in which case for $x<2^{32}$,
+\[
+\lfloor x/D \rfloor = \lfloor (xM)/2^S \rfloor.
+\]
+
+A metaprogram computes all the sizes and the magic constants.
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Using Hardware Transactional Memory}
+
+\begin{minted}[mathescape]{c}
+while (1) {
+  if (_xbegin() == _XBEGIN_STARTED) {
+    if (lock) _xabort(); // subscribe to lock
+    critical_section();
+    _xend();
+    break;
+  }
+  if (!try_again()) {
+    acquire_lock(&lock);
+    critical_section();
+    release_lock(&lock);
+    break;
+} }
+\end{minted}
+\end{frame}
+
+\begin{frame}
+\frametitle{Why does an HTM transaction fail?}
+\begin{itemize}
+\item Interrupts (such as time-slice).
+\item Cache capacity (read set must fit in L2.  Write set must fit in L1).
+\item Actual conflicts (two concurrent transactions have a race).
+\item Conflicts with the fallback code.
+\item Other random failures.  The HTM failure codes seem useless.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Improving the Odds}
+
+\begin{minted}[mathescape]{c}
+while (1) {
+  // prewait for the lock.
+  while (lock) _mm_pause(); // save power.
+  // prefetch needed data:
+  predo_critical_section()
+  if (_xbegin() == _XBEGIN_STARTED) {
+    critical_section();
+    if (lock) _xabort(); // late subscription.
+    _xend();
+    break;
+  }
+  if (!try_again()) {
+    acquire_lock(&lock);
+    critical_section();
+    release_lock(&lock);
+    break;
+  }
+}
+\end{minted}
+\end{frame}
+
+\begin{frame}
+\frametitle{What Works?}
+
+\begin{itemize}
+\item HTM wins over spin locks for high thread counts.  Maybe need better locks?
+\item Prewaiting for the lock is a big win.
+\item Preloading the cache little, if any, win.
+\item Late lock subscription does not help much, and is dangerous.  
+
+The transaction may be running between two arbitrary instructions of
+the critical section protected by the lock.  How do you know that
+we'll successfully get the abort?
+
+I got rid of late lock subscription.
+\item Lock fallback needed less than 0.03\% of the time.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{SuperMalloc Strategies}
+
+\begin{itemize}
+\item Can waste some virtual space: it's $2^{48}$ bytes.
+\item Don't waste RSS ($2^{40}$ bytes on big machines).
+\item Contention costs dearly, not locking.  Use a per-CPU cache.
+\item Make per-CPU cache smaller than L3 cache, since the application
+  has cache misses anyway.
+\item Thread cache just big enough to reduce locking overhead: about 10 objects.
+\item Use hardware transactional memory (HTM).
+\item HTM likes simple data structures.  Use a big array instead of a red-black tree.
+\item Object sizes are a prime number of cache lines to avoid
+  associativity conflicts.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[fragile]
+\frametitle{Wishlist}
+
+\begin{itemize}
+\item "MADV_FREE": cheaply decommits memory.  BSD has it.
+Or an event indicating memory pressure.
+\item Lock-aware scheduling: hint the kernel not to preempt (to
+reduce lock-holder preemption).  Solaris has it.
+\item Subscribable mutexes:  Need to sleep until a mutex unlocks, without locking it.
+\item Late lock subscription: Can we do it safely?
+\item Compiler-help for cache preloading.
+%\item Why can't I get rid of those last 0.03\% of the lock fallbacks?
+%\item Measure SuperMalloc in real workloads.  (Or at least some of the
+%  common malloc benchmarks.)
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}
+\frametitle{SuperMalloc is Available}
+
+From {\small \url{https://github.mit.edu/SuperTech/SuperMalloc}},
+
+or downstream at {\small \url{https://github.com/kuszmaul/SuperMalloc}}.
+
+Dual licensed under MIT Expat and GPLv3.
+\end{frame}
+
+\end{document}
+\punt{
+\begin{frame}
+\frametitle{Doug Lea's Goals For Malloc}
+
+\begin{columns}
+\hspace*{-.3cm}
+\begin{column}{1.15 \textwidth}
+\begin{description}[Error Detection:]
+\item[Compatibility:] POSIX API.
+\item[Portability:] SuperMalloc now works only on x86-64/Linux (and likes Haswell).
+\item[Space:] SuperMalloc wins.
+\item[Time:] SuperMalloc wins on average time.  Difficult to measure worst case.
+\item[Tunability:] I hate tunability.
+\item[Locality:] Objects allocated at the same time should be near each other.  Nobody seems to care.
+\item[Error Detection:] SuperMalloc performs little checking.
+\item[Anomalies:] I'm hopeful.
+\end{description}
+\end{column}
+\end{columns}
+\end{frame}
+}
+
+
+\begin{frame}
+\frametitle{Worst Case Time is Bad}
+
+My motivation: JEmalloc seems to be the best allocator right now.  It
+is much faster than DLmalloc, and its memory footprint is half for
+long-lived processes (such as database servers).
+
+\vfill
+However: In JEmalloc, once per day "free()" takes 3 seconds.
+
+\vfill
+I suspect lock-holder preemption, but it's tough to observe.
+\end{frame}
+
+
+
+\begin{frame}
+\frametitle{DLmalloc malloc()}
+
+\begin{itemize}
+\item Find any object in the smallest nonempty bin that is big enough.
+
+\item If none available, get  more memory from operating system.
+
+\item Historically: Earlier versions of DLmalloc implemented first-fit within each bin.
+
+They kept the bins sorted (but maintaining a heap in each bin would
+have been enough).
+
+\item Now it's more complex.
+
+\item Operation complexity is $O(\mbox{\mintinline{c}{sizeof(size_t)}})$.
+\end{itemize}
+\end{frame}
+  
+\begin{frame}
+\frametitle{DLmalloc free()}
+
+\begin{enumerate}
+\item Remove adjacent free blocks (if any) from their bins.
+\item Coalesce adjacent free blocks.
+\item Put the resulting free block in the right bin.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}
+\frametitle{DLmalloc suffers an 8-byte/object overhead}
+
+Since each object is preceeded by an 8-byte size, there is a 100\%
+overhead on 8-byte objects.
+
+\end{frame}
+
+\begin{frame}
+\frametitle{DLmalloc suffers fragmentation}
+
+\begin{itemize}
+\item DLmalloc, in the past, implemented first-fit, but does not appear to do so now.
+
+\item DLmalloc maintains ``bins'' of objects of particular size ranges.
+
+\item Small objects end up next to large objects.
+
+\item Pages can seldom be returned to the operating system.
+
+\item Compared to Hoard or JEmalloc, DLmalloc results in twice the
+  resident set size (RSS) for long-lived applications, such as
+  servers.
+\end{itemize}
+
+\end{frame}
+
+
+
+
+\begin{frame}
+\frametitle{Returning Pages to the Operating system}
+
+\begin{itemize}
+\item Empty pages can be released using
+\mintinline{c}{madvise(p, MADV_DONTNEED, ...)}, which zeros the page while keeping the virtual address valid.
+
+\item JEmalloc includes much complexity to overcome the high cost of
+  \mintinline{c}{DONTNEED}.
+
+\item SuperMalloc may not suffer as much.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Performance of returning memory}
+
+\begin{itemize}
+\item On linux, avoid calling \mintinline{c}{munmap()}, which pokes
+  holes in the virtual address space.  When many holes exist, Linux is slow to
+  find a free range.
+
+\item BSD offers \mintinline{c}{MADV_FREE}, which
+  gives the kernel \textit{permission} to free memory, without \textit{requiring} it. The memory retains its old value, but can be zero'd at any time.
+  The OS frees physical memory asynchronously, only when there is memory pressure, and often avoids the cost of
+  deallocating/reallocation.
+
+\item Kernel should deliver an event to the application when memory is tight.
+
+\item Don't yet know if this is important for SuperMalloc.
+\end{itemize}
+\end{frame}
+
+\begin{frame}
+\frametitle{Large Objects in JEmalloc}
+\begin{itemize}
+\item For objects $>$ 4MiB, round up to a 4MiB boundary.
+\item If you \mintinline{c}{malloc(1+(1<<22))} (slightly more than 4MiB), the system allocates 8MiB.  
+\item This allocation uses up virtual space, but not RSS\:.
+  The OS \textit{commits} physical memory for a
+  page only when the application reads or writes the page.  Since the page
+  size is 4KiB, in this example, at most 4MiB+4KiB of RSS is allocated.
+\end{itemize}
+\end{frame}
+\begin{frame}
+\frametitle{SuperMalloc Strategies}
+
+\begin{itemize}
+\item Can waste virtual space: it's $2^{48}$ bytes.
+\item Don't waste RSS ($2^{40}$ bytes on big machines).
+\item Contention costs dearly, not locking.  Use a per-CPU cache.
+\item Make per-CPU cache smaller than L3 cache, since the application
+  has cache misses anyway.
+\item Thread cache should be just big enough to reduce locking overhead.  (About 10 objects.)
+\item Use Hardware transactional memory (HTM).
+\item HTM likes simple data structures.
+\item Object sizes should be a prime number of cache lines to avoid associativity conflicts.
+\end{itemize}
+\end{frame}
+
+
+
+%% \begin{frame}
+%% \frametitle{Supermalloc Strategies}
+
+%% \begin{itemize}
+%% \item Virtual address space is $2^{48}$ bytes.  Real memory is typically $2^{33}$ up to $2^{41}$ bytes. 
+
+%% Don't waste real memory.  Do waste virtual memory.
+
+%% \item Locking uncontended locks is far cheaper than accessing contended cache lines.
+
+%% Use a per-CPU cache.
+
+%% \item Applications access their objects, incurring cache misses.
+
+%% Set the per-CPU cache to be smaller than L3.
+
+%% \item Thread cache reduces locking costs.
+
+%% Thread cache holds only about 10 objects.
+
+%% \item HTM likes simple data structures.
+
+%% Use arrays instead of red-black trees.
+
+%% \item Associativity conflicts cause trouble.
+
+%% Object sizes should be a prime number of cache lines.
+
+%% \end{itemize}
+%% \end{frame}
+
+
+
+
+
+
+\begin{frame}[fragile]
+\frametitle{Per-Thread PRNG With No Initialization}
+
+\begin{minted}[mathescape]{c}
+// Mix64 is a hash function
+static uint64_t Mix64 (uint64_t);
+
+// per-thread pseudorandom number generator.
+uint64_t prandnum() {
+  static __thread uint64_t rv = 0;
+  return Mix64(++rv + (uint64_t)&rv);
+}
+\end{minted}
+
+(Due to Dave Dice:
+\url{https://blogs.oracle.com/dave/entry/a_simple_prng_idiom})
+
+I'm skeptical of this.  Different threads may be too correlated.  Can
+it be fixed up?
+
+\end{frame}
+
+
+\begin{frame}
+\frametitle{Performance Comparison}
+\hspace*{-.7cm}\includegraphics{new-malloc-test-1K-aggregated.pdf}
+
+{\small 8 runs on i7-4770: 3.4GHz, 4 cores, 2 HT/core, no turboboost.}
+\end{frame}
+
+
+
+\end{document}
+
+\begin{frame}[fragile]
+\frametitle{An Implementation of Memalign}
+
+Idea: allocate a little extra, and then return adjust the pointer to be aligned.
+
+\begin{minted}[mathescape]{c}
+void* memalign(size_t alignment, size_t s) {
+  size_t p = (size_t)malloc(s+alignment-1);
+  size_t a = (p+alignment-1)&~(alignment-1);
+  return (void*)a;
+}
+\end{minted}
+
+Bug: This implementation is wrong, because objects returned by
+\mintinline{c}{memalign()} can be passed to \mintinline{c}{free()},
+which requires that its argument is a block returned by
+\mintinline{c}{malloc()}.
+
+
+\end{frame}
+
+
+
+the problem(s) with JEmalloc
+ visible problems:
+   1) occasional 3-second call to free() (I don't know if I've fixed this, but it seems likely.  It's tough to reproduce)
+   2) large memory footprint (essentially 2x?)
+   3) Cache-index unfriendly
+ mechanisms
+   1) lowest-address allocation (an interesting heuristic.  May not be a problem itself. The data structure to calculate this may be a problem?)
+   2) many arenas (the thread cache is too big?)
+
+also want to investigate
+ programming with transactional memory (this is weak, since I don't really see a performance advantage)
+   1) What is TM
+   2) How does it work (cached watching)
+   3) Transactions fail--> need a fallback
+     a) Subscribe to a lock (explain subscribe)
+     b) Issues with late subscription/early subscription
+   4) Why do transactions fail?
+     a) interrupts (in particular, time slice interupt --> no transactions longer than 10ms)
+     b) cache capacity (the read set can be in L2, the write set must fit in L1 - note this means that writes should be delayed if possible)
+     c) actual conflicts
+     d) Other random failures (the failure codes are essentially useless, except for the ``user aborted'' code)
+   5) Tricks
+     a) don't enter the transaction until the lock is available
+     b) subscribe to the lock late
+     c) prefetch data before entering the transaction (prefetch for write on writeable data) - this optimization doesn't seem to matter much)
+     d) after doing all this, locks are just as fast as transactions
+
+
+batch move from thread cache to global cache

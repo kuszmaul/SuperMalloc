@@ -1,0 +1,121 @@
+% GNUPLOT: LaTeX picture with Postscript
+\begingroup
+  \fontfamily{ptm}%
+  \selectfont
+  \makeatletter
+  \providecommand\color[2][]{%
+    \GenericError{(gnuplot) \space\space\space\@spaces}{%
+      Package color not loaded in conjunction with
+      terminal option `colourtext'%
+    }{See the gnuplot documentation for explanation.%
+    }{Either use 'blacktext' in gnuplot or load the package
+      color.sty in LaTeX.}%
+    \renewcommand\color[2][]{}%
+  }%
+  \providecommand\includegraphics[2][]{%
+    \GenericError{(gnuplot) \space\space\space\@spaces}{%
+      Package graphicx or graphics not loaded%
+    }{See the gnuplot documentation for explanation.%
+    }{The gnuplot epslatex terminal needs graphicx.sty or graphics.sty.}%
+    \renewcommand\includegraphics[2][]{}%
+  }%
+  \providecommand\rotatebox[2]{#2}%
+  \@ifundefined{ifGPcolor}{%
+    \newif\ifGPcolor
+    \GPcolortrue
+  }{}%
+  \@ifundefined{ifGPblacktext}{%
+    \newif\ifGPblacktext
+    \GPblacktextfalse
+  }{}%
+  % define a \g@addto@macro without @ in the name:
+  \let\gplgaddtomacro\g@addto@macro
+  % define empty templates for all commands taking text:
+  \gdef\gplbacktext{}%
+  \gdef\gplfronttext{}%
+  \makeatother
+  \ifGPblacktext
+    % no textcolor at all
+    \def\colorrgb#1{}%
+    \def\colorgray#1{}%
+  \else
+    % gray or color?
+    \ifGPcolor
+      \def\colorrgb#1{\color[rgb]{#1}}%
+      \def\colorgray#1{\color[gray]{#1}}%
+      \expandafter\def\csname LTw\endcsname{\color{white}}%
+      \expandafter\def\csname LTb\endcsname{\color{black}}%
+      \expandafter\def\csname LTa\endcsname{\color{black}}%
+      \expandafter\def\csname LT0\endcsname{\color[rgb]{1,0,0}}%
+      \expandafter\def\csname LT1\endcsname{\color[rgb]{0,1,0}}%
+      \expandafter\def\csname LT2\endcsname{\color[rgb]{0,0,1}}%
+      \expandafter\def\csname LT3\endcsname{\color[rgb]{1,0,1}}%
+      \expandafter\def\csname LT4\endcsname{\color[rgb]{0,1,1}}%
+      \expandafter\def\csname LT5\endcsname{\color[rgb]{1,1,0}}%
+      \expandafter\def\csname LT6\endcsname{\color[rgb]{0,0,0}}%
+      \expandafter\def\csname LT7\endcsname{\color[rgb]{1,0.3,0}}%
+      \expandafter\def\csname LT8\endcsname{\color[rgb]{0.5,0.5,0.5}}%
+    \else
+      % gray
+      \def\colorrgb#1{\color{black}}%
+      \def\colorgray#1{\color[gray]{#1}}%
+      \expandafter\def\csname LTw\endcsname{\color{white}}%
+      \expandafter\def\csname LTb\endcsname{\color{black}}%
+      \expandafter\def\csname LTa\endcsname{\color{black}}%
+      \expandafter\def\csname LT0\endcsname{\color{black}}%
+      \expandafter\def\csname LT1\endcsname{\color{black}}%
+      \expandafter\def\csname LT2\endcsname{\color{black}}%
+      \expandafter\def\csname LT3\endcsname{\color{black}}%
+      \expandafter\def\csname LT4\endcsname{\color{black}}%
+      \expandafter\def\csname LT5\endcsname{\color{black}}%
+      \expandafter\def\csname LT6\endcsname{\color{black}}%
+      \expandafter\def\csname LT7\endcsname{\color{black}}%
+      \expandafter\def\csname LT8\endcsname{\color{black}}%
+    \fi
+  \fi
+  \setlength{\unitlength}{0.0500bp}%
+  \begin{picture}(5760.00,3160.00)%
+    \gplgaddtomacro\gplbacktext{%
+      \csname LTb\endcsname%
+      \put(538,558){\makebox(0,0)[r]{\strut{}\footnotesize 0}}%
+      \csname LTb\endcsname%
+      \put(538,1757){\makebox(0,0)[r]{\strut{}\footnotesize$50$M}}%
+      \csname LTb\endcsname%
+      \put(538,2811){\makebox(0,0)[r]{\strut{}\footnotesize $94$M}}%
+      \csname LTb\endcsname%
+      \put(886,298){\makebox(0,0){\strut{}2}}%
+      \csname LTb\endcsname%
+      \put(1572,298){\makebox(0,0){\strut{}4}}%
+      \csname LTb\endcsname%
+      \put(2945,298){\makebox(0,0){\strut{}8}}%
+      \csname LTb\endcsname%
+      \put(4318,298){\makebox(0,0){\strut{}12}}%
+      \csname LTb\endcsname%
+      \put(5690,298){\makebox(0,0){\strut{}16}}%
+      \csname LTb\endcsname%
+      \put(37,1756){\rotatebox{-270}{\makebox(0,0){\small \texttt{malloc()}'s per second}}}%
+      \csname LTb\endcsname%
+      \put(3236,19){\makebox(0,0){\small Threads}}%
+      \put(3236,2862){\makebox(0,0){\strut{}}}%
+      \csname LTb\endcsname%
+      \put(3236,2861){\makebox(0,0){\strut{}}}%
+      \colorrgb{0.00,0.39,0.00}%
+      \put(3631,2955){\makebox(0,0)[r]{\strut{}\footnotesize SuperMalloc with prefetching}}%
+      \colorrgb{0.00,0.39,0.63}%
+      \put(3427,2397){\makebox(0,0)[l]{\strut{}\footnotesize SuperMalloc no prefetch}}%
+      \colorrgb{0.63,0.00,0.00}%
+      \put(2945,774){\makebox(0,0)[r]{\strut{}\footnotesize DLmalloc}}%
+      \colorrgb{0.63,0.00,0.63}%
+      \put(5519,1658){\makebox(0,0)[r]{\strut{}\footnotesize Hoard}}%
+      \colorrgb{0.00,0.00,0.63}%
+      \put(3631,1658){\makebox(0,0){\strut{}\footnotesize JEmalloc}}%
+      \colorrgb{0.00,0.63,0.63}%
+      \put(2945,1517){\makebox(0,0)[r]{\strut{}\footnotesize TBBmalloc}}%
+    }%
+    \gplgaddtomacro\gplfronttext{%
+    }%
+    \gplbacktext
+    \put(0,0){\includegraphics{new-malloc-test-1K-lutestring-aggregated}}%
+    \gplfronttext
+  \end{picture}%
+\endgroup
