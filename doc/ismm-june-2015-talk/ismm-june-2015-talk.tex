@@ -11,6 +11,7 @@
 
 
 \newcommand{\punt}[1]{}
+\newcommand{\smmpunt}[1]{}
 
 \begin{document}
 \title{SuperMalloc}
@@ -19,8 +20,8 @@
 % Promise: By the end of this talk you will know how to make malloc 3 times faster on worst-case workloads, and you'll learn some tricks that can be applied to other performance.
 
 
-\author{Bradley C. Kuszmaul}
-\date{HP Labs, May  20, 2015}
+\author{Bradley C. Kuszmaul \\ MIT}
+\date{ACM SIGPLAN International \\ Symposium on Memory Management \\ June 14, 2015}
 \frame{\titlepage}
 
 \begin{frame}[fragile]
@@ -331,6 +332,7 @@ $2^{29}$ bytes.
 \end{itemize}
 \end{frame}
 
+\smmpunt{
 \begin{frame}
 \frametitle{Fullest-Page Heap}
 \input{small-number-heap_pdftex}
@@ -339,7 +341,7 @@ $2^{29}$ bytes.
 \begin{frame}
 \frametitle{Synchronization}
 \end{frame}
-
+}
 
 \begin{frame}[fragile]
 \frametitle{Costs of Locking vs. Cache Contention}
@@ -398,16 +400,20 @@ How to use this:  Make a per-thread cache that's just big enough to amortize the
 \end{enumerate}
 \end{frame}
 
+\smmpunt{
 \begin{frame}
 \frametitle{More Caching Issues}
 \end{frame}
+}
 
-
+\smmpunt{
 \begin{frame}[fragile]
 \frametitle{Size Bins Introduce Associativity Conflicts}
 \input{associativity-conflicts_pdftex}
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}
 \frametitle{Odd-sized Bins}
 
@@ -423,7 +429,9 @@ How to use this:  Make a per-thread cache that's just big enough to amortize the
 \end{itemize}
 
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}
 \frametitle{Odd-sized bins performance issues}
 
@@ -432,13 +440,17 @@ How to use this:  Make a per-thread cache that's just big enough to amortize the
 \item Calculating bitmap index from a pointer.
 \end{itemize}
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}
 \frametitle{SuperMalloc Bin Sizes}
 
 Four size categories: small, medium, large, huge.
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}
 \frametitle{Small Size}
 
@@ -449,7 +461,9 @@ Four size categories: small, medium, large, huge.
 \item Technically, some of these are bad alignments:  DLmalloc provides 8-byte aligned data, and programmers may expect it.  Probably need to remove 10, 12, 14, 20, and 28.
 \end{itemize}
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}
 \frametitle{Medium size}
 \begin{itemize}
@@ -462,7 +476,9 @@ Four size categories: small, medium, large, huge.
 \item Aligned allocations have their own bins.
 \end{itemize}
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}
 \frametitle{Folios}
 
@@ -478,7 +494,9 @@ Four size categories: small, medium, large, huge.
 \item There are a few pages at the end that are unused, but we keep those pages uncommitted.
 \end{itemize}
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}[fragile]
 \frametitle{Large Size}
 \begin{itemize}
@@ -489,7 +507,9 @@ Four size categories: small, medium, large, huge.
 \item "chunksize" tracks the number of pages.
 \end{itemize}
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}[fragile]
 \frametitle{Huge Size}
 
@@ -500,7 +520,9 @@ Four size categories: small, medium, large, huge.
 \item "chunksize" tracks the number of pages.
 \end{itemize}
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}[fragile]
 \frametitle{Calculating Bitmap Indexes}
 
@@ -520,7 +542,9 @@ easy.  Division by "FS" and "OS" could be
 slow.
 
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}[fragile]
 \frametitle{Division via Multiplication-and-Shift}
 
@@ -535,7 +559,9 @@ It turns out that for 32-bit values of "x",
 
 \hfill\zerobox{\raisebox{-0.6in}{\includegraphics[height=1in]{pictures/magenheimer.jpg}}}\hspace*{1in}
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}[fragile]
 \frametitle{Magic Numbers for Division}
 
@@ -555,7 +581,9 @@ in which case for $x<2^{32}$,
 
 A metaprogram computes all the sizes and the magic constants.
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}[fragile]
 \frametitle{Using Hardware Transactional Memory}
 
@@ -575,7 +603,9 @@ while (1) {
 } }
 \end{minted}
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}
 \frametitle{Why does an HTM transaction fail?}
 \begin{itemize}
@@ -587,7 +617,9 @@ while (1) {
 \end{itemize}
 
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}[fragile]
 \frametitle{Improving the Odds}
 
@@ -612,7 +644,9 @@ while (1) {
 }
 \end{minted}
 \end{frame}
+}
 
+\smmpunt{
 \begin{frame}
 \frametitle{What Works?}
 
@@ -630,6 +664,7 @@ I got rid of late lock subscription.
 \item Lock fallback needed less than 0.03\% of the time.
 \end{itemize}
 \end{frame}
+}
 
 \begin{frame}
 \frametitle{SuperMalloc Strategies}
