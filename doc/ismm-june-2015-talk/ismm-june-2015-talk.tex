@@ -118,9 +118,9 @@ while (1) {
 \frametitle{The Malloc-test Benchmark}
 
 \begin{itemize}
-\item Benchmark due to Lever and Boreham,
-\textit{malloc() Performance in a Multithreaded Linux
-  Environment}, USENIX 2000.
+\item Benchmark due to Lever and Boreham 2000.
+%\textit{malloc() Performance in a Multithreaded Linux
+%  Environment}, USENIX 2000.
 
 \item $k$ allocator threads, $k$ deallocator threads.
 
@@ -268,8 +268,7 @@ tending to depopulate pages.
 SuperMalloc is fast and small for many reasons.  Two main ideas:
 \begin{itemize}
 \item Virtual-memory tricks.
-\item Reduced synchronization cost.
-\item Exploit Caching.
+\item Reduced cache cost.
 \end{itemize}
 \end{frame}
 
@@ -672,12 +671,12 @@ I got rid of late lock subscription.
 \begin{itemize}
 \item Can waste some virtual space: it's $2^{48}$ bytes.
 \item Don't waste RSS ($2^{40}$ bytes on big machines).
-\item Contention costs dearly, not locking.  Use a per-CPU cache.
+\item Contention costs dearly, not locking;  use a per-CPU cache.
 \item Make per-CPU cache smaller than L3 cache, since the application
   has cache misses anyway.
 \item Thread cache just big enough to reduce locking overhead: about 10 objects.
 \item Use hardware transactional memory (HTM).
-\item HTM likes simple data structures.  Use a big array instead of a red-black tree.
+\item Use simple data structures.  E.g., Use a big array instead of a red-black tree.
 \item Object sizes are a prime number of cache lines to avoid
   associativity conflicts.
 \end{itemize}
