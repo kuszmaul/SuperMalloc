@@ -439,7 +439,7 @@ How to use this information:  Make a per-thread cache that's just big enough to 
 
 \smmpunt{
 \begin{frame}
-\frametitle{Odd-sized bins performance issues}
+\frametitle{Odd-sized Bins Performance Issues}
 
 \begin{itemize}
 \item Calculating bin number from size.
@@ -471,7 +471,7 @@ Four size categories: small, medium, large, huge.
 
 \smmpunt{
 \begin{frame}
-\frametitle{Medium size}
+\frametitle{Medium Size}
 \begin{itemize}
 \item Prime numbers of cache lines: 5, 7, 11, 13, 17, 23,
   $\ldots$ cache lines.
@@ -484,7 +484,24 @@ Four size categories: small, medium, large, huge.
 \end{frame}
 }
 
-\smmpunt{
+\begin{frame}
+\frametitle{Prime-Sized Objects Cause Fragmentation}
+\hspace*{-0.5cm}\input{folio-problem_pdftex}
+\end{frame}
+
+\begin{frame}
+\frametitle{Folios}
+\begin{itemize}
+\item Use somewhat larger pages, called ``folios'', which contain 64 objects.
+\item For example, $13$ pages hold exactly $64$ $13$-line objects.
+\item No fragmentation at the end of the folio.
+\item There are a few pages at the end of a chunk that are unused, but we keep those pages uncommitted.
+\item For example, $39$ $13$-page folios fit in a $2$MiB chunk, with $5$ pages left over.
+\end{itemize}
+
+\end{frame}
+
+\punt{
 \begin{frame}
 \frametitle{Folios}
 
