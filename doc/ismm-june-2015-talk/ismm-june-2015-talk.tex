@@ -11,7 +11,7 @@
 
 
 \newcommand{\punt}[1]{}
-\newcommand{\smmpunt}[1]{}
+\newcommand{\smmpunt}[1]{#1}
 
 \begin{document}
 \title{SuperMalloc}
@@ -108,7 +108,7 @@ while (1) {
 [BlumofeLe94], the early STL allocator [SGI97], PTmalloc [Gloger06], LKmalloc[LarsonKr98], and TCmalloc [Google13].
 
 
-\item No locks, so it's really fast.
+\item Common case uses no locks, so it's really fast.
 \item Must take a little care to avoid false cache-line sharing.
 \item What goes wrong?
 \end{itemize}
@@ -241,7 +241,7 @@ SuperMalloc & 3,571 & 131M/s \\
 \begin{itemize}
 \item DLmalloc uses a monolithic lock.
 \item Hoard employs per-thread caches to reduce lock-acquisition frequency, along with a provable space bound.
-\item JEmalloc uses many of the same tricks, provides a much weaker space bound in theory, but seems better in practice.
+\item JEmalloc uses many of the same tricks, provides a weaker space bound in theory, but seems better in practice.
 \item Each thread keeps a cache of allocated objects.
 \item Each thread has an ``arena''.  When the thread cache is empty, allocate out of the arena, using a per-arena lock.
 \end{itemize}
@@ -313,6 +313,7 @@ JEmalloc and Hoard employ a red-black tree.
 \end{itemize}
 \end{frame}
 
+\punt{
 \begin{frame}[fragile]
 \frametitle{Use An Array, Not A Tree}
 
@@ -321,14 +322,20 @@ SuperMalloc employs an array.
 \item There are only $2^{27}$ possible chunks.  Need 32 bits to code the size, a total of
 $2^{29}$ bytes.
 
+\item "mmap()" mostly returns adjacent blocks.
+
 \item E.g., a program that uses $128$ GiB of allocated data needs only
   $65,536$ chunks.  The table consumes 512MiB of address space, but
   only a 256KiB of RSS.
 
-\item "mmap()" mostly returns adjacent blocks.
-
-\item Determining an object's size requires $O(1)$ cache misses.
+\item Determining an object's size requires $O(1)$ instructions, cache misses, and TLB misses.
 \end{itemize}
+\end{frame}
+}
+
+\begin{frame}[fragile]
+\frametitle{Use An Array, Not A Tree}
+\hspace*{-0.5cm}\input{chunk-array_pdftex}
 \end{frame}
 
 \smmpunt{
@@ -355,7 +362,7 @@ per cpu (cache getcpu, refresh/32) &     17.0ns \\
                                                   local in stack &      3.1ns \\
 \end{tabular}
 
-How to use this:  Make a per-thread cache that's just big enough to amortize the locking instruction, and then use a per-CPU cache.
+How to use this information:  Make a per-thread cache that's just big enough to amortize the locking instruction, and then use a per-CPU cache.
 \end{frame}
 
 \begin{frame}
@@ -405,12 +412,12 @@ How to use this:  Make a per-thread cache that's just big enough to amortize the
 \end{frame}
 }
 
-\smmpunt{
+\smmpunt{}
 \begin{frame}[fragile]
 \frametitle{Size Bins Introduce Associativity Conflicts}
 \input{associativity-conflicts_pdftex}
 \end{frame}
-}
+{}
 
 \smmpunt{
 \begin{frame}
@@ -495,7 +502,7 @@ Four size categories: small, medium, large, huge.
 \end{frame}
 }
 
-\smmpunt{
+\smmpunt{}
 \begin{frame}[fragile]
 \frametitle{Large Size}
 \begin{itemize}
@@ -503,12 +510,12 @@ Four size categories: small, medium, large, huge.
 \item The chunk is organized by powers of two.  There is a chunk for 4-page objects, a chunk for 8-page objects, a chunk for 16-page objects, and so forth.
 \item Make sure the unused pages are uncommitted (that is, not in physical memory).
 \item Wastes at most $2\times$ virtual memory.
-\item "chunksize" tracks the number of pages.
+\item The chunk array tracks the number of pages.
 \end{itemize}
 \end{frame}
-}
+{}
 
-\smmpunt{
+\smmpunt{}
 \begin{frame}[fragile]
 \frametitle{Huge Size}
 
@@ -516,12 +523,12 @@ Four size categories: small, medium, large, huge.
 \item Allocated via mmap plus a random offet. 
 \item Huge objects are allocated on power-of-two chunks.  (Keep the unused part uncommitted).
 \item By using power-of-two chunks we have relatively few allocation bins.
-\item "chunksize" tracks the number of pages.
+\item The chunk array tracks the number of pages.
 \end{itemize}
 \end{frame}
-}
+{}
 
-\smmpunt{
+\smmpunt{}
 \begin{frame}[fragile]
 \frametitle{Calculating Bitmap Indexes}
 
@@ -541,9 +548,9 @@ easy.  Division by "FS" and "OS" could be
 slow.
 
 \end{frame}
-}
+{}
 
-\smmpunt{
+\smmpunt{}
 \begin{frame}[fragile]
 \frametitle{Division via Multiplication-and-Shift}
 
@@ -558,9 +565,9 @@ It turns out that for 32-bit values of "x",
 
 \hfill\zerobox{\raisebox{-0.6in}{\includegraphics[height=1in]{pictures/magenheimer.jpg}}}\hspace*{1in}
 \end{frame}
-}
+{}
 
-\smmpunt{
+\smmpunt{}
 \begin{frame}[fragile]
 \frametitle{Magic Numbers for Division}
 
@@ -580,9 +587,9 @@ in which case for $x<2^{32}$,
 
 A metaprogram computes all the sizes and the magic constants.
 \end{frame}
-}
+{}
 
-\smmpunt{
+\smmpunt{}
 \begin{frame}[fragile]
 \frametitle{Using Hardware Transactional Memory}
 
@@ -602,7 +609,7 @@ while (1) {
 } }
 \end{minted}
 \end{frame}
-}
+{}
 
 \smmpunt{
 \begin{frame}
@@ -618,7 +625,7 @@ while (1) {
 \end{frame}
 }
 
-\smmpunt{
+\smmpunt{}
 \begin{frame}[fragile]
 \frametitle{Improving the Odds}
 
@@ -643,7 +650,7 @@ while (1) {
 }
 \end{minted}
 \end{frame}
-}
+{}
 
 \smmpunt{
 \begin{frame}
@@ -652,7 +659,7 @@ while (1) {
 \begin{itemize}
 \item HTM wins over spin locks for high thread counts.  Maybe need better locks?
 \item Prewaiting for the lock is a big win.
-\item Preloading the cache little, if any, win.
+\item Preloading the cache is little win.
 \item Late lock subscription does not help much, and is dangerous.  
 
 The transaction may be running between two arbitrary instructions of
@@ -666,7 +673,7 @@ I got rid of late lock subscription.
 }
 
 \begin{frame}
-\frametitle{SuperMalloc Strategies}
+\frametitle{Summary of SuperMalloc Strategies}
 
 \begin{itemize}
 \item Can waste some virtual space: it's $2^{48}$ bytes.
