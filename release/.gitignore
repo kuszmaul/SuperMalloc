@@ -33,3 +33,4 @@ test-malloc_test-hoard
 test22
 test38
 unit-tests
+*.d
