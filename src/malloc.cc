@@ -16,6 +16,7 @@
 #include "bassert.h"
 #include "cpucores.h"
 #include "generated_constants.h"
+#include "has_tsx.h"
 
 #ifdef TESTING
 extern "C" void test_size_2_bin(void) {
@@ -107,6 +108,8 @@ bool use_threadcache = true;
 
 static void (*free_p)(void*);
 
+bool has_tsx;
+
 #ifndef TESTING
 static
 #else
@@ -127,6 +130,8 @@ void initialize_malloc() {
   //#ifdef ENABLE_LOG_CHECKING
   //  atexit(check_log);
   //#endif
+
+  has_tsx = have_TSX();
 
   const size_t n_elts = 1u<<27;
   const size_t alloc_size = n_elts * sizeof(chunk_info);
