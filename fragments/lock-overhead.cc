@@ -120,6 +120,13 @@ static void in_stack() {
   }
 }
 
+static void atomic_per_cachedcpu() {
+  getcpu_cache c = {0,0};
+  for (int i = 0; i < N_iterations; i++) {
+    __sync_fetch_and_add(&cpu_lists[getcpu(&c)].value, 1);
+  }
+}
+
 int main(int argc, char *argv[] __attribute__((unused))) {
   assert(argc == 1);
   timeit(global_list,    "global list");
@@ -129,5 +136,6 @@ int main(int argc, char *argv[] __attribute__((unused))) {
   timeit(per_cachedcpu,  name); 
   timeit(per_thread,     "per thread");
   timeit(in_stack,       "local in stack");
+  timeit(atomic_per_cachedcpu, "atomic per cpu");
   return 0;
 }
