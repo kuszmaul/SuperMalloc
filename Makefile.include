@@ -18,10 +18,12 @@ LIBOBJECTS = malloc makechunk rng huge_malloc large_malloc small_malloc cache ba
 default: tests $(LIB)/libsupermalloc_pthread.so
 .PHONY: default
 
+-include $(patsubst %, $(BLD)/%.d, $(LIBOBJECTS))
+
 #lib: $(LIB)/libsupermalloc.so
 #.PHONY: lib
 
-TESTS = aligned_alloc calloc posix_memalign $(UNITTESTS) test-malloc_test new-malloc-test malloc-test-fixed-work test22 cache-index madvise-small test38 unit-timing
+TESTS = aligned_alloc calloc posix_memalign $(UNITTESTS) test-malloc_test new-malloc-test malloc-test-fixed-work test22 cache-index madvise-small test38 #unit-timing
 TESTS_IN_DIR = $(patsubst %, $(BLD)/%, $(TESTS))
 
 LDFLAGS += -ldl
@@ -88,6 +90,14 @@ $(BLD)/supermalloc.a: $(OFILES)
 	ar cr $(BLD)/supermalloc.a $(OFILES)
 $(BLD)/%.o: $(SRC)/%.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
+
+$(BLD)/%.d: CPPFLAGS += -I$(SRC) 
+$(BLD)/%.d: $(SRC)/%.cc
+	set -e; rm -f $@; \
+              $(CXX) -MM $(CXXFLAGS) $(CPPFLAGS) $< -MG -MF $@.$$$$; \
+              sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ \
+               | sed 's,generated_constants.h,$(BLD)/generated_constants.h,' > $@; \
+              rm -f $@.$$$$
 #$(BLD):%.d: $(SRC)/%.cc
 #	rm -f $@
 #	$(CXX) -M $(CXXFLAGS) $(CPPFLAGS) $< > $@.$$$$
@@ -107,24 +117,20 @@ $(BLD)/%.o: $(TST)/%.cc
 $(BLD)/%: $(BLD)/%.o
 	$(CXX) $(CXXFLAGS) $< $(LDFLAGS) $(LDLIBS) $(IMPLEMENTATION_FILES) -o $@
 
-$(PTHREAD_OFILES) $(OFILES): $(wildcard $(SRC)/*.h)
 $(filter-out %/bassert.o,$(PTHREAD_OFILES) $(OFILES)): $(BLD)/generated_constants.h
 
 # The rule below with a pattern is preferable to the one commented out below because the commented out one will cause ./objsizes to be run twice (which is wrong and racy).  
 # A pattern rule, on the other hand, when it has multiple targets, is understood to produce all the outputs with a single run.
 # What a hack...
 
-#$(BLD)/generated_constants.h $(BLD)/generated_constants.cc: $(BLD)/objsizes
-#	./$< $(BLD)/generated_constants.cc > $(BLD)/generated_constants.h
-
 %/generated_constants.h %/generated_constants.cc: %/objsizes
 	./$< $(patsubst %/objsizes, %/generated_constants.cc, $<) > $(patsubst %/objsizes, %/generated_constants.h, $<)
 
-$(BLD)/objsizes: $(SRC)/objsizes.cc $(SRC)/malloc_internal.h $(BLD)/bassert.o
+$(BLD)/objsizes: $(SRC)/objsizes.cc $(SRC)/malloc_internal.h $(SRC)/bassert.h $(BLD)/bassert.o
 	$(CXX) $(CXXFLAGS) $< $(BLD)/bassert.o -o $@
 
 %.pdf: %.gnuplot %.data
 	gnuplot $<
 
 clean:
-	rm -f *.o $(TESTS) $(BLD)/objsizes $(BLD)/generated_constants.h $(BLD)/generated_constants.cc $(IMPLEMENTATION_FILES) $(LIB)/*.so
+	rm -f *.d *.d.* *.o $(TESTS) $(BLD)/objsizes $(BLD)/generated_constants.h $(BLD)/generated_constants.cc $(IMPLEMENTATION_FILES) $(LIB)/*.so

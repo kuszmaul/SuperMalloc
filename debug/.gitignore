@@ -9,3 +9,4 @@ test22
 test38
 unit-tests
 madvise-small
+*.d
