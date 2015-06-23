@@ -147,7 +147,7 @@ void initialize_malloc() {
       if (strcmp(v, "0")==0) {
 	use_transactions  = false;
       } else if (strcmp(v, "1")==0) {
-	use_transactions = true;
+	use_transactions = has_tsx; // cannot use them if we don't have them.
       }
     }
   }
