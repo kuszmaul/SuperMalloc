@@ -155,11 +155,7 @@ extern bool do_predo;
 #define XABORT_LOCK_HELD 9
 
 extern bool has_tsx;
-#ifdef COVERAGE
-#define have_rtm has_tsx
-#else
-#define have_rtm has_tsx
-#endif
+#define have_rtm (has_tsx && use_transactions)
 
 //#define DO_FAILED_COUNTS
 #ifdef DO_FAILED_COUNTS
