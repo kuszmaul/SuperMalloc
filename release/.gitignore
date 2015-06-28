@@ -1,3 +1,4 @@
+*.d
 aligned_alloc
 bradley-malloc-test
 bradley-malloc-test-dlmalloc
@@ -33,4 +34,3 @@ test-malloc_test-hoard
 test22
 test38
 unit-tests
-*.d
