@@ -95,7 +95,7 @@ $(BLD)/%.d: CPPFLAGS += -I$(SRC)
 $(BLD)/%.d: $(SRC)/%.cc
 	set -e; rm -f $@; \
               $(CXX) -MM $(CXXFLAGS) $(CPPFLAGS) $< -MG -MF $@.$$$$; \
-              sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ \
+              sed 's,\($*\)\.o[ :]*,$(BLD)/\1.o $@ : ,g' < $@.$$$$ \
                | sed 's,generated_constants.h,$(BLD)/generated_constants.h,' > $@; \
               rm -f $@.$$$$
 #$(BLD):%.d: $(SRC)/%.cc
