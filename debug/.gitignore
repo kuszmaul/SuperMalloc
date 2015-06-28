@@ -9,6 +9,7 @@ malloc-test-fixed-work
 new-malloc-test
 posix_memalign
 test-malloc_test
+test-no-overlaps
 test22
 test38
 unit-tests
