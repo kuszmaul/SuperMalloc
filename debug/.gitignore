@@ -1,12 +1,14 @@
+*.d
 aligned_alloc
+cache-index
 calloc
 generated_constants.cc
 generated_constants.h
+madvise-small
+malloc-test-fixed-work
 new-malloc-test
 posix_memalign
 test-malloc_test
 test22
 test38
 unit-tests
-madvise-small
-*.d
