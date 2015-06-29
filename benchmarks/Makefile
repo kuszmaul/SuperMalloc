@@ -2,7 +2,7 @@ C_CXX_FLAGS = -W -Wall -Werror -O2 -g -pthread -fPIC
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS)
 
-test: server server-supermalloc server-hoard server-jemalloc server-tbbmalloc
+test: server server-supermalloc server-hoard server-jemalloc server-tbbmalloc profile-supermalloc
 # test: libfirst.so libinterpose.so
 server.o: | random.h
 #libfirst.so: firstfitmalloc.o
@@ -21,8 +21,16 @@ JEMALLOC_LFLAGS = -L$(JEMALLOC_LOCATION) -ljemalloc -Wl,-rpath,$(JEMALLOC_LOCATI
 TBB_LOCATION = $(CURDIR)/../other-mallocs/tbb/build/linux_intel64_gcc_cc5.1.1_libc2.21_kernel4.0.4_release
 TBB_LFLAGS = -L$(TBB_LOCATION) -ltbbmalloc_proxy -ltbbmalloc  -Wl,-rpath,L$(TBB_LOCATION) -pthread
 
+profile-supermalloc: profile_malloc.o
+	$(CXX) $(CXXFLAGS) $< $(SUPERMALLOC_LFLAGS) -o $@
+profile-libc: profile_malloc.o
+	$(CXX) $(CXXFLAGS) $<                       -o $@
+profile-hoard: profile_malloc.o
+	$(CXX) $(CXXFLAGS) $< $(HOARD_LFLAGS)       -o $@
+
+
 server-supermalloc: server.o
-	$(CXX) server.o $(SUPERMALLOC_LFLAGS) -o $@
+	$(CXX) $< $(SUPERMALLOC_LFLAGS) -o $@
 server: server.o
 	$(CXX) server.o -pthread -o $@
 server-hoard: server.o
@@ -33,11 +41,11 @@ server-jemalloc: server.o
 server-tbbmalloc: server.o
 	$(CXX) server.o $(TBB_LFLAGS) -o $@
 
-profile_malloc: profile_malloc.o
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $<                        -o $@
-profile_malloc-supermalloc: CPPFLAGS += -DSUPERMALLOC -I../src
-profile_malloc-supermalloc: profile_malloc.cpp
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $< $(SUPERMALLOC_LFLAGS)  -o $@
+#profile_malloc: profile_malloc.o
+#	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $<                        -o $@
+#profile_malloc-supermalloc: CPPFLAGS += -DSUPERMALLOC -I../src
+#profile_malloc-supermalloc: profile_malloc.cpp
+#	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $< $(SUPERMALLOC_LFLAGS)  -o $@
 
 run: server
 	LD_PRELOAD=../release/lib/libsupermalloc.so time ./server
