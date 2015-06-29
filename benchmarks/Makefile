@@ -2,7 +2,7 @@ C_CXX_FLAGS = -W -Wall -Werror -O2 -g -pthread -fPIC
 CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
 CFLAGS = $(C_CXX_FLAGS)
 
-test: server server-supermalloc server-hoard server-jemalloc server-tbbmalloc profile-supermalloc
+test: server server-supermalloc server-hoard server-jemalloc server-tbbmalloc profile-supermalloc profile-libc profile-hoard
 # test: libfirst.so libinterpose.so
 server.o: | random.h
 #libfirst.so: firstfitmalloc.o
