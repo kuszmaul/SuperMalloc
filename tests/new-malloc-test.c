@@ -35,7 +35,8 @@
 
 int debug_flag = 0;
 int verbose_flag = 0;
-int num_workers = 4;
+#define num_workers_default 4
+int num_workers = num_workers_default;
 double run_time = 5.0;
 int object_size = DEFAULT_OBJECT_SIZE;
 /* array for thread ids */
@@ -224,7 +225,7 @@ int run_memory_free_test()
 void usage(char *prog)
 {
 	printf("%s [-w workers] [-t run_time] [-d] [-v]\n", prog);
-	printf("\t -w number of producer threads (and number of consumer threads), default 2\n");
+	printf("\t -w number of producer threads (and number of consumer threads), default %d\n", num_workers_default);
 	printf("\t -t run time in seconds, default 20.0 seconds.\n");
 	printf("\t -s size of object to allocate (default %d bytes) (specify -1 to get many different object sizes)\n", DEFAULT_OBJECT_SIZE);
 	printf("\t -d debug mode\n");
