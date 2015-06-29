@@ -31,6 +31,7 @@ t-test1-supermalloc
 test-malloc_test
 test-malloc_test-dlmalloc
 test-malloc_test-hoard
+test-no-overlaps
 test22
 test38
 unit-tests
