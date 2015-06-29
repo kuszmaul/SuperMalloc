@@ -4,3 +4,6 @@
 [submodule "other-mallocs/tbb"]
 	path = other-mallocs/tbb
 	url = git@github.com:kuszmaul/tbb.git
+[submodule "other-mallocs/Hoard"]
+	path = other-mallocs/Hoard
+	url = git@github.com:emeryberger/Hoard.git
