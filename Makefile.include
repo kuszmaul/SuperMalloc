@@ -134,3 +134,9 @@ $(BLD)/objsizes: $(SRC)/objsizes.cc $(SRC)/malloc_internal.h $(SRC)/bassert.h $(
 
 clean:
 	rm -f *.d *.d.* *.o $(TESTS) $(BLD)/objsizes $(BLD)/generated_constants.h $(BLD)/generated_constants.cc $(IMPLEMENTATION_FILES) $(LIB)/*.so
+
+.PHONY: other-mallocs
+other-mallocs:
+	(cd $(ROOT)/other-mallocs/Hoard/src;make linux-gcc-x86-64)
+	(cd $(ROOT)/other-mallocs/tbb;make)
+	(cd $(ROOT)/other-mallocs/jemalloc; ./autogen.sh;make dist;make)

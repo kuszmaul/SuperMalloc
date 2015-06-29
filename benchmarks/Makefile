@@ -16,7 +16,10 @@ HOARD_LOCATION = $(CURDIR)/../other-mallocs/Hoard/src
 HOARD_LFLAGS = -L$(HOARD_LOCATION) -lhoard -Wl,-rpath,$(HOARD_LOCATION) -pthread
 
 JEMALLOC_LOCATION = $(CURDIR)/../other-mallocs/jemalloc/lib
-JEMALLOC_FLAGS = -L$(JEMALLOC_LOCATION) -ljemalloc -Wl,-rpath,$(JEMALLOC_LOCATION) -pthread
+JEMALLOC_LFLAGS = -L$(JEMALLOC_LOCATION) -ljemalloc -Wl,-rpath,$(JEMALLOC_LOCATION) -pthread
+
+TBB_LOCATION = $(CURDIR)/../other-mallocs/tbb/build/linux_intel64_gcc_cc5.1.1_libc2.21_kernel4.0.4_release
+TBB_LFLAGS = -L$(TBB_LOCATION) -ltbbmalloc_proxy -ltbbmalloc  -Wl,-rpath,L$(TBB_LOCATION) -pthread
 
 server-supermalloc: server.o
 	$(CXX) server.o $(SUPERMALLOC_LFLAGS) -o $@
@@ -25,10 +28,10 @@ server: server.o
 server-hoard: server.o
 	$(CXX) server.o $(HOARD_LFLAGS) -o $@
 server-jemalloc: server.o
-	$(CXX) server.o $(JEMALLOC_FLAGS) -o $@
+	$(CXX) server.o $(JEMALLOC_LFLAGS) -o $@
 
 server-tbbmalloc: server.o
-	$(CXX) server.o -L/home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release -ltbbmalloc_proxy -ltbbmalloc  -Wl,-rpath,/home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release -pthread -o $@
+	$(CXX) server.o $(TBB_LFLAGS) -o $@
 
 profile_malloc: profile_malloc.o
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) $<                        -o $@
