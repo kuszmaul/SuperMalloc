@@ -11,14 +11,21 @@ server.o: | random.h
 #	$(CXX) -shared $(CXXFLAGS) $^ -o $@ -ldl
 
 SUPERMALLOC_LFLAGS = -L../release/lib -lsupermalloc -Wl,-rpath,../release/lib -pthread
+
+HOARD_LOCATION = $(CURDIR)/../other-mallocs/Hoard/src
+HOARD_LFLAGS = -L$(HOARD_LOCATION) -lhoard -Wl,-rpath,$(HOARD_LOCATION) -pthread
+
+JEMALLOC_LOCATION = $(CURDIR)/../other-mallocs/jemalloc/lib
+JEMALLOC_FLAGS = -L$(JEMALLOC_LOCATION) -ljemalloc -Wl,-rpath,$(JEMALLOC_LOCATION) -pthread
+
 server-supermalloc: server.o
 	$(CXX) server.o $(SUPERMALLOC_LFLAGS) -o $@
 server: server.o
 	$(CXX) server.o -pthread -o $@
 server-hoard: server.o
-	$(CXX) server.o -L/home/bradley/malloc-implementations/Hoard/src/ -lhoard  -Wl,-rpath,/home/bradley/malloc-implementations/Hoard/src/ -pthread -o $@
+	$(CXX) server.o $(HOARD_LFLAGS) -o $@
 server-jemalloc: server.o
-	$(CXX) server.o -L/home/bradley/malloc-implementations/jemalloc-3.6.0/lib/ -ljemalloc  -Wl,-rpath,/home/bradley/malloc-implementations/jemalloc-3.6.0/lib/ -pthread -o $@
+	$(CXX) server.o $(JEMALLOC_FLAGS) -o $@
 
 server-tbbmalloc: server.o
 	$(CXX) server.o -L/home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release -ltbbmalloc_proxy -ltbbmalloc  -Wl,-rpath,/home/bradley/malloc-implementations/tbb43_20140724oss/build/linux_intel64_gcc_cc4.8.3_libc2.18_kernel3.16.3_release -pthread -o $@
@@ -31,7 +38,7 @@ profile_malloc-supermalloc: profile_malloc.cpp
 
 run: server
 	LD_PRELOAD=../release/lib/libsupermalloc.so time ./server
-	LD_PRELOAD=/home/bradley/malloc-implementations/Hoard/src/libhoard.so time ./server
+	LD_PRELOAD=$(HOARD_LOCATION)/libhoard.so time ./server
 #	LD_PRELOAD=./libfirst.so time ./server
 
 foo1: foo1.cc

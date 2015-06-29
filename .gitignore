@@ -9,6 +9,3 @@ TAGS
 *.gcov
 *.gcno
 *.gcda
-
-jemalloc*
-
