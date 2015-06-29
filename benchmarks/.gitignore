@@ -1,6 +1,8 @@
 dementiev
-profile_malloc
-profile_malloc-supermalloc
+profile-hoard
+profile-libc
+profile-supermalloc
+profile-tbbmalloc
 server
 server-bmalloc
 server-hoard
