@@ -10,7 +10,7 @@ RTMFLAGS = -mrtm
 endif
 
 C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC $(RTMFLAGS) $(COVERAGE)
-CXXFLAGS = $(C_CXX_FLAGS) -std=c++11
+CXXFLAGS = $(C_CXX_FLAGS) -std=c++11 -fno-exceptions
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 CPPFLAGS += $(STATS) $(LOGCHECK) $(TESTING) -I$(BLD)
 

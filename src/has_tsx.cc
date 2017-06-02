@@ -27,7 +27,9 @@ if( result ) assert( (reg_ebx & rtm_ebx_mask)!=0 );
     return result;
 }
 
+#if 0
 int main () {
   printf("have_TSX=%d\n", have_TSX());
   return 0;
 }
+#endif
