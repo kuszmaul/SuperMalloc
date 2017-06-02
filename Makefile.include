@@ -87,7 +87,7 @@ $(LIB)/libsupermalloc_pthread.so: $(PTHREAD_OFILES) | $(LIB)
 	$(CXX) $(CXXFLAGS) $^ -shared $(LDLIBS) -o $@
 
 $(BLD)/supermalloc.a: $(OFILES)
-	ar cr $(BLD)/supermalloc.a $(OFILES)
+	gcc-ar cr $(BLD)/supermalloc.a $(OFILES)
 $(BLD)/%.o: $(SRC)/%.cc
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 
