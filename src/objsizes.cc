@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include <algorithm>
+#include <vector>
 
 #include "malloc_internal.h"
 

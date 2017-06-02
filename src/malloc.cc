@@ -1,6 +1,7 @@
 #include "supermalloc.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
