@@ -12,12 +12,30 @@
 #include <cstdio>
 #endif
 
-
 #include "atomically.h"
 #include "bassert.h"
 #include "cpucores.h"
 #include "generated_constants.h"
 #include "has_tsx.h"
+
+#ifndef PREFIX
+#define PREFIXIFY(f) f
+#else
+#define HELPER2(prefix, f) prefix##f
+#define HELPER(prefix, f) HELPER2(prefix, f)
+#define PREFIXIFY(f) HELPER(PREFIX, f)
+#endif
+
+#define MALLOC PREFIXIFY(malloc)
+#define CALLOC PREFIXIFY(calloc)
+#define FREE PREFIXIFY(free)
+#define ALIGNED_ALLOC PREFIXIFY(aligned_alloc)
+#define POSIX_MEMALIGN PREFIXIFY(posix_memalign)
+#define MEMALIGN PREFIXIFY(memalign)
+#define REALLOC PREFIXIFY(realloc)
+#define MALLOC_USABLE_SIZE PREFIXIFY(malloc_usable_size)
+
+extern "C" size_t MALLOC_USABLE_SIZE(const void *ptr);
 
 #ifdef TESTING
 extern "C" void test_size_2_bin(void) {
@@ -222,7 +240,7 @@ static uint64_t max_allocatable_size = (chunksize << 27)-1;
 //   BIG, used for large allocations.  These are 2MB-aligned chunks.  We use BIG for anything bigger than a quarter of a chunk.
 //   SMALL fit within a chunk.  Everything within a single chunk is the same size.
 // The sizes are the powers of two (1<<X) as well as (1<<X)*1.25 and (1<<X)*1.5 and (1<<X)*1.75
-extern "C" void* malloc(size_t size) {
+extern "C" void* MALLOC(size_t size) {
   maybe_initialize_malloc();
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
@@ -256,7 +274,7 @@ extern "C" void* malloc(size_t size) {
   }
 }
 
-extern "C" void free(void *p) {
+extern "C" void FREE(void *p) {
   maybe_initialize_malloc();
   if (p == NULL) return;
   chunknumber_t cn = address_2_chunknumber(p);
@@ -286,24 +304,24 @@ extern "C" void free(void *p) {
   }
 }
 
-extern "C" void* realloc(void *p, size_t size) {
+extern "C" void* REALLOC(void *p, size_t size) {
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
     return NULL;
   }
-  if (p == NULL) return malloc(size);
-  size_t oldsize = malloc_usable_size(p);
+  if (p == NULL) return MALLOC(size);
+  size_t oldsize = MALLOC_USABLE_SIZE(p);
   if (oldsize < size) {
-    void *result = malloc(size);
+    void *result = MALLOC(size);
     if (!result) return NULL; // without disrupting the contents of p.
     for (size_t i = 0; i < oldsize; i++) {
       ((char*)result)[i] = ((char*)p)[i];
     }
-    free(p);
+    FREE(p);
     return result;
   }
   if (oldsize > 16 && size < oldsize/2) {
-    void *result = malloc(size);
+    void *result = MALLOC(size);
     if (!result) return NULL; // without disrupting the contents of p.
     for (size_t i = 0; i < size; i++) {
       ((char*)result)[i] = ((char*)p)[i];
@@ -315,26 +333,26 @@ extern "C" void* realloc(void *p, size_t size) {
 
 #ifdef TESTING
 void test_realloc(void) {
-  char *a = (char*)malloc(128);
+  char *a = (char*)MALLOC(128);
   for (int i = 0; i < 128; i++) a[i]='a';
-  char *b = (char*)realloc(a, 1+malloc_usable_size(a));
+  char *b = (char*)REALLOC(a, 1+MALLOC_USABLE_SIZE(a));
   bassert(a != b);
   for (int i = 0; i < 128; i++) bassert(b[i]=='a');
-  bassert(malloc_usable_size(b) >= 129);
-  char *c = (char*)realloc(b, 32);
+  bassert(MALLOC_USABLE_SIZE(b) >= 129);
+  char *c = (char*)REALLOC(b, 32);
   bassert(c != b);
   for (int i = 0; i < 32; i++) bassert(c[i]=='a');
-  char *d = (char*)realloc(c, 31);
+  char *d = (char*)REALLOC(c, 31);
   bassert(c==d);
-  free(d);
+  FREE(d);
 }
 #endif
 
-extern "C" void* calloc(size_t number, size_t size) {
-  void *result = malloc(number*size);
+extern "C" void* CALLOC(size_t number, size_t size) {
+  void *result = MALLOC(number*size);
 
   void *base = object_base(result);
-  size_t usable_from_base = malloc_usable_size(base);
+  size_t usable_from_base = MALLOC_USABLE_SIZE(base);
   uint64_t oip = offset_in_page(base);
 
   if (oip > 0) {
@@ -392,7 +410,7 @@ static void* aligned_malloc_internal(size_t alignment, size_t size) {
 }
 
 
-extern "C" void* aligned_alloc(size_t alignment, size_t size) __THROW {
+extern "C" void* ALIGNED_ALLOC(size_t alignment, size_t size) __THROW {
   if (size >= max_allocatable_size) {
     errno = ENOMEM;
     return NULL;
@@ -410,7 +428,7 @@ extern "C" void* aligned_alloc(size_t alignment, size_t size) __THROW {
   return aligned_malloc_internal(alignment, size);
 }
 
-extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
+extern "C" int POSIX_MEMALIGN(void **ptr, size_t alignment, size_t size) {
   if (alignment & (alignment -1)) {
     // alignment must be a power of two.
     return EINVAL;
@@ -434,7 +452,7 @@ extern "C" int posix_memalign(void **ptr, size_t alignment, size_t size) {
   }
 }
 
-extern "C" void* memalign(size_t alignment, size_t size) __THROW {
+extern "C" void* MEMALIGN(size_t alignment, size_t size) __THROW {
   if (alignment & (alignment -1)) {
     // alignment must be a power of two.
     return NULL;
@@ -444,7 +462,7 @@ extern "C" void* memalign(size_t alignment, size_t size) __THROW {
   return aligned_malloc_internal(alignment, size);
 }
 
-extern "C" size_t malloc_usable_size(const void *ptr) {
+extern "C" size_t MALLOC_USABLE_SIZE(const void *ptr) {
   chunknumber_t cn = address_2_chunknumber(ptr);
   bin_and_size_t b_and_s = chunk_infos[cn].bin_and_size;
   bassert(b_and_s != 0);
@@ -460,18 +478,18 @@ extern "C" size_t malloc_usable_size(const void *ptr) {
 
 #ifdef TESTING
 static void test_malloc_usable_size_internal(size_t given_s) {
-  char *a = reinterpret_cast<char*>(malloc(given_s));
-  size_t as = malloc_usable_size(a);
+  char *a = reinterpret_cast<char*>(MALLOC(given_s));
+  size_t as = MALLOC_USABLE_SIZE(a);
   char *base = reinterpret_cast<char*>(object_base(a));
-  binnumber_t b = size_2_bin(malloc_usable_size(base));
-  bassert(malloc_usable_size(base) == bin_2_size(b));
-  bassert(malloc_usable_size(base) + base == malloc_usable_size(a) + a);  
+  binnumber_t b = size_2_bin(MALLOC_USABLE_SIZE(base));
+  bassert(MALLOC_USABLE_SIZE(base) == bin_2_size(b));
+  bassert(MALLOC_USABLE_SIZE(base) + base == MALLOC_USABLE_SIZE(a) + a);  
   if (b < first_huge_bin_number) {
     bassert(address_2_chunknumber(a) == address_2_chunknumber(a+as-1));
   } else {
     bassert(offset_in_chunk(base) == 0);
   }
-  free(a);
+  FREE(a);
 }
 
 void test_malloc_usable_size(void) {
@@ -505,7 +523,7 @@ void* object_base(void *ptr) {
 
 #ifdef TESTING
 void test_object_base() {
-  void *p = malloc(8193);
+  void *p = MALLOC(8193);
   //printf("objbase p      =%p\n", p);
   //printf("        objbase=%p\n", object_base(p));
   bassert(offset_in_chunk(object_base(p)) >= 4096);
