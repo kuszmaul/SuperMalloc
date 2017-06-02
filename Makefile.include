@@ -9,6 +9,14 @@ else
 RTMFLAGS = -mrtm
 endif
 
+ifdef NOCPPRUNTIME
+  CPPRUNTIME = -DNOCPPRUNTIME=1
+  EXCEPTIONS = -fno-exceptions
+else
+  CPPRUNTIME =
+  EXCEPTIONS =
+endif
+
 ifdef PREFIX
   PREFIXOPT = -DPREFIX=$(PREFIX)
 else
@@ -16,9 +24,9 @@ else
 endif
 
 C_CXX_FLAGS = -W -Wall -Werror $(OPTFLAGS) -ggdb -pthread -fPIC $(RTMFLAGS) $(COVERAGE)
-CXXFLAGS = $(C_CXX_FLAGS) -std=c++11 -fno-exceptions
+CXXFLAGS = $(C_CXX_FLAGS) -std=c++11 $(EXCEPTIONS)
 CFLAGS = $(C_CXX_FLAGS) -std=c11
-CPPFLAGS += $(STATS) $(LOGCHECK) $(TESTING) -I$(BLD) $(PREFIXOPT)
+CPPFLAGS += $(STATS) $(LOGCHECK) $(TESTING) -I$(BLD) $(PREFIXOPT) $(CPPRUNTIME)
 
 LIBOBJECTS = malloc makechunk rng huge_malloc large_malloc small_malloc cache bassert footprint stats futex_mutex generated_constants has_tsx
 default: tests $(LIB)/libsupermalloc_pthread.so

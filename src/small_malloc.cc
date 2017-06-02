@@ -344,6 +344,7 @@ void* small_malloc(binnumber_t bin)
   }
 }
 
+#ifndef NOCPPRUNTIME
 // We want this timing especially when not in test code.
 extern "C" void time_small_malloc(void) {
   // measure the time to do small mallocs.
@@ -385,6 +386,7 @@ extern "C" void time_small_malloc(void) {
   }
   delete [] array;
 }
+#endif // !defined NOCPPRUNTIME
 
 static void predo_small_free(binnumber_t bin,
 			     per_folio *pp,
