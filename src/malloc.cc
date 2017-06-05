@@ -76,7 +76,6 @@ struct chunk_info *chunk_infos;
 
 uint32_t n_cores;
 
-#ifndef USE_PTHREAD_MUTEXES
 #ifdef DO_FAILED_COUNTS
 atomic_stats_s atomic_stats;
 
@@ -93,7 +92,6 @@ int compare_failed_counts(const void *a_v, const void *b_v) {
   if (a->code > b->code) return +1;
   return 0;
 }
-#endif
 #endif
 
 #if 0

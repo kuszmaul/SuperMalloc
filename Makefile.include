@@ -28,7 +28,7 @@ CXXFLAGS = $(C_CXX_FLAGS) -std=c++11 $(EXCEPTIONS)
 CFLAGS = $(C_CXX_FLAGS) -std=c11
 CPPFLAGS += $(STATS) $(LOGCHECK) $(TESTING) -I$(BLD) $(PREFIXOPT) $(CPPRUNTIME)
 
-LIBOBJECTS = malloc makechunk rng huge_malloc large_malloc small_malloc cache bassert footprint stats futex_mutex generated_constants has_tsx
+LIBOBJECTS = malloc makechunk rng huge_malloc large_malloc small_malloc cache bassert footprint stats futex_mutex generated_constants has_tsx env
 default: tests $(LIB)/libsupermalloc_pthread.so
 .PHONY: default
 
