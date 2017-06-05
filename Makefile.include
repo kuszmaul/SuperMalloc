@@ -29,7 +29,7 @@ CFLAGS = $(C_CXX_FLAGS) -std=c11
 CPPFLAGS += $(STATS) $(LOGCHECK) $(TESTING) -I$(BLD) $(PREFIXOPT) $(CPPRUNTIME)
 
 LIBOBJECTS = malloc makechunk rng huge_malloc large_malloc small_malloc cache bassert footprint stats futex_mutex generated_constants has_tsx env
-default: tests $(LIB)/libsupermalloc_pthread.so
+default: tests
 .PHONY: default
 
 -include $(patsubst %, $(BLD)/%.d, $(LIBOBJECTS))
@@ -87,18 +87,13 @@ check-test-malloc_test-w1-s-1: $(BLD)/test-malloc_test
 	SUPERMALLOC_THREADCACHE=0 $< -w1 -s -1
 
 OFILES = $(patsubst %, $(BLD)/%.o, $(LIBOBJECTS))
-PTHREAD_OFILES = $(patsubst %, $(BLD)/%_pthread.o, $(LIBOBJECTS))
-
-ALL_OFILES = $(OFILES) $(PTHREAD_OFILES)
 
 $(LIB):
 	mkdir -p $(LIB)
-$(LIB)/libsupermalloc.so: $(OFILES) | $(LIB)
-	mkdir -p $(LIB)
-	$(CXX) $(CXXFLAGS) $^ -shared $(LDLIBS) -o $@
-$(LIB)/libsupermalloc_pthread.so: $(PTHREAD_OFILES) | $(LIB)
-	mkdir -p $(LIB)
-	$(CXX) $(CXXFLAGS) $^ -shared $(LDLIBS) -o $@
+$(LIB)/supermalloc.a: $(OFILES) | $(LIB)
+	gcc-ar cr $(LIB)/supermalloc.a $(OFILES)
+$(LIB)/libsupermalloc.so: $(LIB)/supermalloc.a $(OFILES) | $(LIB)
+	$(CXX) $(CXXFLAGS) $(OFILES) -shared $(LDLIBS) -o $@
 
 $(BLD)/supermalloc.a: $(OFILES)
 	gcc-ar cr $(BLD)/supermalloc.a $(OFILES)
@@ -118,11 +113,6 @@ $(BLD)/%.d: $(SRC)/%.cc
 #	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@
 #	rm -f $@.$$$$
 
-$(BLD)/%_pthread.o: $(SRC)/%.cc
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DUSE_PTHREAD_MUTEXES -c $< -o $@
-$(BLD)/generated_constants_pthread.o: $(BLD)/generated_constants.cc
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -DUSE_PTHREAD_MUTEXES -c $< -o $@
-
 $(BLD)/%.o: CPPFLAGS += -I$(SRC) 
 $(BLD)/%.o: $(TST)/%.c
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c $< -o $@
@@ -131,7 +121,7 @@ $(BLD)/%.o: $(TST)/%.cc
 $(BLD)/%: $(BLD)/%.o
 	$(CXX) $(CXXFLAGS) $< $(LDFLAGS) $(LDLIBS) $(IMPLEMENTATION_FILES) -o $@
 
-$(filter-out %/bassert.o,$(PTHREAD_OFILES) $(OFILES)): $(BLD)/generated_constants.h
+$(filter-out %/bassert.o, $(OFILES)): $(BLD)/generated_constants.h
 
 # The rule below with a pattern is preferable to the one commented out below because the commented out one will cause ./objsizes to be run twice (which is wrong and racy).  
 # A pattern rule, on the other hand, when it has multiple targets, is understood to produce all the outputs with a single run.
