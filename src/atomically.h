@@ -8,144 +8,62 @@
 #include "bassert.h"
 #include "rng.h"
 
-//#define USE_PTHREAD_MUTEXES
-#ifdef USE_PTHREAD_MUTEXES
 #include <pthread.h>
-
-struct lock_t {
-  pthread_mutex_t m __attribute__((aligned(64)));
-};
-
-#define LOCK_INITIALIZER PTHREAD_MUTEX_INITIALIZER
-/* static inline void mylock_acquire(lock_t *mylock) { */
-/*   int r = pthread_mutex_lock(mylock); */
-/*   assert(r==0); */
-/* } */
-/* static inline void mylock_release(lock_t *mylock) { */
-/*   int r = pthread_mutex_unlock(mylock); */
-/*   assert(r==0); */
-/* } */
-/* static inline bool mylock_subscribe(lock_t *mylock) { */
-/*   return mylock->_data.__lock == 0; */
-/* } */
-/* static inline bool mylock_wait(lock_t *mylock) { */
-/*   if (mylock_subscribe(mylock)) return false; */
-/*   mylock_ */
-/* } */
-
-class mylock_raii {
-  lock_t *mylock;
-public:
-  mylock_raii(lock_t *mylock) : mylock(mylock) {
-    pthread_mutex_lock(&mylock->m);
-  }
-  ~mylock_raii() {
-    pthread_mutex_unlock(&mylock->m);
-  }
-};
-
-
-template<typename ReturnType, typename... Arguments>
-static inline ReturnType atomically(lock_t *mylock,
-				    const char *name __attribute__((unused)),
-			            void (*predo)(Arguments... args) __attribute__((unused)),
-				    ReturnType (*fun)(Arguments... args),
-				    Arguments... args) {
-  mylock_raii m(mylock);
-  ReturnType r = fun(args...);
-  return r;
-}
-
-template<typename ReturnType, typename... Arguments>
-static inline ReturnType atomically2(lock_t *lock0,
-				     lock_t *lock1,
-				     const char *name __attribute__((unused)),
-				     void (*predo)(Arguments... args) __attribute__((unused)),
-				    ReturnType (*fun)(Arguments... args),
-				     Arguments... args) {
-  mylock_raii m0(lock0);
-  mylock_raii m1(lock1);
-  ReturnType r = fun(args...);
-  return r;
-}
-
-#else
-
-
-#ifdef USE_OLD_MUTEXES
-
-struct lock_s { volatile unsigned int l __attribute__((aligned(64))); };
-typedef struct lock_s lock_t;
-#define LOCK_INITIALIZER {0}
-
-static inline bool mylock_wait(lock_t *mylock) {
-  if (1) {
-    const int pause_count = 30;
-    for (int i = 0; i < pause_count; i++) {
-      if (mylock->l == 0) return false;
-      _mm_pause();
-    }
-    while (1) {
-      sched_yield();
-      if (mylock->l == 0) return true;
-    }
-  } else {
-    bool too_long = false;
-    while (mylock->l) {
-      if (0==(prandnum()&(1024-1))) {
-	sched_yield();
-	too_long = true;
-      } else {
-        _mm_pause();
-      }
-    }
-    return too_long;
-  }
-}
-
-static inline void mylock_acquire(lock_t *mylock) {
-  do {
-    mylock_wait(mylock);
-  } while (__sync_lock_test_and_set(&mylock->l, 1));
-}
-
-static inline void mylock_release(lock_t *mylock) {
-  __sync_lock_release(&mylock->l);
-}
-
-static inline bool mylock_subscribe(lock_t *mylock) {
-  return mylock->l == 0;
-}
-
-#else
 #include "futex_mutex.h"
 
-typedef futex_mutex_t lock_t;
-#define LOCK_INITIALIZER FUTEX_MUTEX_INITIALIZER
+union lock_t {
+  pthread_mutex_t pt_m __attribute__((aligned(64)));
+  futex_mutex_t f_m __attribute((aligned(64)));
+};
+
+enum mutex_mode_t { MODE_PTHREAD_MUTEX, MODE_TSX };
+
+extern mutex_mode_t mode;
+
+// Pthread mutexes are larger than Futex mutexes, and the first two fields
+// get initialized to zero, covering what the Futex needs to be initialized
+// as.  This is highly implementation dependent, but it's hard to change
+// the pthread_mutex_t implementation with so much legacy code, so we're
+// probably pretty safe doing this.
+#define LOCK_INITIALIZER PTHREAD_MUTEX_INITIALIZER // Pthread Mutex.
+
+// Used only in the case of a Futex.
 static inline bool mylock_hold(lock_t *l) {
-  return futex_mutex_hold(l);
+  return futex_mutex_hold(&l->f_m);
 }
-static inline void mylock_acquire(lock_t *l) {
-  futex_mutex_lock(l); // ignore the result.
-}
-static inline void mylock_release(lock_t *l) {
-  futex_mutex_unlock(l);
-}
+
+// Used only in the case of a Futex.
 static inline bool mylock_subscribe(lock_t *l) {
-  return futex_mutex_subscribe(l);
+  return futex_mutex_subscribe(&l->f_m);
 }
 
-#endif
-
-
+// Lock wrapper class.
 class mylock_raii {
   lock_t *mylock;
 public:
   mylock_raii(lock_t *mylock) : mylock(mylock) {
-    mylock_acquire(mylock);
+    switch (mode) {
+    case MODE_PTHREAD_MUTEX:
+      pthread_mutex_lock(&mylock->pt_m);
+      break;
+    case MODE_TSX:
+      futex_mutex_lock(&mylock->f_m);
+      break;
+    default:
+      abort();
+    }
   }
   ~mylock_raii() {
-    mylock_release(mylock);
+    switch (mode) {
+    case MODE_PTHREAD_MUTEX:
+      pthread_mutex_unlock(&mylock->pt_m);
+      break;
+    case MODE_TSX:
+      futex_mutex_unlock(&mylock->f_m);
+      break;
+    default:
+      abort();
+    }
   }
 };
 
@@ -184,6 +102,11 @@ static inline ReturnType atomically(lock_t *mylock,
 			            void (*predo)(Arguments... args),
 				    ReturnType (*fun)(Arguments... args),
 				    Arguments... args) {
+  if (mode == MODE_PTHREAD_MUTEX) {
+    mylock_raii m(mylock);
+    ReturnType r = fun(args...);
+    return r;
+  }
 #ifdef DO_FAILED_COUNTS
   __sync_fetch_and_add(&atomic_stats.atomic_count, 1);
 #endif
@@ -270,6 +193,12 @@ static inline ReturnType atomically2(lock_t *lock0,
 				     void (*predo)(Arguments... args),
 				     ReturnType (*fun)(Arguments... args),
 				     Arguments... args) {
+  if (mode == MODE_PTHREAD_MUTEX) {
+    mylock_raii m0(lock0);
+    mylock_raii m1(lock1);
+    ReturnType r = fun(args...);
+    return r;
+  }
 #ifdef DO_FAILED_COUNTS
   __sync_fetch_and_add(&atomic_stats.atomic_count, 1);
 #endif
@@ -352,6 +281,7 @@ static inline ReturnType atomically2(lock_t *lock0,
   return r;
 }
 
+#if 0
 struct lock {
   unsigned int l __attribute((aligned(64)));
 };
